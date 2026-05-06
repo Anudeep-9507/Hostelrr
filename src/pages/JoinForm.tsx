@@ -1,0 +1,190 @@
+import React, { useState } from 'react';
+import { Building2, CheckCircle2, ChevronLeft, Upload, Image as ImageIcon } from 'lucide-react';
+import { useApp } from '../context/AppContext';
+
+export default function JoinForm() {
+  const [submitted, setSubmitted] = useState(false);
+  const { addJoinRequest, hostelProfile } = useApp();
+  
+  const hostelName = hostelProfile?.hostelName || 'My Hostel';
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    
+    const formData = new FormData(e.currentTarget);
+    
+    addJoinRequest({
+      name: formData.get('name') as string,
+      phone: '+91 ' + formData.get('phone'),
+      occupation: formData.get('occupation') as string,
+      preferredRoom: formData.get('preferredRoom') as string,
+      emergencyContact: formData.get('emergencyContact') ? '+91 ' + formData.get('emergencyContact') : undefined,
+      aadharNumber: formData.get('aadharNumber') as string,
+      // We don't actually upload the photo in this mock, but we would get it from formData in real app.
+      photo: formData.get('photo') ? 'Uploaded' : undefined,
+    });
+    
+    setSubmitted(true);
+  };
+
+  if (submitted) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-3xl p-8 text-center shadow-xl border border-gray-100">
+          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <CheckCircle2 className="w-10 h-10 text-green-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Request Sent Successfully!</h2>
+          <p className="text-gray-600 mb-8">
+            Your joining request for {hostelName} has been received. We will review your details and contact you shortly.
+          </p>
+          <button 
+            onClick={() => {
+              window.history.pushState(null, '', '/');
+              window.dispatchEvent(new Event('popstate'));
+            }}
+            className="w-full bg-gray-900 hover:bg-gray-800 text-white font-semibold py-4 rounded-xl transition-colors"
+          >
+            Go to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      <header className="bg-white border-b border-gray-100 p-4 sticky top-0 z-10 shrink-0">
+        <div className="max-w-md mx-auto flex items-center gap-3">
+          <button 
+            onClick={() => {
+              window.history.pushState(null, '', '/');
+              window.dispatchEvent(new Event('popstate'));
+            }}
+            type="button"
+            className="p-2 -ml-2 text-gray-400 hover:text-gray-900 transition-colors"
+          >
+            <ChevronLeft className="w-6 h-6" />
+          </button>
+          <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center">
+            <Building2 className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h1 className="font-bold text-gray-900 leading-tight">{hostelName}</h1>
+            <p className="text-xs text-gray-500">Joining Form</p>
+          </div>
+        </div>
+      </header>
+
+      <div className="flex-1 p-4 overflow-y-auto">
+        <div className="max-w-md mx-auto">
+          <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 mb-8">
+            <h2 className="text-xl font-bold text-gray-900 mb-1">Apply for Stay</h2>
+            <p className="text-sm text-gray-500 mb-6">Fill your details and submit your request. We'll get back to you soon.</p>
+
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-900 block">Resident Photo</label>
+                <div className="w-full border-2 border-dashed border-gray-200 rounded-xl p-4 flex flex-col items-center justify-center gap-2 hover:bg-gray-50 transition-colors cursor-pointer relative">
+                  <input type="file" name="photo" accept="image/*" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                  <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
+                    <ImageIcon className="w-6 h-6 text-gray-400" />
+                  </div>
+                  <div className="text-sm text-gray-600 font-medium">Tap to upload photo</div>
+                  <div className="text-xs text-gray-400">PNG, JPG up to 5MB</div>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-900 block">Full Name <span className="text-red-500">*</span></label>
+                <input 
+                  type="text"
+                  name="name"
+                  required
+                  placeholder="e.g. Rahul Sharma" 
+                  className="w-full border border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 rounded-xl px-4 py-3.5 text-[15px] outline-none transition-all placeholder:text-gray-400 bg-gray-50 focus:bg-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-gray-900 block">Phone <span className="text-red-500">*</span></label>
+                  <div className="flex">
+                    <span className="inline-flex items-center px-4 rounded-l-xl border border-r-0 border-gray-200 bg-white text-gray-500 sm:text-sm font-medium">
+                      +91
+                    </span>
+                    <input 
+                      type="tel"
+                      name="phone"
+                      required
+                      pattern="[0-9]{10}"
+                      placeholder="98765 43210" 
+                      className="w-full border border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 rounded-r-xl px-4 py-3.5 text-[15px] outline-none transition-all placeholder:text-gray-400 bg-gray-50 focus:bg-white"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-gray-900 block">Emergency No.</label>
+                  <input 
+                    type="tel"
+                    name="emergencyContact"
+                    pattern="[0-9]{10}"
+                    placeholder="98765 43210" 
+                    className="w-full border border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 rounded-xl px-4 py-3.5 text-[15px] outline-none transition-all placeholder:text-gray-400 bg-gray-50 focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-900 block">Aadhar No.</label>
+                <input 
+                  type="text"
+                  name="aadharNumber"
+                  placeholder="e.g. 1234 5678 9012" 
+                  className="w-full border border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 rounded-xl px-4 py-3.5 text-[15px] outline-none transition-all placeholder:text-gray-400 bg-gray-50 focus:bg-white"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-900 block">Occupation</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {['Student', 'Employee', 'Other'].map((type) => (
+                    <label key={type} className="cursor-pointer">
+                      <input type="radio" name="occupation" value={type} className="peer sr-only" defaultChecked={type === 'Student'} />
+                      <div className="text-center px-3 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 peer-checked:bg-indigo-50 peer-checked:border-indigo-600 peer-checked:text-indigo-700 transition-all">
+                        {type}
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-900 block">Preferred room number/Bed (if any)</label>
+                <input 
+                  type="text"
+                  name="preferredRoom"
+                  placeholder="e.g. Room 201 or Bed 3" 
+                  className="w-full border border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 rounded-xl px-4 py-3.5 text-[15px] outline-none transition-all placeholder:text-gray-400 bg-gray-50 focus:bg-white"
+                />
+              </div>
+
+              <div className="pt-4">
+                <button 
+                  type="submit"
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-4 rounded-xl shadow-lg shadow-indigo-200 transition-all active:scale-[0.98]"
+                >
+                  Submit Request
+                </button>
+                <p className="text-center text-xs text-gray-400 mt-4">
+                  Powered by <span className="font-semibold text-gray-500">Hostelrr</span>
+                </p>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+

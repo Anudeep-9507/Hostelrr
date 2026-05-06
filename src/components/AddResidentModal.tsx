@@ -1,0 +1,405 @@
+import React from 'react';
+import { X, Info } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { useApp } from '../context/AppContext';
+
+export default function AddResidentModal({ 
+  isOpen, 
+  onClose, 
+  reAddData 
+}: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  reAddData?: any 
+}) {
+  const { addResident, removeJoinRequest, floors, sharingRentMap, securityDeposit, hostelProfile } = useApp();
+  const [showJoiningInfo, setShowJoiningInfo] = React.useState(false);
+
+  // States for smart filtering
+  const [selectedFloorId, setSelectedFloorId] = React.useState<string>('');
+  const [selectedRoomId, setSelectedRoomId] = React.useState<string>('');
+  const [selectedBedId, setSelectedBedId] = React.useState<string>('');
+
+  // 1. Available Floors (must have at least one vacant bed)
+  const availableFloors = React.useMemo(() => {
+    return floors.filter(floor => 
+      floor.rooms.some(room => 
+        room.beds.some(bed => bed.status === 'vacant')
+      )
+    );
+  }, [floors]);
+
+  // 2. Available Rooms for selected floor
+  const availableRooms = React.useMemo(() => {
+    const floor = floors.find(f => f.id === selectedFloorId);
+    if (!floor) return [];
+    return floor.rooms.filter(room => 
+      room.beds.some(bed => bed.status === 'vacant')
+    );
+  }, [floors, selectedFloorId]);
+
+  // 3. Available Beds for selected room
+  const availableBeds = React.useMemo(() => {
+    for (const floor of floors) {
+      const room = floor.rooms.find(r => r.id === selectedRoomId);
+      if (room) {
+        return room.beds.filter(bed => bed.status === 'vacant');
+      }
+    }
+    return [];
+  }, [floors, selectedRoomId]);
+
+  // Sync states with pre-filled data or defaults
+  React.useEffect(() => {
+    if (isOpen) {
+      // If we have re-add data or specific bed info
+      if (reAddData?.roomId) {
+        const floor = floors.find(f => f.rooms.some(r => r.id === reAddData.roomId));
+        if (floor) {
+          setSelectedFloorId(floor.id);
+          setSelectedRoomId(reAddData.roomId);
+          if (reAddData.bedId) {
+            setSelectedBedId(reAddData.bedId);
+          } else {
+            const room = floor.rooms.find(r => r.id === reAddData.roomId);
+            const firstVacant = room?.beds.find(b => b.status === 'vacant');
+            setSelectedBedId(firstVacant?.id || '');
+          }
+        }
+      } else {
+        // Defaults: first available floor/room/bed
+        const firstFloor = availableFloors[0];
+        if (firstFloor) {
+          setSelectedFloorId(firstFloor.id);
+          const firstRoom = firstFloor.rooms.find(r => r.beds.some(b => b.status === 'vacant'));
+          if (firstRoom) {
+            setSelectedRoomId(firstRoom.id);
+            const firstBed = firstRoom.beds.find(b => b.status === 'vacant');
+            if (firstBed) setSelectedBedId(firstBed.id);
+          }
+        }
+      }
+    }
+  }, [isOpen, reAddData, floors, availableFloors]);
+
+  // Derived pre-filled rent from sharingRentMap or room's baseRent
+  const prefilledRent = React.useMemo(() => {
+    const targetRoomId = selectedRoomId;
+    if (!targetRoomId) return '';
+    for (const floor of floors) {
+      const room = floor.rooms.find(r => r.id === targetRoomId);
+      if (room) {
+        if (sharingRentMap && sharingRentMap[room.beds.length]) {
+          return String(sharingRentMap[room.beds.length]);
+        }
+        if (room.baseRent) return String(room.baseRent);
+      }
+    }
+    return '';
+  }, [selectedRoomId, floors, sharingRentMap]);
+
+  if (!isOpen) return null;
+
+  const isJoinRequest = reAddData?.id?.startsWith('jr');
+  const isSpecificBed = reAddData?.roomId && reAddData?.bedId && !reAddData?.name;
+  const isReAdd = reAddData && reAddData.id !== 'new' && !isJoinRequest && !isSpecificBed;
+
+  const handleAddSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const isReservedOnly = formData.get('reserved') === 'yes';
+    
+    const residentData = {
+      name: formData.get('name') as string,
+      phone: formData.get('phone') as string,
+      emergencyPhone: formData.get('emergencyPhone') as string,
+      aadhar: formData.get('aadhar') as string,
+      rent: Number(formData.get('rent')),
+      stayTime: formData.get('stayTime') as string,
+      securityDeposit: Number(formData.get('deposit')) || 0,
+      isDepositPaid: false,
+      roomId: selectedRoomId, 
+      bedId: selectedBedId,
+    };
+
+    addResident(residentData, isReservedOnly);
+
+    if (isJoinRequest) {
+      removeJoinRequest(reAddData.id);
+    }
+
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div 
+        className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" 
+        onClick={onClose}
+      ></div>
+      
+      <div className="bg-white rounded-3xl shadow-xl w-full max-w-[480px] max-h-[90vh] relative z-10 overflow-hidden flex flex-col">
+        <div className="flex justify-between items-center p-6 pb-4 border-b border-gray-100 shrink-0">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">
+              {isReAdd ? 'Re-add Resident' : isJoinRequest ? 'Approve & Assign' : 'Add Resident'}
+            </h2>
+            <p className="text-xs text-gray-500 mt-1"><span className="text-red-500">*</span> indicates a mandatory field</p>
+          </div>
+          <button 
+            onClick={onClose}
+            className="p-2 text-gray-400 hover:bg-gray-100 rounded-full transition-colors self-start"
+            type="button"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        
+        <form onSubmit={handleAddSubmit} className="flex flex-col overflow-hidden min-h-0">
+          <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar flex-1">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-gray-900 block">Name <span className="text-red-500">*</span></label>
+              <input 
+                type="text"
+                name="name"
+                required
+                defaultValue={reAddData?.name || ''}
+                placeholder="e.g. Aarav Sharma" 
+                className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-900 block">Phone No. <span className="text-red-500">*</span></label>
+              <input 
+                type="text"
+                name="phone"
+                required
+                defaultValue={reAddData?.phone || ''}
+                placeholder="+91 98765 43210" 
+                className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400"
+              />
+            </div>
+            <div className="space-y-1.5 relative">
+              <div className="flex items-center gap-1.5">
+                <label className="text-sm font-medium text-gray-900 block">Joining Date</label>
+                <button 
+                  type="button"
+                  onClick={() => setShowJoiningInfo(!showJoiningInfo)}
+                  className="text-red-500 hover:text-red-600 transition-colors"
+                >
+                  <Info className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              <AnimatePresence>
+                {showJoiningInfo && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 5, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 5, scale: 0.95 }}
+                    className="absolute z-20 bottom-full left-0 mb-2 w-48 bg-gray-900 text-white text-[11px] p-2.5 rounded-xl shadow-xl border border-gray-800 pointer-events-none"
+                  >
+                    <div className="relative">
+                      This date will be considered for collecting the payments.
+                      <div className="absolute -bottom-3.5 left-2 w-2 h-2 bg-gray-900 rotate-45 border-r border-b border-gray-800"></div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <input 
+                type="date"
+                name="joiningDate"
+                defaultValue={new Date().toISOString().split('T')[0]}
+                className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-gray-900 block">Monthly Rent <span className="text-red-500">*</span></label>
+                <div className="relative">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">₹</div>
+                  <input 
+                    type="number"
+                    name="rent"
+                    required
+                    key={prefilledRent} // re-mount when prefilled changes
+                    defaultValue={prefilledRent || ''}
+                    placeholder="e.g. 8000" 
+                    className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl pl-8 pr-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400"
+                  />
+                </div>
+                {prefilledRent && (
+                  <p className="text-xs text-blue-600 font-medium mt-1">Auto-filled from room sharing type</p>
+                )}
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-gray-900 block">Security Deposit</label>
+              <div className="relative">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">₹</div>
+                <input 
+                  type="number"
+                  name="deposit"
+                  key={hostelProfile?.security_deposit || securityDeposit || 'deposit'}
+                  defaultValue={hostelProfile?.security_deposit || securityDeposit || ''}
+                  placeholder="e.g. 15000" 
+                  className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl pl-8 pr-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400"
+                />
+              </div>
+            </div>
+          </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-900 block">Emergency Contact No.</label>
+                <input 
+                  type="text"
+                  name="emergencyPhone"
+                  defaultValue={reAddData?.emergencyPhone || ''}
+                  placeholder="+91 98765 43210" 
+                  className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-900 block">Aadhar No.</label>
+                <input 
+                  type="text"
+                name="aadhar"
+                defaultValue={reAddData?.aadhar || ''}
+                placeholder="1234 5678 9012"
+                className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-gray-900 block">Stay Time(Days)</label>
+              <div className="relative">
+                <input 
+                  type="number"
+                  name="stayTime"
+                  min="1"
+                  defaultValue={reAddData?.stayTime || ''}
+                  placeholder="e.g. 30" 
+                  className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400"
+                />
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 uppercase tracking-wider pointer-events-none">Days</div>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-gray-900 block mb-2">Reserve Bed?</label>
+              <div className="flex items-center gap-4 h-[46px]">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="reserved" value="yes" className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500" />
+                  <span className="text-sm text-gray-700">Yes</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="reserved" value="no" defaultChecked className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500" />
+                  <span className="text-sm text-gray-700">No</span>
+                </label>
+              </div>
+            </div>
+          </div>          {!isSpecificBed && (
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-900 block">Floor</label>
+                <div className="relative">
+                  <select 
+                    value={selectedFloorId}
+                    onChange={(e) => {
+                      const newFloorId = e.target.value;
+                      setSelectedFloorId(newFloorId);
+                      // Update room to first available in new floor
+                      const floor = floors.find(f => f.id === newFloorId);
+                      const firstRoom = floor?.rooms.find(r => r.beds.some(b => b.status === 'vacant'));
+                      if (firstRoom) {
+                        setSelectedRoomId(firstRoom.id);
+                        const firstBed = firstRoom.beds.find(b => b.status === 'vacant');
+                        setSelectedBedId(firstBed?.id || '');
+                      }
+                    }}
+                    className="w-full appearance-none border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 pr-10 text-sm outline-none transition-all bg-white cursor-pointer"
+                  >
+                    {availableFloors.map(floor => (
+                      <option key={floor.id} value={floor.id}>{floor.name}</option>
+                    ))}
+                    {availableFloors.length === 0 && <option value="">No vacancy</option>}
+                  </select>
+                  <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-500">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-900 block">Room</label>
+                <div className="relative">
+                  <select 
+                    value={selectedRoomId}
+                    onChange={(e) => {
+                      const newRoomId = e.target.value;
+                      setSelectedRoomId(newRoomId);
+                      // Update bed to first available in new room
+                      for (const f of floors) {
+                        const r = f.rooms.find(room => room.id === newRoomId);
+                        if (r) {
+                          const firstBed = r.beds.find(b => b.status === 'vacant');
+                          setSelectedBedId(firstBed?.id || '');
+                          break;
+                        }
+                      }
+                    }}
+                    className="w-full appearance-none border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 pr-10 text-sm outline-none transition-all bg-white cursor-pointer"
+                  >
+                    {availableRooms.map(room => (
+                      <option key={room.id} value={room.id}>{room.number}</option>
+                    ))}
+                    {availableRooms.length === 0 && <option value="">Select Floor first</option>}
+                  </select>
+                  <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-500">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-900 block">Bed</label>
+                <div className="relative">
+                  <select 
+                    value={selectedBedId}
+                    onChange={(e) => setSelectedBedId(e.target.value)}
+                    className="w-full appearance-none border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 pr-10 text-sm outline-none transition-all bg-white cursor-pointer"
+                  >
+                    {availableBeds.map(bed => (
+                      <option key={bed.id} value={bed.id}>{bed.name}</option>
+                    ))}
+                    {availableBeds.length === 0 && <option value="">Select Room first</option>}
+                  </select>
+                  <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-500">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          </div>
+          
+          <div className="p-6 pt-4 border-t border-gray-100 shrink-0 bg-white">
+            <button 
+              type="submit"
+              disabled={!selectedBedId}
+              className="w-full bg-[#1D4ED8] hover:bg-[#1e40af] disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-3.5 rounded-xl text-base font-semibold shadow-sm transition-colors"
+            >
+              {isReAdd ? 'Confirm Re-add' : isJoinRequest ? 'Approve Request' : 'Add Resident'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
