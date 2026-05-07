@@ -135,7 +135,14 @@ export default function Residents() {
           <button 
             onClick={(e) => {
               e.stopPropagation();
-              window.dispatchEvent(new CustomEvent('open-add-resident-modal', { detail: resident }));
+              window.dispatchEvent(new CustomEvent('open-add-resident-modal', { detail: {
+                  id: resident.id,
+                  name: resident.name,
+                  phone: resident.phone,
+                  emergencyPhone: (resident as any).emergencyPhone || '',
+                  aadhar: (resident as any).aadhar || '',
+                  // No roomId/bedId — let owner pick fresh vacant bed
+                } }));
             }}
             className="p-2 border border-gray-200 rounded-lg text-gray-600 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-colors"
             title="Re-add Resident"
@@ -727,7 +734,14 @@ export default function Residents() {
                   <button 
                     onClick={() => {
                       setSelectedResident(null);
-                      window.dispatchEvent(new CustomEvent('open-add-resident-modal', { detail: selectedResident as PastResident }));
+      window.dispatchEvent(new CustomEvent('open-add-resident-modal', { detail: {
+        id: (selectedResident as PastResident).id,
+        name: selectedResident.name,
+        phone: selectedResident.phone,
+        emergencyPhone: (selectedResident as any).emergencyPhone || '',
+        aadhar: (selectedResident as any).aadhar || '',
+        // No roomId/bedId — let owner pick fresh vacant bed
+      } }));
                     }}
                     className="w-full bg-white border border-blue-200 hover:bg-blue-50 text-blue-600 py-3 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2"
                   >
@@ -826,7 +840,7 @@ export default function Residents() {
                   phone: formData.get('phone'),
                   aadhar: formData.get('aadhar'),
                   emergencyPhone: formData.get('emergencyPhone'),
-                  dueAmount: formData.get('dueAmount') ? parseInt(formData.get('dueAmount') as string, 10) : undefined,
+                  monthlyRent: formData.get('monthlyRent') ? parseInt(formData.get('monthlyRent') as string, 10) : undefined,
                   isDepositPaid: formData.get('isDepositPaid') === 'on'
                 });
                 setResidentToEdit(null);
@@ -865,7 +879,7 @@ export default function Residents() {
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                       <IndianRupee className="h-4 w-4 text-gray-500" />
                     </div>
-                    <input type="number" name="dueAmount" defaultValue={residentToEdit.dueAmount > 0 ? residentToEdit.dueAmount : 7500} className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all" />
+                    <input type="number" name="monthlyRent" defaultValue={(residentToEdit as any).monthlyRent ?? residentToEdit.dueAmount} className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all" />
                   </div>
                 </div>
                 {residentToEdit.securityDeposit ? (

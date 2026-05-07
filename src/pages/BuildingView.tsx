@@ -72,9 +72,12 @@ export default function BuildingView({ setActiveTab }: { setActiveTab?: (tab: st
   const [selectedLayoutId, setSelectedLayoutId] = useState<string>('');
 
   React.useEffect(() => {
-    const saved = localStorage.getItem('hostelrr_all_templates');
+    const key = hostelProfile?.id
+      ? `hostelrr_all_templates_${hostelProfile.id}`
+      : 'hostelrr_all_templates';
+    const saved = localStorage.getItem(key);
     if (saved) setAllTemplates(JSON.parse(saved));
-  }, [isAddRoomModalOpen, isBedLayoutModalOpen]);
+  }, [isAddRoomModalOpen, isBedLayoutModalOpen, hostelProfile?.id]);
 
   React.useEffect(() => {
     const currentSharing = isCustomSharing ? parseInt(customSharingValue) : parseInt(newRoomBeds);
@@ -506,8 +509,11 @@ export default function BuildingView({ setActiveTab }: { setActiveTab?: (tab: st
                                   )} />
                                 )}
 
-                                {room.beds.map((bed, bedIdx) => {
-                                  const label = String.fromCharCode(65 + bedIdx);
+                                {room.beds.map((bed) => {
+                                  // Extract label from bed.name ('Bed A' → 'A') so
+                                  // template position lookup is correct regardless of
+                                  // DB fetch order — never use iteration index here.
+                                  const label = bed.name.replace(/^Bed\s+/i, '').trim();
                                   const pos = template.positions[label];
                                   if (!pos) return null;
                                   const styles = getBedPillStyles(bed.status);
@@ -530,7 +536,7 @@ export default function BuildingView({ setActiveTab }: { setActiveTab?: (tab: st
                                         width: pos.rotated ? '38px' : '80px',
                                         height: pos.rotated ? '80px' : '38px',
                                         opacity: isFiltered ? 0.2 : 1,
-                                        zIndex: bedIdx + 1,
+                                        zIndex: 1,
                                         margin: '1px'
                                       }}
                                       className={cn(
@@ -813,23 +819,8 @@ export default function BuildingView({ setActiveTab }: { setActiveTab?: (tab: st
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
               {[...currentRoom.beds]
                 .filter(bed => isBedMatch(bed.status, filterStatus))
-                .sort((a, b) => {
-                  const getOrder = (status: string) => {
-                    switch (status) {
-                      case 'occupied': return 1;
-                      case 'payment_due': return 2;
-                      case 'reserved': return 3;
-                      case 'vacant': return 4;
-                      default: return 5;
-                    }
-                  };
-                  const orderA = getOrder(a.status);
-                  const orderB = getOrder(b.status);
-                  if (orderA === orderB) {
-                    return a.name.localeCompare(b.name);
-                  }
-                  return orderA - orderB;
-                })
+                // Sort by name only (A→B→C) to preserve template layout order
+                .sort((a, b) => a.name.localeCompare(b.name))
                 .map((bed, bedIdx) => {
                 const resident = bed.residentId ? residents.find(r => r.id === bed.residentId) : null;
                 const isVacant = !resident;
@@ -955,7 +946,7 @@ export default function BuildingView({ setActiveTab }: { setActiveTab?: (tab: st
               </button>
               
               <div className="max-h-[90vh] overflow-y-auto">
-                <BedLayoutBuilder />
+                <BedLayoutBuilder hostelId={hostelProfile?.id} />
               </div>
             </motion.div>
           </motion.div>

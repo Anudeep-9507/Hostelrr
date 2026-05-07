@@ -124,10 +124,11 @@ export default function JoinForm() {
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-gray-900 block">Emergency No.</label>
+                  <label className="text-sm font-medium text-gray-900 block">Emergency No. <span className="text-red-500">*</span></label>
                   <input 
                     type="tel"
                     name="emergencyContact"
+                    required
                     pattern="[0-9]{10}"
                     placeholder="98765 43210" 
                     className="w-full border border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 rounded-xl px-4 py-3.5 text-[15px] outline-none transition-all placeholder:text-gray-400 bg-gray-50 focus:bg-white"
@@ -136,21 +137,22 @@ export default function JoinForm() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-900 block">Aadhar No.</label>
+                <label className="text-sm font-medium text-gray-900 block">Aadhar No. <span className="text-red-500">*</span></label>
                 <input 
                   type="text"
                   name="aadharNumber"
+                  required
                   placeholder="e.g. 1234 5678 9012" 
                   className="w-full border border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 rounded-xl px-4 py-3.5 text-[15px] outline-none transition-all placeholder:text-gray-400 bg-gray-50 focus:bg-white"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-900 block">Occupation</label>
+                <label className="text-sm font-medium text-gray-900 block">Occupation <span className="text-red-500">*</span></label>
                 <div className="grid grid-cols-3 gap-2">
                   {['Student', 'Employee', 'Other'].map((type) => (
                     <label key={type} className="cursor-pointer">
-                      <input type="radio" name="occupation" value={type} className="peer sr-only" defaultChecked={type === 'Student'} />
+                      <input type="radio" name="occupation" value={type} className="peer sr-only" defaultChecked={type === 'Student'} required />
                       <div className="text-center px-3 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 peer-checked:bg-indigo-50 peer-checked:border-indigo-600 peer-checked:text-indigo-700 transition-all">
                         {type}
                       </div>
@@ -159,15 +161,6 @@ export default function JoinForm() {
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-900 block">Preferred room number/Bed (if any)</label>
-                <input 
-                  type="text"
-                  name="preferredRoom"
-                  placeholder="e.g. Room 201 or Bed 3" 
-                  className="w-full border border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 rounded-xl px-4 py-3.5 text-[15px] outline-none transition-all placeholder:text-gray-400 bg-gray-50 focus:bg-white"
-                />
-              </div>
 
               <div className="pt-4">
                 <button 

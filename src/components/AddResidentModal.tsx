@@ -116,13 +116,21 @@ export default function AddResidentModal({
       aadhar: formData.get('aadhar') as string,
       rent: Number(formData.get('rent')),
       stayTime: formData.get('stayTime') as string,
+      joinDate: formData.get('joiningDate') as string || new Date().toISOString().split('T')[0],
       securityDeposit: Number(formData.get('deposit')) || 0,
       isDepositPaid: false,
       roomId: selectedRoomId, 
       bedId: selectedBedId,
+      oldResidentId: isReAdd ? reAddData.id : undefined
     };
 
     addResident(residentData, isReservedOnly);
+
+    if (isReAdd) {
+      import('sonner').then(({ toast }) => {
+        toast.success(`Resident ${residentData.name} re-added successfully!`);
+      });
+    }
 
     if (isJoinRequest) {
       removeJoinRequest(reAddData.id);

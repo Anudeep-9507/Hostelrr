@@ -99,17 +99,34 @@ function getDefaultPositions(sharing: SharingType) {
   return positions;
 }
 
-export default function BedLayoutBuilder() {
+export default function BedLayoutBuilder({ hostelId }: { hostelId?: string }) {
   const { sharingRentMap } = useApp();
+
+  // Compute a per-hostel localStorage key so each account has isolated templates.
+  // Falls back to the legacy shared key when hostelId is not yet known (e.g. demo mode).
+  const STORAGE_KEY = hostelId ? `hostelrr_all_templates_${hostelId}` : 'hostelrr_all_templates';
   const onboardedTabs = Object.keys(sharingRentMap).map(Number).sort((a, b) => a - b);
   const [availableTabs, setAvailableTabs] = useState<number[]>(onboardedTabs.length > 0 ? onboardedTabs : [1, 2, 4]);
   
   const initialTemplates = (() => {
     try {
-      const saved = localStorage.getItem('hostelrr_all_templates');
-      if (saved) return JSON.parse(saved);
+      // Try the scoped (per-hostel) key first
+      const scoped = localStorage.getItem(STORAGE_KEY);
+      if (scoped) return JSON.parse(scoped);
+
+      // One-time migration: if there is data in the old shared key and we now
+      // have a real hostelId, move it into the scoped key and clear the old one.
+      if (hostelId) {
+        const shared = localStorage.getItem('hostelrr_all_templates');
+        if (shared) {
+          localStorage.setItem(STORAGE_KEY, shared);
+          localStorage.removeItem('hostelrr_all_templates');
+          return JSON.parse(shared);
+        }
+      }
     } catch (e) {}
     
+    // Legacy per-sharing-type keys (very old format)
     const legacy: Template[] = [];
     [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].forEach(s => {
       try {
@@ -232,7 +249,7 @@ export default function BedLayoutBuilder() {
     }
 
     setAllTemplates(updatedTemplates);
-    localStorage.setItem('hostelrr_all_templates', JSON.stringify(updatedTemplates));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTemplates));
     setActiveTemplateId(newTemplate.id);
     toast.success('Template saved successfully!');
   };
@@ -247,7 +264,7 @@ export default function BedLayoutBuilder() {
 
     const newTemplates = allTemplates.filter(t => t.id !== activeTemplateId);
     setAllTemplates(newTemplates);
-    localStorage.setItem('hostelrr_all_templates', JSON.stringify(newTemplates));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(newTemplates));
     
     if (newTemplates.length > 0) {
       // Try to find another template with the same sharing
@@ -280,7 +297,7 @@ export default function BedLayoutBuilder() {
     
     const updated = [...allTemplates, newTemplate];
     setAllTemplates(updated);
-    localStorage.setItem('hostelrr_all_templates', JSON.stringify(updated));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
     setActiveTemplateId(newTemplate.id);
     setActiveSharing(sharing);
   };

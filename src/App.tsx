@@ -406,7 +406,7 @@ function MainApp() {
         isOpen={isQRModalOpen} 
         onClose={() => setIsQRModalOpen(false)} 
       />
-      <Toaster position="top-right" richColors />
+      <Toaster position="top-right" richColors expand={true} visibleToasts={9} closeButton />
     </div>
   );
 }

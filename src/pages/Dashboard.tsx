@@ -59,14 +59,15 @@ export default function Dashboard({ setActiveTab }: { setActiveTab?: (tab: strin
   const totalBeds = Math.max(hostelProfile?.total_beds || hostelProfile?.total_capacity || 0, configuredBedsCount);
   const vacantBeds = Math.max(0, totalBeds - occupiedBeds - reservedBeds);
 
-  const dueResidents = residents.filter(r => r.paymentStatus === 'due');
+  // Pending = total owed by all residents with unpaid/partial cycles
+  const dueResidents = residents.filter(r => r.paymentStatus === 'due' || r.paymentStatus === 'late' || r.paymentStatus === 'partially_paid');
   const totalDueAmount = dueResidents.reduce((acc, curr) => acc + curr.dueAmount, 0);
   
   // Real monthly revenue — sum of all payment history amounts from paid residents this calendar month
   const now = new Date();
   const thisMonthRevenue = residents.reduce((total, r) => {
-    return total + (r.paymentHistory || []).reduce((sum, h) => {
-      if (h.status === 'paid') {
+    const historyRevenue = (r.paymentHistory || []).reduce((sum, h) => {
+      if (h.status === 'paid' || h.status === 'partial') {
         const d = new Date(h.date);
         if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()) {
           return sum + h.amount;
@@ -74,15 +75,22 @@ export default function Dashboard({ setActiveTab }: { setActiveTab?: (tab: strin
       }
       return sum;
     }, 0);
+
+    let depositRevenue = 0;
+    if (r.securityDeposit && r.isDepositPaid) {
+      const d = new Date(r.joinDate);
+      if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()) {
+        depositRevenue = r.securityDeposit;
+      }
+    }
+
+    return total + historyRevenue + depositRevenue;
   }, 0);
 
-  const expectedMonthlyRevenue = floors.reduce((total, floor) => {
-    return total + floor.rooms.reduce((roomTotal, room) => {
-      const sharing = room.beds.length;
-      const defaultRent = sharingRentMap[sharing] || 0;
-      const rentPerBed = room.baseRent || defaultRent;
-      return roomTotal + (sharing * rentPerBed);
-    }, 0);
+  // Expected = sum of monthlyRent for all currently OCCUPIED residents only
+  // (resident.monthlyRent is set when resident is added and stored in DB)
+  const expectedMonthlyRevenue = residents.reduce((total, r) => {
+    return total + (r.monthlyRent || 0);
   }, 0);
 
   const pieData = totalBeds === 0 ? [
@@ -121,7 +129,7 @@ export default function Dashboard({ setActiveTab }: { setActiveTab?: (tab: strin
         <KpiCard title="Total Beds" value={totalBeds} icon={BedDouble} className="bg-white text-gray-600" cardBg="bg-gray-50 border-gray-200" onClick={() => handleNavigateBuilding('all')} trendColor="text-gray-500" />
         <KpiCard title="Occupied Beds" value={occupiedBeds} icon={Users} trend="+3 this month" className="bg-white text-green-600" cardBg="bg-green-50 border-green-200" onClick={() => handleNavigateBuilding('occupied')} trendColor="text-green-600" />
         <KpiCard title="Vacant Beds" value={vacantBeds} icon={PieChart} className="bg-white text-red-600" cardBg="bg-red-50 border-red-200" onClick={() => handleNavigateBuilding('vacant')} trendColor="text-red-600" />
-        <KpiCard title="Pending Payments" value={`₹${(totalDueAmount === 0 && occupiedBeds === 0) ? expectedMonthlyRevenue.toLocaleString('en-IN') : totalDueAmount.toLocaleString('en-IN')}`} icon={AlertCircle} className="bg-white text-orange-600" cardBg="bg-orange-50 border-orange-200" onClick={() => handleNavigatePayments('Unpaid')} trendColor="text-orange-600" />
+        <KpiCard title="Pending Payments" value={`₹${totalDueAmount.toLocaleString('en-IN')}`} icon={AlertCircle} className="bg-white text-orange-600" cardBg="bg-orange-50 border-orange-200" onClick={() => handleNavigatePayments('Unpaid')} trendColor="text-orange-600" />
         <KpiCard title="This Month Revenue" value={thisMonthRevenue > 0 ? `₹${thisMonthRevenue.toLocaleString('en-IN')}` : '₹0'} icon={IndianRupee} trend={`Expected: ₹${expectedMonthlyRevenue.toLocaleString('en-IN')}`} className="bg-white text-emerald-600" cardBg="bg-emerald-50 border-emerald-200" onClick={() => handleNavigatePayments('Paid')} trendColor="text-emerald-600" />
       </div>
 

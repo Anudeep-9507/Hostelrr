@@ -74,6 +74,14 @@ export async function fetchHostelData(userId: string) {
     .order('created_at', { ascending: false })
     .limit(20);
 
+  // 10. Get Join Requests (pending only)
+  const { data: joinRequestsData } = await supabase
+    .from('join_requests')
+    .select('*')
+    .eq('hostel_id', hostelId)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false });
+
   // Build the nested structure Floor[] -> Room[] -> Bed[]
   const floors: Floor[] = (floorsData || []).map((f: any) => {
     const floorRooms = (roomsData || [])
@@ -136,9 +144,24 @@ export async function fetchHostelData(userId: string) {
     
     if (pendingCycles.length > 0) {
       dueAmount = pendingCycles.reduce((sum: number, c: any) => sum + (c.total_amount - c.paid_amount), 0);
-      const isPartialOnly = pendingCycles.every((c: any) => c.status === 'partial');
-      const hasLate = pendingCycles.some((c: any) => c.status === 'late');
+      const today = new Date().toISOString().split('T')[0];
+      // Treat as late if DB says late OR if due_date is already past (cron may not have run yet)
+      const hasLate = pendingCycles.some((c: any) =>
+        c.status === 'late' || (c.status === 'pending' && c.due_date < today)
+      );
+      const isPartialOnly = !hasLate && pendingCycles.every((c: any) => c.status === 'partial');
       paymentStatus = hasLate ? 'late' : (isPartialOnly ? 'partially_paid' : 'due');
+    }
+
+    // Compute stayTime from join_date
+    let stayTime = 'Just Joined';
+    if (r.join_date) {
+      const joinMs = new Date(r.join_date).getTime();
+      const nowMs = Date.now();
+      const diffDays = Math.floor((nowMs - joinMs) / (1000 * 60 * 60 * 24));
+      if (diffDays >= 365) stayTime = `${Math.floor(diffDays / 365)}y ${Math.floor((diffDays % 365) / 30)}m`;
+      else if (diffDays >= 30) stayTime = `${Math.floor(diffDays / 30)} month${Math.floor(diffDays / 30) !== 1 ? 's' : ''}`;
+      else if (diffDays > 0) stayTime = `${diffDays} day${diffDays !== 1 ? 's' : ''}`;
     }
 
     return {
@@ -148,6 +171,7 @@ export async function fetchHostelData(userId: string) {
       roomId: r.room_id || '',
       bedId: r.bed_id || '',
       joinDate: r.join_date || '',
+      monthlyRent: r.monthly_rent || 0,
       paymentStatus,
       dueAmount,
       dueDate: pendingCycles.length > 0 ? pendingCycles.sort((a: any, b: any) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())[0].due_date : '',
@@ -155,7 +179,7 @@ export async function fetchHostelData(userId: string) {
       photoUrl: undefined,
       emergencyPhone: r.emergency_contact || '',
       aadhar: r.aadhar_number || '',
-      stayTime: 'Just Joined', // can be computed properly if needed
+      stayTime,
       securityDeposit: r.security_deposit || 0,
       isDepositPaid: r.is_deposit_paid || false,
       paymentHistory: (paymentsData || [])
@@ -165,7 +189,7 @@ export async function fetchHostelData(userId: string) {
           const isPartial = cycle && (p.amount < cycle.total_amount);
           return {
             id: p.id,
-            date: p.paid_on,
+            date: p.created_at || p.paid_on,
             amount: p.amount,
             status: isPartial ? 'partial' : 'paid',
             method: p.method === 'cash' ? 'Cash' : 'UPI',
@@ -176,7 +200,27 @@ export async function fetchHostelData(userId: string) {
     };
   });
 
-  const mappedPastResidents = (pastResidentsData || []).map((r: any) => ({
+  // Deduplicate past residents by phone number, keeping only the most recent stay (Bug 3 fix)
+  const uniquePastResidents: any[] = [];
+  const seenPhones = new Set();
+  
+  // Sort by date descending first to ensure we keep the latest one
+  const sortedRawPast = (pastResidentsData || []).sort((a: any, b: any) => 
+    new Date(b.actual_leave_date || b.updated_at).getTime() - new Date(a.actual_leave_date || a.updated_at).getTime()
+  );
+
+  for (const r of sortedRawPast) {
+    if (!r.phone || !seenPhones.has(r.phone)) {
+      // Also ensure they aren't currently active
+      const isActive = (residentsData || []).some((active: any) => active.phone === r.phone);
+      if (!isActive) {
+        if (r.phone) seenPhones.add(r.phone);
+        uniquePastResidents.push(r);
+      }
+    }
+  }
+
+  const mappedPastResidents = uniquePastResidents.map((r: any) => ({
     id: r.id,
     name: r.name,
     phone: r.phone || '',
@@ -194,7 +238,7 @@ export async function fetchHostelData(userId: string) {
         const isPartial = cycle && (p.amount < cycle.total_amount);
         return {
           id: p.id,
-          date: p.paid_on,
+          date: p.created_at || p.paid_on,
           amount: p.amount,
           status: isPartial ? 'partial' : 'paid',
           method: p.method === 'cash' ? 'Cash' : 'UPI',
@@ -250,7 +294,27 @@ export async function fetchHostelData(userId: string) {
     };
   });
 
-  return { hostel: mappedHostel, floors, residents: mappedResidents, pastResidents: mappedPastResidents, activities: mappedActivities };
+  const mappedJoinRequests = (joinRequestsData || []).map((jr: any) => ({
+    id: jr.id,
+    name: jr.name,
+    phone: jr.phone,
+    emergencyContact: jr.emergency_contact || '',
+    occupation: jr.occupation || '',
+    preferredRoom: jr.preferred_room || '',
+    aadharNumber: jr.aadhar_number || '',
+    requestDate: (() => {
+      const diff = Date.now() - new Date(jr.created_at).getTime();
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const days = Math.floor(hours / 24);
+      if (days > 0) return `${days} day${days > 1 ? 's' : ''} ago`;
+      if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+      return 'Just now';
+    })(),
+    status: jr.status as 'pending' | 'approved' | 'rejected',
+    stayDuration: jr.stay_duration_days || null,
+  }));
+
+  return { hostel: mappedHostel, floors, residents: mappedResidents, pastResidents: mappedPastResidents, activities: mappedActivities, joinRequests: mappedJoinRequests };
 }
 
 export async function createHostelData(userId: string, data: any) {
@@ -362,7 +426,23 @@ export async function createHostelData(userId: string, data: any) {
   return hostel;
 }
 
-export async function addResidentDb(hostelId: string, roomId: string, bedId: string, residentData: any, isReservedOnly: boolean = false) {
+export async function addResidentDb(hostelId: string, roomId: string, bedId: string, residentData: any, isReservedOnly: boolean = false, oldResidentId?: string) {
+  // Archive previous record to prevent duplicates in history (Bug 3 fix)
+  if (oldResidentId) {
+    await supabase
+      .from('residents')
+      .update({ status: 'archived' })
+      .eq('id', oldResidentId);
+  } else if (residentData.phone) {
+    // Fallback: archive by phone if ID not provided
+    await supabase
+      .from('residents')
+      .update({ status: 'archived' })
+      .eq('hostel_id', hostelId)
+      .eq('phone', residentData.phone)
+      .eq('status', 'left');
+  }
+
   const { data, error } = await supabase.rpc('add_resident', {
     p_hostel_id: hostelId,
     p_room_id: roomId,
@@ -419,7 +499,15 @@ export async function markAsPaidDb(residentId: string, amount: number, method: s
         p_cycle_id: cycle.id,
         p_amount: amountToApply,
         p_method: method.toLowerCase(),
-        p_paid_on: paymentDate || new Date().toISOString().split('T')[0]
+        p_paid_on: (() => {
+          if (!paymentDate) return new Date().toISOString();
+          // If paymentDate is just YYYY-MM-DD, append the current time
+          if (/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)) {
+            const currentTime = new Date().toISOString().split('T')[1];
+            return `${paymentDate}T${currentTime}`;
+          }
+          return paymentDate;
+        })()
       });
       if (error) throw error;
       remainingParamAmount -= amountToApply;
@@ -430,16 +518,19 @@ export async function markAsPaidDb(residentId: string, amount: number, method: s
 }
 
 export async function editResidentDb(residentId: string, updatedData: any) {
+  // updatedData.monthlyRent = base rent amount (from resident.monthly_rent in DB)
+  // updatedData.dueAmount  = outstanding debt (computed, not a DB column)
+  const updatePayload: Record<string, any> = {};
+  if (updatedData.name !== undefined) updatePayload.name = updatedData.name;
+  if (updatedData.phone !== undefined) updatePayload.phone = updatedData.phone;
+  if (updatedData.emergencyPhone !== undefined) updatePayload.emergency_contact = updatedData.emergencyPhone;
+  if (updatedData.aadhar !== undefined) updatePayload.aadhar_number = updatedData.aadhar;
+  if (updatedData.monthlyRent !== undefined) updatePayload.monthly_rent = updatedData.monthlyRent;
+  if (updatedData.isDepositPaid !== undefined) updatePayload.is_deposit_paid = updatedData.isDepositPaid;
+
   const { data, error } = await supabase
     .from('residents')
-    .update({
-      name: updatedData.name,
-      phone: updatedData.phone,
-      emergency_contact: updatedData.emergencyPhone,
-      aadhar_number: updatedData.aadhar,
-      monthly_rent: updatedData.dueAmount !== undefined ? updatedData.dueAmount : undefined,
-      is_deposit_paid: updatedData.isDepositPaid,
-    })
+    .update(updatePayload)
     .eq('id', residentId)
     .select()
     .single();
@@ -527,7 +618,18 @@ export async function deleteRoomDb(roomId: string) {
 
 export async function moveBedsDb(targetRoomId: string, bedIds: string[]) {
   const { data: targetRoom } = await supabase.from('rooms').select('hostel_id, room_number').eq('id', targetRoomId).single();
-  if (!targetRoom) throw new Error("Target room not found");
+  if (!targetRoom) throw new Error('Target room not found');
+
+  // Guard: refuse to move occupied/reserved beds (would orphan the resident)
+  const { data: movingBeds } = await supabase
+    .from('beds')
+    .select('id, status, room_id')
+    .in('id', bedIds);
+
+  const occupiedBeds = (movingBeds || []).filter((b: any) => b.status !== 'vacant');
+  if (occupiedBeds.length > 0) {
+    throw new Error(`Cannot move occupied/reserved beds. Vacate residents first (${occupiedBeds.length} bed(s) blocked).`);
+  }
 
   const { data: existingBeds } = await supabase.from('beds').select('label').eq('room_id', targetRoomId);
   const existingCount = existingBeds ? existingBeds.length : 0;

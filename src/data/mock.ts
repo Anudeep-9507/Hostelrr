@@ -37,6 +37,7 @@ export interface Resident {
   lastReminderSentAt?: string;
   emergencyPhone?: string;
   aadhar?: string;
+  monthlyRent?: number;
   stayTime?: string | number;
   paymentHistory?: { id: string | number; date: string; amount: number; status: string; method?: 'UPI' | 'Cash'; title?: string }[];
   securityDeposit?: number;

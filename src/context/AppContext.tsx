@@ -3,6 +3,7 @@ import {
   Floor, Resident, PastResident, Bed, JoinRequest,
   MOckFloors, MockResidents, MockPastResidents, MockActivities, MockJoinRequests
 } from '../data/mock';
+import { toast } from 'sonner';
 
 export type PaymentsFilterType = 'All' | 'Paid' | 'Unpaid' | 'Pending' | 'Late' | 'Partially Paid';
 
@@ -130,7 +131,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             setFloors(result.floors);
             setResidents(result.residents);
             setActivities(result.activities || []);
-            setJoinRequests([]);
+            setJoinRequests(result.joinRequests || []);
             setIsOnboardingComplete(true);
             localStorage.setItem('hostelrr_onboarding', 'true');
             setIsDemoMode(false);
@@ -211,9 +212,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (session?.user && newProfile.id) {
         const { updateHostelData } = await import('../lib/supabaseAPI');
         await updateHostelData(session.user.id, newProfile.id, newProfile);
+        toast.success('Hostel profile updated successfully');
       }
     } catch (e) {
       console.error("Failed to update hostel profile in DB:", e);
+      toast.error('Failed to update profile');
     }
   };
 
@@ -228,6 +231,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setResidents(result.residents);
           setPastResidents(result.pastResidents || []);
           setActivities(result.activities || []);
+          setJoinRequests(result.joinRequests || []);
         }
       }
     } catch (e) {
@@ -317,8 +321,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     import('../lib/supabaseAPI').then(async ({ markAsPaidDb }) => {
       try {
         await markAsPaidDb(residentId, paidValue, method, paymentDate); 
+        toast.success(`Payment of ₹${paidValue} recorded`);
         await syncStateWithDb();
-      } catch(e) { console.error(e); }
+      } catch(e) { 
+        console.error(e);
+        toast.error('Failed to record payment');
+      }
     });
   };
 
@@ -339,18 +347,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     import('../lib/supabaseAPI').then(async ({ vacateResidentDb }) => {
       try {
         await vacateResidentDb(residentId);
+        toast.success('Resident vacated successfully');
         await syncStateWithDb();
-      } catch (e) { console.error(e); }
+      } catch (e) { 
+        console.error(e);
+        toast.error('Failed to vacate resident');
+      }
     });
   };
 
   const addResident = (residentData: any, isReservedOnly?: boolean) => {
+    const hostelId = hostelProfile?.id;
+    if (!hostelId) {
+      console.error('addResident: hostelProfile.id is null — cannot create resident');
+      return;
+    }
     // DB sync
     import('../lib/supabaseAPI').then(async ({ addResidentDb }) => {
       try {
-        await addResidentDb(hostelProfile?.id, residentData.roomId, residentData.bedId, residentData, isReservedOnly);
+        await addResidentDb(hostelId, residentData.roomId, residentData.bedId, residentData, isReservedOnly, residentData.oldResidentId);
+        toast.success(isReservedOnly ? 'Bed reserved successfully' : 'Resident added successfully');
         await syncStateWithDb();
-      } catch(e) { console.error(e); }
+      } catch(e) { 
+        console.error(e);
+        toast.error('Failed to add resident');
+      }
     });
   };
 
@@ -358,8 +379,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     import('../lib/supabaseAPI').then(async ({ editResidentDb }) => {
       try {
         await editResidentDb(residentId, updatedData);
+        toast.success('Resident details updated');
         await syncStateWithDb();
-      } catch (e) { console.error(e); }
+      } catch (e) { 
+        console.error(e);
+        toast.error('Failed to update resident');
+      }
     });
   };
 
@@ -367,8 +392,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     import('../lib/supabaseAPI').then(async ({ addRoomDb }) => {
       try {
         await addRoomDb(hostelProfile?.id, floorId, roomData);
+        toast.success(`Room ${roomData.number} created`);
         await syncStateWithDb();
-      } catch (e) { console.error(e); }
+      } catch (e) { 
+        console.error(e);
+        toast.error('Failed to create room');
+      }
     });
   };
   const updateRoomSetup = (floorId: string, roomId: string, numBeds: number, baseRent: number, newNumber?: string, layoutId?: string) => {
@@ -425,9 +454,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const { updateRoomSetupDb } = await import('../lib/supabaseAPI');
         await updateRoomSetupDb(roomId, { number: newNumber, baseRent: baseRent || 0, layoutId: layoutId || null }, { bedsToAdd: toAdd, bedsToRemove: toRemove });
         console.log('updateRoomSetupDb finished, syncing state...');
+        toast.success('Room configuration saved');
         await syncStateWithDb();
       } catch (e) { 
         console.error('Error in updateRoomSetup:', e);
+        toast.error('Failed to save room setup');
         await syncStateWithDb(); // Revert on failure
       }
     });
@@ -478,9 +509,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
         const { updateRoomSetupDb } = await import('../lib/supabaseAPI');
         await updateRoomSetupDb(roomId, { layoutId }, { bedsToAdd: toAdd, bedsToRemove: toRemove });
+        toast.success('Room layout updated');
         await syncStateWithDb();
       } catch (e) { 
         console.error(e);
+        toast.error('Failed to update beds');
         await syncStateWithDb(); // Revert on failure
       }
     });
@@ -527,8 +560,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     import('../lib/supabaseAPI').then(async ({ deleteRoomDb }) => {
       try {
         await deleteRoomDb(roomId);
+        toast.success('Room deleted');
         await syncStateWithDb();
-      } catch (e) { console.error(e); }
+      } catch (e) { 
+        console.error(e);
+        toast.error('Failed to delete room');
+      }
     });
   };
 
@@ -536,8 +573,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     import('../lib/supabaseAPI').then(async ({ moveBedsDb }) => {
       try {
         await moveBedsDb(targetRoomId, bedIdsToMove);
+        toast.success(`${bedIdsToMove.length} bed(s) moved successfully`);
         await syncStateWithDb();
-      } catch (e) { console.error(e); }
+      } catch (e: any) {
+        console.error(e);
+        toast.error(e?.message || 'Failed to move beds');
+        await syncStateWithDb(); // Re-sync to revert optimistic state
+      }
     });
   };
 
@@ -572,8 +614,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             await supabase.from('beds').insert(newBeds);
           }
         }
+        toast.success('Floor layout copied successfully');
         await syncStateWithDb();
-      } catch (e) { console.error(e); }
+      } catch (e) { 
+        console.error(e);
+        toast.error('Failed to copy layout');
+      }
     });
   };
 
