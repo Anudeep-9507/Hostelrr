@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp, PaymentsFilterType } from '../context/AppContext';
 import DefaultAvatar from '../components/DefaultAvatar';
-import { CheckCircle2, Wallet, Clock, AlertTriangle, Check, Send, X, Smartphone, Banknote, IndianRupee, AlertCircle } from 'lucide-react';
+import { CheckCircle2, Wallet, Clock, AlertTriangle, Check, Send, X, Smartphone, Banknote, IndianRupee, AlertCircle, Info } from 'lucide-react';
 import { cn, formatDate, getNamesFromIds, getTodayIST, formatTimeIST, convertToIST } from '../lib/utils';
 import { Resident } from '../data/mock';
 import { toast } from 'sonner';
@@ -17,6 +17,7 @@ export default function Payments({ setActiveTab }: { setActiveTab?: (tab: string
   const { floors, residents, pastResidents, markAsPaid, markReminderSent, activePaymentsFilter: filter, setActivePaymentsFilter: setFilter, setGlobalSelectedResidentId, hostelProfile, isDemoMode, sharingRentMap } = useApp();
   const [showHistory, setShowHistory] = useState(false);
   const [historyTimeFilter, setHistoryTimeFilter] = useState<'All' | 'Today' | 'Monthly' | 'Yearly' | 'Security Deposits'>('All');
+  const [isRevenueInfoModalOpen, setIsRevenueInfoModalOpen] = useState(false);
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
@@ -124,6 +125,11 @@ export default function Payments({ setActiveTab }: { setActiveTab?: (tab: string
   const expectedMonthlyRevenue = residents.reduce((total, r) => {
     return total + (r.monthlyRent || 0);
   }, 0);
+
+  const defaultSecurityDeposit = Number(hostelProfile?.security_deposit || 0);
+  const occupiedResidentsCount = residents.length;
+  const expectedTotalSecurityDeposit = occupiedResidentsCount * defaultSecurityDeposit;
+  const finalExpectedRevenue = expectedMonthlyRevenue + expectedTotalSecurityDeposit;
 
   const now = new Date();
   const istNow = convertToIST(now);
@@ -304,7 +310,22 @@ export default function Payments({ setActiveTab }: { setActiveTab?: (tab: string
             <div className="flex justify-between items-start mb-2">
               <div>
                 <span className="text-gray-500 font-medium text-sm">This Month Revenue</span>
-                <p className="text-xs text-green-600 font-medium mt-1">Exp: ₹{expectedMonthlyRevenue.toLocaleString('en-IN')}</p>
+                <div className="text-xs text-green-600 font-medium mt-1 space-y-1">
+                  <div className="flex items-center gap-1">
+                    <span>Exp: ₹{expectedMonthlyRevenue.toLocaleString('en-IN')}</span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsRevenueInfoModalOpen(true);
+                      }}
+                      className="w-4 h-4 rounded-full border border-green-500 text-green-700 flex items-center justify-center hover:bg-green-100"
+                      aria-label="Open expected revenue breakdown"
+                    >
+                      <Info className="w-2.5 h-2.5" />
+                    </button>
+                  </div>
+                </div>
               </div>
               <div className="p-2 rounded-lg bg-white text-green-600"><IndianRupee className="w-5 h-5" /></div>
             </div>
@@ -328,6 +349,58 @@ export default function Payments({ setActiveTab }: { setActiveTab?: (tab: string
           </div>
         </div>
       )}
+
+      <AnimatePresence>
+        {isRevenueInfoModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsRevenueInfoModalOpen(false)}
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[1px] flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.97, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.97, y: 8 }}
+              transition={{ duration: 0.16 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-xl"
+            >
+              <div className="flex items-center justify-between p-4 border-b border-gray-100">
+                <h3 className="text-base font-bold text-gray-900">Expected Revenue Breakdown</h3>
+                <button
+                  onClick={() => setIsRevenueInfoModalOpen(false)}
+                  className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100"
+                  aria-label="Close modal"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-4 space-y-3 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Expected monthly rent</span>
+                  <span className="font-semibold text-gray-900">₹{expectedMonthlyRevenue.toLocaleString('en-IN')}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Expected security deposit</span>
+                  <span className="font-semibold text-gray-900">₹{expectedTotalSecurityDeposit.toLocaleString('en-IN')}</span>
+                </div>
+                <p className="text-xs text-gray-500">{occupiedResidentsCount} occupied residents × ₹{defaultSecurityDeposit.toLocaleString('en-IN')} security deposit</p>
+
+                <div className="h-px bg-gray-100" />
+
+                <div className="flex items-center justify-between text-base">
+                  <span className="font-semibold text-gray-800">Final expected revenue</span>
+                  <span className="font-bold text-green-700">₹{finalExpectedRevenue.toLocaleString('en-IN')}</span>
+                </div>
+                <p className="text-xs text-gray-500">Expected rent + expected security deposit</p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="flex flex-col gap-4">
         {!showHistory ? (

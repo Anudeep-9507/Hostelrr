@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { BedDouble, Users, AlertCircle, IndianRupee, PieChart, CheckCircle, Clock, LogOut, X } from 'lucide-react';
+import { BedDouble, Users, AlertCircle, IndianRupee, PieChart, CheckCircle, Clock, LogOut, X, Info } from 'lucide-react';
 import { cn, formatDate, getNamesFromIds } from '../lib/utils';
 import { PieChart as RePieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { AnimatePresence, motion } from 'motion/react';
@@ -40,6 +40,7 @@ export default function Dashboard({ setActiveTab }: { setActiveTab?: (tab: strin
   const { floors, residents, activities, joinRequests, rejectJoinRequest, markAsPaid, setActiveBuildingFilter, setActivePaymentsFilter, hostelProfile, sharingRentMap, syncStateWithDb } = useApp();
   const [requestSearch, setRequestSearch] = useState('');
   const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
+  const [isRevenueInfoModalOpen, setIsRevenueInfoModalOpen] = useState(false);
 
   // Auto-sync join requests every 10 seconds to catch new submissions
   React.useEffect(() => {
@@ -107,6 +108,11 @@ export default function Dashboard({ setActiveTab }: { setActiveTab?: (tab: strin
     return total + (r.monthlyRent || 0);
   }, 0);
 
+  const defaultSecurityDeposit = Number(hostelProfile?.security_deposit || 0);
+  const occupiedResidentsCount = residents.length;
+  const expectedTotalSecurityDeposit = occupiedResidentsCount * defaultSecurityDeposit;
+  const finalExpectedRevenue = expectedMonthlyRevenue + expectedTotalSecurityDeposit;
+
   const pieData = totalBeds === 0 ? [
     { name: 'Empty', value: 1, color: '#e5e7eb' }
   ] : [
@@ -144,8 +150,86 @@ export default function Dashboard({ setActiveTab }: { setActiveTab?: (tab: strin
         <KpiCard title="Occupied Beds" value={occupiedBeds} icon={Users} trend="+3 this month" className="bg-white text-green-600" cardBg="bg-green-50 border-green-200" onClick={() => handleNavigateBuilding('occupied')} trendColor="text-green-600" />
         <KpiCard title="Vacant Beds" value={vacantBeds} icon={PieChart} className="bg-white text-red-600" cardBg="bg-red-50 border-red-200" onClick={() => handleNavigateBuilding('vacant')} trendColor="text-red-600" />
         <KpiCard title="Pending Payments" value={`₹${totalDueAmount.toLocaleString('en-IN')}`} icon={AlertCircle} className="bg-white text-orange-600" cardBg="bg-orange-50 border-orange-200" onClick={() => handleNavigatePayments('Unpaid')} trendColor="text-orange-600" />
-        <KpiCard title="This Month Revenue" value={thisMonthRevenue > 0 ? `₹${thisMonthRevenue.toLocaleString('en-IN')}` : '₹0'} icon={IndianRupee} trend={`Expected: ₹${expectedMonthlyRevenue.toLocaleString('en-IN')}`} className="bg-white text-emerald-600" cardBg="bg-emerald-50 border-emerald-200" onClick={() => handleNavigatePayments('Paid')} trendColor="text-emerald-600" />
+        <KpiCard
+          title="This Month Revenue"
+          value={thisMonthRevenue > 0 ? `₹${thisMonthRevenue.toLocaleString('en-IN')}` : '₹0'}
+          icon={IndianRupee}
+          trend={
+            <div className="space-y-1">
+              <div className="flex items-center gap-1">
+                <span>Expected: ₹{expectedMonthlyRevenue.toLocaleString('en-IN')}</span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsRevenueInfoModalOpen(true);
+                  }}
+                  className="w-4 h-4 rounded-full border border-emerald-500 text-emerald-600 flex items-center justify-center hover:bg-emerald-100"
+                  aria-label="Open expected revenue breakdown"
+                >
+                  <Info className="w-2.5 h-2.5" />
+                </button>
+              </div>
+            </div>
+          }
+          className="bg-white text-emerald-600"
+          cardBg="bg-emerald-50 border-emerald-200"
+          onClick={() => handleNavigatePayments('Paid')}
+          trendColor="text-emerald-600"
+        />
       </div>
+
+      <AnimatePresence>
+        {isRevenueInfoModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsRevenueInfoModalOpen(false)}
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[1px] flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.97, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.97, y: 8 }}
+              transition={{ duration: 0.16 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-xl"
+            >
+              <div className="flex items-center justify-between p-4 border-b border-gray-100">
+                <h3 className="text-base font-bold text-gray-900">Expected Revenue Breakdown</h3>
+                <button
+                  onClick={() => setIsRevenueInfoModalOpen(false)}
+                  className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100"
+                  aria-label="Close modal"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-4 space-y-3 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Expected monthly rent</span>
+                  <span className="font-semibold text-gray-900">₹{expectedMonthlyRevenue.toLocaleString('en-IN')}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Expected security deposit</span>
+                  <span className="font-semibold text-gray-900">₹{expectedTotalSecurityDeposit.toLocaleString('en-IN')}</span>
+                </div>
+                <p className="text-xs text-gray-500">{occupiedResidentsCount} occupied residents × ₹{defaultSecurityDeposit.toLocaleString('en-IN')} security deposit</p>
+
+                <div className="h-px bg-gray-100" />
+
+                <div className="flex items-center justify-between text-base">
+                  <span className="font-semibold text-gray-800">Final expected revenue</span>
+                  <span className="font-bold text-emerald-700">₹{finalExpectedRevenue.toLocaleString('en-IN')}</span>
+                </div>
+                <p className="text-xs text-gray-500">Expected rent + expected security deposit</p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column */}
