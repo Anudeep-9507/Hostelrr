@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useApp, PaymentsFilterType } from '../context/AppContext';
 import DefaultAvatar from '../components/DefaultAvatar';
 import { CheckCircle2, Wallet, Clock, AlertTriangle, Check, Send, X, Smartphone, Banknote, IndianRupee, AlertCircle } from 'lucide-react';
-import { cn, formatDate, getNamesFromIds } from '../lib/utils';
+import { cn, formatDate, getNamesFromIds, getTodayIST, formatTimeIST, convertToIST } from '../lib/utils';
 import { Resident } from '../data/mock';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
@@ -24,12 +24,18 @@ export default function Payments({ setActiveTab }: { setActiveTab?: (tab: string
   const [paidUsing, setPaidUsing] = useState<'UPI' | 'Cash'>('UPI');
   const [isPartialPayment, setIsPartialPayment] = useState<boolean>(false);
   const [partialAmount, setPartialAmount] = useState<string>('');
-  const [paymentDate, setPaymentDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [paymentDate, setPaymentDate] = useState<string>(getTodayIST());
   const [bulkReminderFilter, setBulkReminderFilter] = useState<'All' | 'Pending' | 'Late' | 'Partial'>('All');
 
   const getDayAndMonth = (dateString: string) => {
     return formatDate(dateString);
   };
+
+  React.useEffect(() => {
+    if (residentToMarkPaid) {
+      setPaymentDate(getTodayIST());
+    }
+  }, [residentToMarkPaid]);
 
   const handleSendReminder = (resident: Resident) => {
     if (!resident.phone) {
@@ -94,7 +100,7 @@ export default function Payments({ setActiveTab }: { setActiveTab?: (tab: string
     if (resident.securityDeposit && resident.isDepositPaid) {
       history.push({
         id: 'sec_dep',
-        date: formatDate(resident.joinDate),
+        date: resident.depositPaidDate ? formatDate(resident.depositPaidDate) : formatDate(resident.joinDate),
         amount: resident.securityDeposit,
         status: 'paid',
         title: 'Security Deposit'
@@ -120,11 +126,13 @@ export default function Payments({ setActiveTab }: { setActiveTab?: (tab: string
   }, 0);
 
   const now = new Date();
+  const istNow = convertToIST(now);
   const thisMonthRevenue = residents.reduce((total, r) => {
     const historyRevenue = (r.paymentHistory || []).reduce((sum, h) => {
       if (h.status === 'paid' || h.status === 'partial') {
         const d = new Date(h.date);
-        if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()) {
+        const dateIST = convertToIST(d);
+        if (dateIST.getUTCFullYear() === istNow.getUTCFullYear() && dateIST.getUTCMonth() === istNow.getUTCMonth()) {
           return sum + h.amount;
         }
       }
@@ -133,8 +141,9 @@ export default function Payments({ setActiveTab }: { setActiveTab?: (tab: string
 
     let depositRevenue = 0;
     if (r.securityDeposit && r.isDepositPaid) {
-      const d = new Date(r.joinDate);
-      if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()) {
+      const d = new Date(r.depositPaidDate || r.joinDate);
+      const dateIST = convertToIST(d);
+      if (dateIST.getUTCFullYear() === istNow.getUTCFullYear() && dateIST.getUTCMonth() === istNow.getUTCMonth()) {
         depositRevenue = r.securityDeposit;
       }
     }
@@ -156,7 +165,8 @@ export default function Payments({ setActiveTab }: { setActiveTab?: (tab: string
       if (r.securityDeposit && r.isDepositPaid) {
         history.push({
           id: `sec_dep_${r.id}`,
-          date: r.joinDate, // Use join date as deposit date if no specific date is available
+          // keep raw ISO/timestamp for reliable parsing/sorting
+          date: r.depositPaidDate || r.joinDate,
           amount: r.securityDeposit,
           status: 'paid',
           title: 'Security Deposit',
@@ -192,24 +202,30 @@ export default function Payments({ setActiveTab }: { setActiveTab?: (tab: string
     
     let base = [...activeHistory, ...pastHistory];
 
-    const today = new Date().toISOString().split('T')[0];
-    const currentMonth = new Date().getMonth();
-    const currentYear = new Date().getFullYear();
+    const today = getTodayIST();
+    const now = new Date();
+    const istNow = convertToIST(now);
+    const currentMonth = istNow.getUTCMonth();
+    const currentYear = istNow.getUTCFullYear();
 
     if (historyTimeFilter === 'Today') {
       base = base.filter(p => {
         const d = new Date(p.date);
-        return d.toISOString().split('T')[0] === today;
+        const dateIST = convertToIST(d);
+        const dateStr = `${dateIST.getUTCFullYear()}-${String(dateIST.getUTCMonth() + 1).padStart(2, '0')}-${String(dateIST.getUTCDate()).padStart(2, '0')}`;
+        return dateStr === today;
       });
     } else if (historyTimeFilter === 'Monthly') {
       base = base.filter(p => {
         const d = new Date(p.date);
-        return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+        const dateIST = convertToIST(d);
+        return dateIST.getUTCMonth() === currentMonth && dateIST.getUTCFullYear() === currentYear;
       });
     } else if (historyTimeFilter === 'Yearly') {
       base = base.filter(p => {
         const d = new Date(p.date);
-        return d.getFullYear() === currentYear;
+        const dateIST = convertToIST(d);
+        return dateIST.getUTCFullYear() === currentYear;
       });
     } else if (historyTimeFilter === 'Security Deposits') {
       base = base.filter(p => p.title === 'Security Deposit');
@@ -430,7 +446,7 @@ export default function Payments({ setActiveTab }: { setActiveTab?: (tab: string
                               ) : (
                                 <>
                                   <button onClick={(e) => { e.stopPropagation(); handleSendReminder(r); }} className="bg-[#25D366] hover:bg-[#22c35e] text-white px-4 py-1.5 rounded-full text-[13px] font-semibold transition-all flex items-center gap-1.5 shadow-sm"><WhatsAppIcon className="w-3.5 h-3.5" /> Remind</button>
-                                  <button onClick={(e) => { e.stopPropagation(); setResidentToMarkPaid(r); }} className="text-[#059669] bg-white border border-[#A7F3D0]/60 px-4 py-1.5 rounded-full text-[13px] font-semibold hover:bg-[#ECFDF5] transition-all flex items-center gap-1.5 shadow-sm"><Check className="w-3.5 h-3.5" /> Mark Paid</button>
+                                  <button onClick={(e) => { e.stopPropagation(); setResidentToMarkPaid(r); setPaymentDate(getTodayIST()); }} className="text-[#059669] bg-white border border-[#A7F3D0]/60 px-4 py-1.5 rounded-full text-[13px] font-semibold hover:bg-[#ECFDF5] transition-all flex items-center gap-1.5 shadow-sm"><Check className="w-3.5 h-3.5" /> Mark Paid</button>
                                 </>
                               )}
                             </div>
@@ -445,7 +461,7 @@ export default function Payments({ setActiveTab }: { setActiveTab?: (tab: string
                                   <div key={h.id} className={cn("px-4 py-3 flex items-center justify-between transition-colors border-l-4", h.status === 'partial' ? "border-l-purple-500 bg-purple-50" : "border-l-transparent hover:bg-white")}>
                                     <div className="flex items-center gap-3">
                                       <div className={cn("w-8 h-8 rounded-full flex items-center justify-center", h.status === 'partial' ? "bg-purple-100 text-purple-600" : "bg-green-50 text-green-600")}><Check className="w-4 h-4" /></div>
-                                      <div><p className="text-sm font-semibold text-gray-900">{h.title || 'Rent Payment'}</p><p className="text-xs text-gray-500">{h.date}</p></div>
+                                      <div><p className="text-sm font-semibold text-gray-900">{h.title || 'Rent Payment'}</p><p className="text-xs text-gray-500">{formatDate(h.date)}</p></div>
                                     </div>
                                     <div className="text-right">
                                       <p className="text-sm font-bold text-gray-900">₹{h.amount.toLocaleString('en-IN')}</p>
@@ -516,13 +532,14 @@ export default function Payments({ setActiveTab }: { setActiveTab?: (tab: string
                     allPaymentsTransactions.map((payment, idx) => {
                       const { roomName } = getNamesFromIds(floors, payment.roomId, payment.bedId);
                       const d = new Date(payment.date);
-                      const formattedDate = `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
-                      const formattedTime = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+                      const dateIST = convertToIST(d);
+                      const formattedDate = `${String(dateIST.getUTCDate()).padStart(2, '0')}-${String(dateIST.getUTCMonth() + 1).padStart(2, '0')}-${dateIST.getUTCFullYear()}`;
+                      const formattedTime = formatTimeIST(payment.date);
 
                       return (
                         <tr key={`${payment.id}-${idx}`} className={cn(
                           "hover:bg-gray-50/50 transition-colors border-l-4",
-                          payment.status === 'partial' ? "border-l-purple-500 bg-purple-50/30" : "border-l-transparent"
+                          payment.status === 'partial' ? "border-l-purple-600 bg-purple-50" : "border-l-transparent"
                         )}>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-600">{formattedDate}</td>
                           <td className="px-6 py-4">
@@ -802,7 +819,7 @@ export default function Payments({ setActiveTab }: { setActiveTab?: (tab: string
                     setPaidUsing('UPI');
                     setIsPartialPayment(false);
                     setPartialAmount('');
-                    setPaymentDate(new Date().toISOString().split('T')[0]);
+                    setPaymentDate(getTodayIST());
                   }}
                   className="px-5 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors"
                 >
@@ -816,7 +833,7 @@ export default function Payments({ setActiveTab }: { setActiveTab?: (tab: string
                     setPaidUsing('UPI'); // reset default
                     setIsPartialPayment(false); // reset default
                     setPartialAmount('');
-                    setPaymentDate(new Date().toISOString().split('T')[0]);
+                    setPaymentDate(getTodayIST());
                     toast.success(`${residentToMarkPaid.name} marked as ${isPartialPayment && partialAmount ? 'partially ' : ''}paid`);
                   }}
                   className="px-5 py-2.5 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-xl transition-colors shadow-sm flex items-center gap-2"

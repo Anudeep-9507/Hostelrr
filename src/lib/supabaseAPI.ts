@@ -1,6 +1,51 @@
 import { supabase } from '../supabaseClient';
 import { Floor, Room, Bed, Resident, JoinRequest } from '../data/mock';
 
+export async function getSignedFileUrl(path?: string | null): Promise<string | undefined> {
+  if (!path) return undefined;
+
+  const normalizedPath = path.replace(/^\/+/, '');
+  const bucket = supabase.storage.from('hostelrr-documents');
+
+  const signPath = async (candidatePath: string) => {
+    const { data, error } = await bucket.createSignedUrl(candidatePath, 60 * 60);
+    return error ? undefined : data?.signedUrl;
+  };
+
+  try {
+    const directUrl = await signPath(normalizedPath);
+    if (directUrl) return directUrl;
+
+    const leafName = normalizedPath.split('/').pop();
+    if (leafName && leafName !== normalizedPath) {
+      const leafUrl = await signPath(leafName);
+      if (leafUrl) return leafUrl;
+    }
+
+    const lastSlash = normalizedPath.lastIndexOf('/');
+    if (lastSlash === -1) return undefined;
+
+    const folderPath = normalizedPath.slice(0, lastSlash);
+    const fileName = normalizedPath.slice(lastSlash + 1);
+
+    const { data: listing } = await bucket.list(folderPath, {
+      limit: 100,
+      search: fileName,
+    });
+
+    if (!listing || listing.length === 0) return undefined;
+
+    const exactMatch = listing.find(item => item.name === fileName);
+    const fallbackMatch = exactMatch || listing.find(item => item.name.endsWith(fileName)) || listing[0];
+    if (!fallbackMatch) return undefined;
+
+    return await signPath(`${folderPath}/${fallbackMatch.name}`);
+  } catch (err) {
+    // Silently handle errors - file may not exist or folder may not be listable.
+    return undefined;
+  }
+}
+
 export async function fetchHostelData(userId: string) {
   // 1. Get Hostel
   const { data: hostelResponse, error: hostelError } = await supabase
@@ -75,12 +120,15 @@ export async function fetchHostelData(userId: string) {
     .limit(20);
 
   // 10. Get Join Requests (pending only)
-  const { data: joinRequestsData } = await supabase
-    .from('join_requests')
-    .select('*')
-    .eq('hostel_id', hostelId)
-    .eq('status', 'pending')
-    .order('created_at', { ascending: false });
+  // Use RPC so dashboard does not depend on direct table read permissions.
+  const { data: joinRequestsData, error: joinRequestsError } = await supabase.rpc('get_join_requests', {
+    p_hostel_id: hostelId,
+    p_status: 'pending',
+  });
+
+  if (joinRequestsError) {
+    console.error('fetchHostelData join_requests error:', joinRequestsError);
+  }
 
   // Build the nested structure Floor[] -> Room[] -> Bed[]
   const floors: Floor[] = (floorsData || []).map((f: any) => {
@@ -134,9 +182,9 @@ export async function fetchHostelData(userId: string) {
     email: hostel.owner?.email,
   };
 
-  const mappedResidents = (residentsData || []).map((r: any) => {
+  const mappedResidents = await Promise.all((residentsData || []).map(async (r: any) => {
     const resCycles = (cyclesData || []).filter((c: any) => c.resident_id === r.id);
-    let paymentStatus = 'paid';
+    let paymentStatus: 'paid' | 'due' | 'partially_paid' | 'late' = 'paid';
     let dueAmount = 0;
     
     // Sort cycles by date descending, find earliest due cycle
@@ -164,6 +212,10 @@ export async function fetchHostelData(userId: string) {
       else if (diffDays > 0) stayTime = `${diffDays} day${diffDays !== 1 ? 's' : ''}`;
     }
 
+    const photoUrl = await getSignedFileUrl(r.photo_path);
+    const aadharDocumentUrl = await getSignedFileUrl(r.aadhar_document_path);
+    const hostelFormUrl = await getSignedFileUrl(r.hostel_form_path);
+
     return {
       id: r.id,
       name: r.name,
@@ -175,13 +227,19 @@ export async function fetchHostelData(userId: string) {
       paymentStatus,
       dueAmount,
       dueDate: pendingCycles.length > 0 ? pendingCycles.sort((a: any, b: any) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())[0].due_date : '',
-      documentsComplete: true,
-      photoUrl: undefined,
+      documentsComplete: Boolean(r.aadhar_document_path && r.hostel_form_path),
+      photoUrl,
+      photoPath: r.photo_path || undefined,
+      aadharDocumentPath: r.aadhar_document_path || undefined,
+      aadharDocumentUrl,
+      hostelFormPath: r.hostel_form_path || undefined,
+      hostelFormUrl,
       emergencyPhone: r.emergency_contact || '',
       aadhar: r.aadhar_number || '',
       stayTime,
       securityDeposit: r.security_deposit || 0,
       isDepositPaid: r.is_deposit_paid || false,
+      depositPaidDate: r.deposit_paid_at || undefined,
       paymentHistory: (paymentsData || [])
         .filter((p: any) => p.resident_id === r.id)
         .map((p: any) => {
@@ -192,13 +250,14 @@ export async function fetchHostelData(userId: string) {
             date: p.created_at || p.paid_on,
             amount: p.amount,
             status: isPartial ? 'partial' : 'paid',
-            method: p.method === 'cash' ? 'Cash' : 'UPI',
+            method: (p.method === 'cash' ? 'Cash' : 'UPI') as 'Cash' | 'UPI',
             title: `Rent Payment`
           };
         })
         .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+      createdAt: r.created_at,
     };
-  });
+  }));
 
   // Deduplicate past residents by phone number, keeping only the most recent stay (Bug 3 fix)
   const uniquePastResidents: any[] = [];
@@ -220,7 +279,7 @@ export async function fetchHostelData(userId: string) {
     }
   }
 
-  const mappedPastResidents = uniquePastResidents.map((r: any) => ({
+  const mappedPastResidents = await Promise.all(uniquePastResidents.map(async (r: any) => ({
     id: r.id,
     name: r.name,
     phone: r.phone || '',
@@ -229,7 +288,8 @@ export async function fetchHostelData(userId: string) {
     joinDate: r.join_date || '',
     vacateDate: r.actual_leave_date || r.updated_at || '',
     reason: r.notes || 'Vacated',
-    photoUrl: undefined,
+    photoUrl: await getSignedFileUrl(r.photo_path),
+    photoPath: r.photo_path || undefined,
     emergencyPhone: r.emergency_contact || '',
     paymentHistory: (paymentsData || [])
       .filter((p: any) => p.resident_id === r.id)
@@ -241,12 +301,13 @@ export async function fetchHostelData(userId: string) {
           date: p.created_at || p.paid_on,
           amount: p.amount,
           status: isPartial ? 'partial' : 'paid',
-          method: p.method === 'cash' ? 'Cash' : 'UPI',
+          method: (p.method === 'cash' ? 'Cash' : 'UPI') as 'Cash' | 'UPI',
           title: `Rent Payment`
         };
       })
       .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()),
-  }));
+    createdAt: r.created_at,
+  })));
 
   const mappedActivities = (activityLogsData || []).map((a: any) => {
     let icon = 'CheckCircle';
@@ -312,9 +373,19 @@ export async function fetchHostelData(userId: string) {
     })(),
     status: jr.status as 'pending' | 'approved' | 'rejected',
     stayDuration: jr.stay_duration_days || null,
+    photoPath: jr.photo_path || undefined,
+    aadharDocumentPath: jr.aadhar_document_path || undefined,
   }));
 
-  return { hostel: mappedHostel, floors, residents: mappedResidents, pastResidents: mappedPastResidents, activities: mappedActivities, joinRequests: mappedJoinRequests };
+  const mappedJoinRequestsWithUrls = await Promise.all(
+    mappedJoinRequests.map(async (jr: any) => ({
+      ...jr,
+      photoUrl: await getSignedFileUrl(jr.photoPath),
+      aadharDocumentUrl: await getSignedFileUrl(jr.aadharDocumentPath),
+    }))
+  );
+
+  return { hostel: mappedHostel, floors, residents: mappedResidents, pastResidents: mappedPastResidents, activities: mappedActivities, joinRequests: mappedJoinRequestsWithUrls };
 }
 
 export async function createHostelData(userId: string, data: any) {
@@ -346,10 +417,11 @@ export async function createHostelData(userId: string, data: any) {
         name: data.hostelName || 'My Hostel',
         city: data.city || 'City',
         state: data.state || 'State',
+        country: data.country || 'India',
+        pincode: data.pincode || null,
         phone: data.phone || '',
         rent_cycle_type: data.rentDueType === '1st_of_month' ? 'monthly_fixed' : 'joining_based',
         rent_due_day: data.rentDueDate || 1,
-        grace_period_days: data.gracePeriod || 5,
         security_deposit: data.securityDeposit ? parseInt(data.securityDeposit) : 0,
         total_beds: data.totalBeds || 0,
       })
@@ -374,10 +446,11 @@ export async function createHostelData(userId: string, data: any) {
       name: data.hostelName || 'My Hostel',
       city: data.city || 'City',
       state: data.state || 'State',
+      country: data.country || 'India',
+      pincode: data.pincode || null,
       phone: data.phone || '',
       rent_cycle_type: data.rentDueType === '1st_of_month' ? 'monthly_fixed' : 'joining_based',
       rent_due_day: data.rentDueDate || 1,
-      grace_period_days: data.gracePeriod || 5,
       security_deposit: data.securityDeposit ? parseInt(data.securityDeposit) : 0,
       total_beds: data.totalBeds || 0,
     })
@@ -500,11 +573,17 @@ export async function markAsPaidDb(residentId: string, amount: number, method: s
         p_amount: amountToApply,
         p_method: method.toLowerCase(),
         p_paid_on: (() => {
-          if (!paymentDate) return new Date().toISOString();
+          if (!paymentDate) {
+            const now = new Date();
+            const offset = now.getTimezoneOffset() * 60000;
+            return new Date(now.getTime() - offset).toISOString().replace('Z', '');
+          }
           // If paymentDate is just YYYY-MM-DD, append the current time
           if (/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)) {
-            const currentTime = new Date().toISOString().split('T')[1];
-            return `${paymentDate}T${currentTime}`;
+            const now = new Date();
+            const offset = now.getTimezoneOffset() * 60000;
+            const localTime = new Date(now.getTime() - offset).toISOString().split('T')[1];
+            return `${paymentDate}T${localTime}`;
           }
           return paymentDate;
         })()
@@ -525,8 +604,12 @@ export async function editResidentDb(residentId: string, updatedData: any) {
   if (updatedData.phone !== undefined) updatePayload.phone = updatedData.phone;
   if (updatedData.emergencyPhone !== undefined) updatePayload.emergency_contact = updatedData.emergencyPhone;
   if (updatedData.aadhar !== undefined) updatePayload.aadhar_number = updatedData.aadhar;
+  if (updatedData.photoPath !== undefined) updatePayload.photo_path = updatedData.photoPath;
+  if (updatedData.aadharPath !== undefined) updatePayload.aadhar_document_path = updatedData.aadharPath;
+  if (updatedData.hostelFormPath !== undefined) updatePayload.hostel_form_path = updatedData.hostelFormPath;
   if (updatedData.monthlyRent !== undefined) updatePayload.monthly_rent = updatedData.monthlyRent;
   if (updatedData.isDepositPaid !== undefined) updatePayload.is_deposit_paid = updatedData.isDepositPaid;
+  if (updatedData.depositPaidDate !== undefined) updatePayload.deposit_paid_at = updatedData.depositPaidDate;
 
   const { data, error } = await supabase
     .from('residents')
@@ -651,6 +734,73 @@ export async function vacateResidentDb(residentId: string) {
   return data;
 }
 
+export async function createJoinRequestDb(requestData: {
+  hostelId: string;
+  name: string;
+  phone: string;
+  emergencyContact?: string;
+  occupation?: string;
+  preferredRoom?: string;
+  aadharNumber?: string;
+  photoPath?: string | null;
+  aadharDocumentPath?: string | null;
+}) {
+  const { data, error } = await supabase.rpc('create_join_request', {
+    p_hostel_id: requestData.hostelId,
+    p_name: requestData.name,
+    p_phone: requestData.phone,
+    p_emergency_contact: requestData.emergencyContact || null,
+    p_occupation: requestData.occupation || null,
+    p_preferred_room: requestData.preferredRoom || null,
+    p_aadhar_number: requestData.aadharNumber || null,
+    p_photo_path: requestData.photoPath ?? null,
+    p_aadhar_document_path: requestData.aadharDocumentPath ?? null,
+  });
+
+  if (error) throw error;
+  return data;
+}
+
+export async function approveJoinRequestDb(params: {
+  requestId: string;
+  roomId: string;
+  bedId: string;
+  monthlyRent: number;
+  joinDate?: string;
+  securityDeposit?: number;
+  isDepositPaid?: boolean;
+  stayDurationDays?: number | null;
+  reviewNotes?: string | null;
+}) {
+  const { data, error } = await supabase.rpc('approve_join_request', {
+    p_request_id: params.requestId,
+    p_room_id: params.roomId,
+    p_bed_id: params.bedId,
+    p_monthly_rent: params.monthlyRent,
+    p_join_date: params.joinDate || new Date().toISOString().split('T')[0],
+    p_security_deposit: params.securityDeposit ?? 0,
+    p_is_deposit_paid: params.isDepositPaid ?? false,
+    p_stay_duration_days: params.stayDurationDays ?? null,
+    p_review_notes: params.reviewNotes ?? null,
+  });
+
+  if (error) throw error;
+  return data;
+}
+
+export async function rejectJoinRequestDb(params: {
+  requestId: string;
+  reviewNotes?: string | null;
+}) {
+  const { error } = await supabase.rpc('reject_join_request', {
+    p_request_id: params.requestId,
+    p_review_notes: params.reviewNotes ?? null,
+  });
+
+  if (error) throw error;
+  return true;
+}
+
 export async function updateHostelData(userId: string, hostelId: string, updatedProfile: any) {
   // Update User Table
   if (updatedProfile.ownerName || updatedProfile.phone || updatedProfile.email) {
@@ -671,12 +821,282 @@ export async function updateHostelData(userId: string, hostelId: string, updated
       .from('hostels')
       .update({
         name: updatedProfile.hostelName,
-        address: updatedProfile.address,
         city: updatedProfile.city,
         state: updatedProfile.state,
+        country: updatedProfile.country,
+        pincode: updatedProfile.pincode,
       })
       .eq('id', hostelId);
     if (hostelError) throw hostelError;
+  }
+}
+
+// =============================================================================
+// File Upload Helpers
+// All uploads go to the 'hostelrr-documents' bucket with RLS-protected paths.
+// Path format: {type}/{hostel_id}/{category}/{filename}
+// =============================================================================
+
+/**
+ * Upload a photo to storage and return the full path.
+ * Supports join requests and resident profiles.
+ * @param file The file to upload
+ * @param hostelId The hostel ID (used in path for RLS)
+ * @param type 'join-requests' or 'residents'
+ * @returns The storage path for the uploaded file
+ */
+export async function uploadPhoto(
+  file: File,
+  hostelId: string,
+  type: 'join-requests' | 'residents'
+): Promise<string> {
+  const fileName = `${Date.now()}-${file.name}`;
+  const filePath = `${type}/${hostelId}/photo/${fileName}`;
+
+  const { data, error } = await supabase.storage
+    .from('hostelrr-documents')
+    .upload(filePath, file, {
+      cacheControl: '3600',
+      upsert: false,
+    });
+
+  if (error) throw new Error(`Photo upload failed: ${error.message}`);
+  return data.path;
+}
+
+/**
+ * Upload an aadhar document and return the full path.
+ * @param file The file to upload
+ * @param hostelId The hostel ID (used in path for RLS)
+ * @param type 'join-requests' or 'residents'
+ * @returns The storage path for the uploaded file
+ */
+export async function uploadAadharDocument(
+  file: File,
+  hostelId: string,
+  type: 'join-requests' | 'residents'
+): Promise<string> {
+  const fileName = `${Date.now()}-${file.name}`;
+  const filePath = `${type}/${hostelId}/aadhar/${fileName}`;
+
+  const { data, error } = await supabase.storage
+    .from('hostelrr-documents')
+    .upload(filePath, file, {
+      cacheControl: '3600',
+      upsert: false,
+    });
+
+  if (error) throw new Error(`Aadhar document upload failed: ${error.message}`);
+  return data.path;
+}
+
+/**
+ * Upload a hostel intake form (for residents only).
+ * @param file The file to upload
+ * @param hostelId The hostel ID (used in path for RLS)
+ * @returns The storage path for the uploaded file
+ */
+export async function uploadHostelForm(
+  file: File,
+  hostelId: string
+): Promise<string> {
+  const fileName = `${Date.now()}-${file.name}`;
+  const filePath = `residents/${hostelId}/hostel-form/${fileName}`;
+
+  const { data, error } = await supabase.storage
+    .from('hostelrr-documents')
+    .upload(filePath, file, {
+      cacheControl: '3600',
+      upsert: false,
+    });
+
+  if (error) throw new Error(`Hostel form upload failed: ${error.message}`);
+  return data.path;
+}
+
+/**
+ * Batch upload multiple files (used for resident profile).
+ * @param files Object mapping file type to File (e.g., { photo, aadhar, hostelForm })
+ * @param hostelId The hostel ID
+ * @returns Object with paths for each uploaded file
+ */
+export async function uploadResidentDocuments(
+  files: {
+    photo?: File;
+    aadhar?: File;
+    hostelForm?: File;
+  },
+  hostelId: string
+): Promise<{
+  photoPath?: string;
+  aadharPath?: string;
+  hostelFormPath?: string;
+}> {
+  const paths: any = {};
+
+  if (files.photo) {
+    paths.photoPath = await uploadPhoto(files.photo, hostelId, 'residents');
+  }
+  if (files.aadhar) {
+    paths.aadharPath = await uploadAadharDocument(files.aadhar, hostelId, 'residents');
+  }
+  if (files.hostelForm) {
+    paths.hostelFormPath = await uploadHostelForm(files.hostelForm, hostelId);
+  }
+
+  return paths;
+}
+
+/**
+ * Batch upload for join request (photo and aadhar only).
+ * @param files Object with { photo?, aadhar? }
+ * @param hostelId The hostel ID
+ * @returns Object with paths
+ */
+export async function uploadJoinRequestDocuments(
+  files: {
+    photo?: File;
+    aadhar?: File;
+  },
+  hostelId: string
+): Promise<{
+  photoPath?: string;
+  aadharPath?: string;
+}> {
+  const paths: any = {};
+
+  if (files.photo) {
+    paths.photoPath = await uploadPhoto(files.photo, hostelId, 'join-requests');
+  }
+  if (files.aadhar) {
+    paths.aadharPath = await uploadAadharDocument(files.aadhar, hostelId, 'join-requests');
+  }
+
+  return paths;
+}
+
+// =============================================================================
+// Bed Layout Templates
+// Store bed layout templates in database for persistence across devices
+// =============================================================================
+
+export interface BedLayoutTemplate {
+  id: string;
+  sharing: number;
+  positions: Record<string, { x: number; y: number; rotated: boolean }>;
+  door: 'N' | 'S' | 'E' | 'W' | null;
+  color: string;
+}
+
+/**
+ * Fetch all bed layout templates for a hostel
+ * @param hostelId The hostel ID
+ * @returns Array of templates
+ */
+export async function getBedLayoutTemplates(hostelId: string): Promise<BedLayoutTemplate[]> {
+  const { data, error } = await supabase
+    .from('bed_layout_templates')
+    .select('*')
+    .eq('hostel_id', hostelId)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('Failed to fetch bed layout templates:', error);
+    throw error;
+  }
+
+  return (data || []).map((t: any) => ({
+    id: t.id,
+    sharing: t.sharing,
+    positions: t.positions,
+    door: t.door,
+    color: t.color,
+  }));
+}
+
+/**
+ * Save or update a bed layout template
+ * @param hostelId The hostel ID
+ * @param template The template to save
+ * @returns The saved template
+ */
+export async function saveBedLayoutTemplate(
+  hostelId: string,
+  template: Partial<BedLayoutTemplate>
+): Promise<BedLayoutTemplate> {
+  if (!template.sharing || !template.positions) {
+    throw new Error('Template must have sharing and positions');
+  }
+
+  // If template has a non-empty ID, update it; otherwise insert (let DB generate UUID)
+  if (template.id && template.id.length > 0) {
+    const { data, error } = await supabase
+      .from('bed_layout_templates')
+      .update({
+        sharing: template.sharing,
+        positions: template.positions,
+        door: template.door || null,
+        color: template.color || 'Blue',
+      })
+      .eq('id', template.id)
+      .eq('hostel_id', hostelId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Failed to update bed layout template:', error);
+      throw error;
+    }
+
+    return {
+      id: data.id,
+      sharing: data.sharing,
+      positions: data.positions,
+      door: data.door,
+      color: data.color,
+    };
+  } else {
+    // Insert new template
+    const { data, error } = await supabase
+      .from('bed_layout_templates')
+      .insert({
+        hostel_id: hostelId,
+        sharing: template.sharing,
+        positions: template.positions,
+        door: template.door || null,
+        color: template.color || 'Blue',
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Failed to create bed layout template:', error);
+      throw error;
+    }
+
+    return {
+      id: data.id,
+      sharing: data.sharing,
+      positions: data.positions,
+      door: data.door,
+      color: data.color,
+    };
+  }
+}
+
+/**
+ * Delete a bed layout template
+ * @param templateId The template ID to delete
+ */
+export async function deleteBedLayoutTemplate(templateId: string): Promise<void> {
+  const { error } = await supabase
+    .from('bed_layout_templates')
+    .delete()
+    .eq('id', templateId);
+
+  if (error) {
+    console.error('Failed to delete bed layout template:', error);
+    throw error;
   }
 }
 

@@ -1,7 +1,9 @@
 import React from 'react';
-import { X, Info } from 'lucide-react';
+import { X, Info, FileText, Image as ImageIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from '../context/AppContext';
+import { getSignedFileUrl } from '../lib/supabaseAPI';
+import { getTodayIST } from '../lib/utils';
 
 export default function AddResidentModal({ 
   isOpen, 
@@ -12,13 +14,21 @@ export default function AddResidentModal({
   onClose: () => void; 
   reAddData?: any 
 }) {
-  const { addResident, removeJoinRequest, floors, sharingRentMap, securityDeposit, hostelProfile } = useApp();
+  const { addResident, approveJoinRequest, floors, sharingRentMap, securityDeposit, hostelProfile } = useApp();
   const [showJoiningInfo, setShowJoiningInfo] = React.useState(false);
+
+  const [joiningDate, setJoiningDate] = React.useState<string>(getTodayIST());
 
   // States for smart filtering
   const [selectedFloorId, setSelectedFloorId] = React.useState<string>('');
   const [selectedRoomId, setSelectedRoomId] = React.useState<string>('');
   const [selectedBedId, setSelectedBedId] = React.useState<string>('');
+  const isJoinRequest = reAddData?.source === 'joinRequest';
+  const isSpecificBed = reAddData?.roomId && reAddData?.bedId && !reAddData?.name;
+  const isReAdd = reAddData && reAddData.id !== 'new' && !isJoinRequest && !isSpecificBed;
+  const isImageUrl = (url?: string) => Boolean(url && /\.(png|jpe?g|webp|gif|avif)(\?|$)/i.test(url));
+  const [resolvedPhotoUrl, setResolvedPhotoUrl] = React.useState<string | undefined>(reAddData?.photoUrl);
+  const [resolvedAadharUrl, setResolvedAadharUrl] = React.useState<string | undefined>(reAddData?.aadharDocumentUrl);
 
   // 1. Available Floors (must have at least one vacant bed)
   const availableFloors = React.useMemo(() => {
@@ -80,6 +90,10 @@ export default function AddResidentModal({
         }
       }
     }
+    // Reset joining date when modal opens (use IST)
+    if (isOpen) {
+      setJoiningDate(getTodayIST());
+    }
   }, [isOpen, reAddData, floors, availableFloors]);
 
   // Derived pre-filled rent from sharingRentMap or room's baseRent
@@ -98,11 +112,34 @@ export default function AddResidentModal({
     return '';
   }, [selectedRoomId, floors, sharingRentMap]);
 
-  if (!isOpen) return null;
+  React.useEffect(() => {
+    let isActive = true;
 
-  const isJoinRequest = reAddData?.id?.startsWith('jr');
-  const isSpecificBed = reAddData?.roomId && reAddData?.bedId && !reAddData?.name;
-  const isReAdd = reAddData && reAddData.id !== 'new' && !isJoinRequest && !isSpecificBed;
+    if (isJoinRequest) {
+      setResolvedPhotoUrl(reAddData?.photoUrl);
+      setResolvedAadharUrl(reAddData?.aadharDocumentUrl);
+
+      void (async () => {
+        const [photoUrl, aadharUrl] = await Promise.all([
+          getSignedFileUrl(reAddData?.photoPath ?? reAddData?.photoUrl),
+          getSignedFileUrl(reAddData?.aadharDocumentPath ?? reAddData?.aadharDocumentUrl),
+        ]);
+
+        if (!isActive) return;
+        if (photoUrl) setResolvedPhotoUrl(photoUrl);
+        if (aadharUrl) setResolvedAadharUrl(aadharUrl);
+      })();
+    } else {
+      setResolvedPhotoUrl(undefined);
+      setResolvedAadharUrl(undefined);
+    }
+
+    return () => {
+      isActive = false;
+    };
+  }, [isJoinRequest, reAddData?.photoUrl, reAddData?.aadharDocumentUrl, reAddData?.photoPath, reAddData?.aadharDocumentPath]);
+
+  if (!isOpen) return null;
 
   const handleAddSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -116,7 +153,7 @@ export default function AddResidentModal({
       aadhar: formData.get('aadhar') as string,
       rent: Number(formData.get('rent')),
       stayTime: formData.get('stayTime') as string,
-      joinDate: formData.get('joiningDate') as string || new Date().toISOString().split('T')[0],
+      joinDate: formData.get('joiningDate') as string || joiningDate || getTodayIST(),
       securityDeposit: Number(formData.get('deposit')) || 0,
       isDepositPaid: false,
       roomId: selectedRoomId, 
@@ -124,29 +161,39 @@ export default function AddResidentModal({
       oldResidentId: isReAdd ? reAddData.id : undefined
     };
 
-    addResident(residentData, isReservedOnly);
-
-    if (isReAdd) {
-      import('sonner').then(({ toast }) => {
-        toast.success(`Resident ${residentData.name} re-added successfully!`);
-      });
-    }
-
     if (isJoinRequest) {
-      removeJoinRequest(reAddData.id);
+      approveJoinRequest({
+        requestId: reAddData.id,
+        roomId: selectedRoomId,
+        bedId: selectedBedId,
+        monthlyRent: residentData.rent,
+        joinDate: residentData.joinDate,
+        securityDeposit: residentData.securityDeposit || 0,
+        isDepositPaid: false,
+        stayDurationDays: residentData.stayTime ? Number(residentData.stayTime) : null,
+        reviewNotes: null,
+      });
+    } else {
+      addResident(residentData, isReservedOnly);
+
+      if (isReAdd) {
+        import('sonner').then(({ toast }) => {
+          toast.success(`Resident ${residentData.name} re-added successfully!`);
+        });
+      }
     }
 
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 overflow-y-auto">
       <div 
         className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" 
         onClick={onClose}
       ></div>
       
-      <div className="bg-white rounded-3xl shadow-xl w-full max-w-[480px] max-h-[90vh] relative z-10 overflow-hidden flex flex-col">
+      <div className="bg-white rounded-3xl shadow-xl w-full max-w-[480px] max-h-[90vh] relative z-10 overflow-hidden flex flex-col my-4">
         <div className="flex justify-between items-center p-6 pb-4 border-b border-gray-100 shrink-0">
           <div>
             <h2 className="text-2xl font-bold text-gray-900">
@@ -165,6 +212,81 @@ export default function AddResidentModal({
         
         <form onSubmit={handleAddSubmit} className="flex flex-col overflow-hidden min-h-0">
           <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar flex-1">
+            {isJoinRequest && (
+              <div className="space-y-3 rounded-2xl border border-blue-100 bg-blue-50/40 p-4">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-blue-600" />
+                  <p className="text-sm font-semibold text-gray-900">Uploaded Files</p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="rounded-xl border border-blue-100 bg-white p-3">
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Photo</p>
+                    {resolvedPhotoUrl ? (
+                      <div className="mt-2 space-y-2">
+                        {isImageUrl(resolvedPhotoUrl) ? (
+                          <a href={resolvedPhotoUrl} target="_blank" rel="noopener noreferrer" className="block overflow-hidden rounded-xl border border-gray-200 bg-gray-50 hover:border-blue-300 transition-colors">
+                            <img
+                              src={resolvedPhotoUrl}
+                              alt={`${reAddData.name || 'Resident'} photo`}
+                              className="h-36 w-full object-cover"
+                            />
+                          </a>
+                        ) : (
+                          <div className="flex items-center gap-3 rounded-lg border border-gray-200 p-2">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600 overflow-hidden shrink-0">
+                              <ImageIcon className="w-5 h-5" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-gray-900">Photo uploaded</p>
+                              <p className="text-xs text-gray-500 truncate">Open submitted resident photo</p>
+                            </div>
+                          </div>
+                        )}
+                        <a href={resolvedPhotoUrl} target="_blank" rel="noopener noreferrer" className="inline-flex text-sm font-medium text-blue-700 hover:text-blue-800">
+                          Open photo
+                        </a>
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-sm text-gray-500">No photo uploaded</p>
+                    )}
+                  </div>
+
+                  <div className="rounded-xl border border-blue-100 bg-white p-3">
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Aadhar</p>
+                    {resolvedAadharUrl ? (
+                      <div className="mt-2 space-y-2">
+                        {isImageUrl(resolvedAadharUrl) ? (
+                          <a href={resolvedAadharUrl} target="_blank" rel="noopener noreferrer" className="block overflow-hidden rounded-xl border border-gray-200 bg-gray-50 hover:border-emerald-300 transition-colors">
+                            <img
+                              src={resolvedAadharUrl}
+                              alt={`${reAddData.name || 'Resident'} aadhar`}
+                              className="h-36 w-full object-cover"
+                            />
+                          </a>
+                        ) : (
+                          <div className="flex items-center gap-3 rounded-lg border border-gray-200 p-2">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 overflow-hidden shrink-0">
+                              <FileText className="w-5 h-5" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-gray-900">Aadhar uploaded</p>
+                              <p className="text-xs text-gray-500 truncate">Open submitted identity file</p>
+                            </div>
+                          </div>
+                        )}
+                        <a href={resolvedAadharUrl} target="_blank" rel="noopener noreferrer" className="inline-flex text-sm font-medium text-emerald-700 hover:text-emerald-800">
+                          Open aadhar
+                        </a>
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-sm text-gray-500">No aadhar uploaded</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-gray-900 block">Name <span className="text-red-500">*</span></label>
               <input 
@@ -220,7 +342,8 @@ export default function AddResidentModal({
               <input 
                 type="date"
                 name="joiningDate"
-                defaultValue={new Date().toISOString().split('T')[0]}
+                value={joiningDate}
+                onChange={(e) => setJoiningDate(e.target.value)}
                 className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all"
               />
             </div>

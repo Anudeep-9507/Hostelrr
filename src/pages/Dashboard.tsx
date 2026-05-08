@@ -37,9 +37,23 @@ function KpiCard({ title, value, icon: Icon, trend, className, cardBg = "bg-whit
 }
 
 export default function Dashboard({ setActiveTab }: { setActiveTab?: (tab: string) => void }) {
-  const { floors, residents, activities, joinRequests, removeJoinRequest, markAsPaid, setActiveBuildingFilter, setActivePaymentsFilter, hostelProfile, sharingRentMap } = useApp();
+  const { floors, residents, activities, joinRequests, rejectJoinRequest, markAsPaid, setActiveBuildingFilter, setActivePaymentsFilter, hostelProfile, sharingRentMap, syncStateWithDb } = useApp();
   const [requestSearch, setRequestSearch] = useState('');
   const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
+
+  // Auto-sync join requests every 10 seconds to catch new submissions
+  React.useEffect(() => {
+    const interval = setInterval(syncStateWithDb, 10000); // Poll every 10 seconds
+    
+    // Also sync when page regains focus
+    const handleFocus = () => syncStateWithDb();
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [syncStateWithDb]);
 
   // Metrics Logic
   let occupiedBeds = 0;
@@ -56,7 +70,7 @@ export default function Dashboard({ setActiveTab }: { setActiveTab?: (tab: strin
     });
   });
 
-  const totalBeds = Math.max(hostelProfile?.total_beds || hostelProfile?.total_capacity || 0, configuredBedsCount);
+  const totalBeds = Math.max(hostelProfile?.total_beds || 0, configuredBedsCount);
   const vacantBeds = Math.max(0, totalBeds - occupiedBeds - reservedBeds);
 
   // Pending = total owed by all residents with unpaid/partial cycles
@@ -281,6 +295,31 @@ export default function Dashboard({ setActiveTab }: { setActiveTab?: (tab: strin
                              {req.aadharNumber && <span className="text-[10px] text-gray-500">Aadhar: {req.aadharNumber}</span>}
                            </div>
                          )}
+
+                         {(req.photoUrl || req.aadharDocumentUrl) && (
+                           <div className="flex flex-wrap gap-2 mt-2">
+                             {req.photoUrl && (
+                               <a
+                                 href={req.photoUrl}
+                                 target="_blank"
+                                 rel="noopener noreferrer"
+                                 className="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full"
+                               >
+                                 View Photo
+                               </a>
+                             )}
+                             {req.aadharDocumentUrl && (
+                               <a
+                                 href={req.aadharDocumentUrl}
+                                 target="_blank"
+                                 rel="noopener noreferrer"
+                                 className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full"
+                               >
+                                 View Aadhar
+                               </a>
+                             )}
+                           </div>
+                         )}
                        </div>
                        <span className="text-[10px] text-gray-400 font-medium whitespace-nowrap ml-2">{req.requestDate}</span>
                     </div>
@@ -288,7 +327,7 @@ export default function Dashboard({ setActiveTab }: { setActiveTab?: (tab: strin
                     <div className="flex flex-col gap-2 mt-3">
                        <button 
                          onClick={() => {
-                           window.dispatchEvent(new CustomEvent('open-add-resident-modal', { detail: { id: req.id, name: req.name, phone: req.phone, stayTime: req.stayDuration, emergencyPhone: req.emergencyContact, aadhar: req.aadharNumber } }));
+                           window.dispatchEvent(new CustomEvent('open-add-resident-modal', { detail: { ...req, source: 'joinRequest', stayTime: req.stayDuration, emergencyPhone: req.emergencyContact, aadhar: req.aadharNumber } }));
                          }}
                          className="w-full bg-[#1D4ED8] hover:bg-[#1e40af] text-white text-sm font-semibold py-2.5 rounded-xl transition-colors shadow-sm"
                        >
@@ -302,7 +341,7 @@ export default function Dashboard({ setActiveTab }: { setActiveTab?: (tab: strin
                            WhatsApp
                          </a>
                          <button 
-                           onClick={() => removeJoinRequest(req.id)}
+                           onClick={() => rejectJoinRequest(req.id)}
                            className="flex-none px-3 bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 text-xs font-semibold py-2 rounded-xl transition-colors"
                          >
                            Reject

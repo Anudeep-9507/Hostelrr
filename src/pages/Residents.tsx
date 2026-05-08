@@ -1,11 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import DefaultAvatar from '../components/DefaultAvatar';
-import { Plus, Phone, X, History, ArrowLeft, Calendar, LogOut, UserPlus, IndianRupee, FileText, CheckCircle2, Edit, User, Smartphone, Banknote } from 'lucide-react';
-import { cn, formatDate, getNamesFromIds } from '../lib/utils';
+import { Plus, Phone, X, History, ArrowLeft, Calendar, LogOut, UserPlus, IndianRupee, FileText, CheckCircle2, Edit, User, Smartphone, Banknote, Upload, Image as ImageIcon } from 'lucide-react';
+import { cn, formatDate, getNamesFromIds, getTodayIST, convertToIST, getCurrentTimeIST } from '../lib/utils';
 import { Resident, PastResident, MockPastResidents } from '../data/mock';
 import { AnimatePresence, motion } from 'motion/react';
 import { toast } from 'sonner';
+import { uploadResidentDocuments } from '../lib/supabaseAPI';
 
 type ViewMode = 'all' | 'floor' | 'room';
 
@@ -16,7 +17,7 @@ export const WhatsAppIcon = ({ className }: { className?: string }) => (
 );
 
 export default function Residents() {
-  const { residents, pastResidents, floors, globalSelectedResidentId, setGlobalSelectedResidentId, vacateResident, addResident, editResident, isDemoMode } = useApp();
+  const { residents, pastResidents, floors, hostelProfile, globalSelectedResidentId, setGlobalSelectedResidentId, vacateResident, addResident, editResident, isDemoMode } = useApp();
   const [viewMode, setViewMode] = useState<ViewMode>('all');
   const [currentSort, setCurrentSort] = useState('recent');
   const [showHistory, setShowHistory] = useState(false);
@@ -24,8 +25,18 @@ export default function Residents() {
   const [profileTab, setProfileTab] = useState<'info' | 'payment'>('info');
   const [residentToVacate, setResidentToVacate] = useState<Resident | null>(null);
   const [residentToEdit, setResidentToEdit] = useState<Resident | null>(null);
+  const [residentEditFiles, setResidentEditFiles] = useState<{ photo?: File; aadhar?: File; hostelForm?: File }>({});
+  const [isEditingFiles, setIsEditingFiles] = useState(false);
+  const [isUploadingProfileDoc, setIsUploadingProfileDoc] = useState(false);
   const [residentToMarkDepositPaid, setResidentToMarkDepositPaid] = useState<Resident | null>(null);
   const [depositPaymentMethod, setDepositPaymentMethod] = useState<'UPI' | 'Cash'>('UPI');
+  const [depositPaymentDate, setDepositPaymentDate] = useState<string>(getTodayIST());
+
+  React.useEffect(() => {
+    if (residentToMarkDepositPaid) {
+      setDepositPaymentDate(getTodayIST());
+    }
+  }, [residentToMarkDepositPaid]);
 
   React.useEffect(() => {
     if (globalSelectedResidentId) {
@@ -55,6 +66,61 @@ export default function Residents() {
     else if (mode === 'room') setCurrentSort('room_asc');
   };
 
+  const handleProfileDocumentUpload = async (
+    type: 'aadhar' | 'hostelForm' | 'photo',
+    file?: File
+  ) => {
+    if (!file || !selectedResident || !('paymentStatus' in selectedResident)) return;
+    if (!hostelProfile?.id) {
+      toast.error('Hostel profile not found. Please refresh and try again.');
+      return;
+    }
+
+    setIsUploadingProfileDoc(true);
+    try {
+      const uploadParams: any = {};
+      if (type === 'aadhar') uploadParams.aadhar = file;
+      else if (type === 'hostelForm') uploadParams.hostelForm = file;
+      else if (type === 'photo') uploadParams.photo = file;
+
+      const uploaded = await uploadResidentDocuments(
+        uploadParams,
+        hostelProfile.id
+      );
+
+      editResident(selectedResident.id, {
+        aadharPath: uploaded.aadharPath,
+        hostelFormPath: uploaded.hostelFormPath,
+        photoPath: uploaded.photoPath,
+      });
+
+      toast.success(`${type === 'photo' ? 'Photo' : (type === 'aadhar' ? 'Aadhar' : 'Hostel form')} uploaded successfully`);
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to upload');
+    } finally {
+      setIsUploadingProfileDoc(false);
+    }
+  };
+
+  const downloadFileInstantly = async (url: string, filename: string) => {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Failed to fetch file');
+
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      toast.error('Download failed. Please try again.');
+    }
+  };
+
   const getMockHistory = (resident: Resident | PastResident) => {
     const r = resident as any;
     const rentAmount = r.dueAmount > 0 ? r.dueAmount : 7500;
@@ -63,7 +129,8 @@ export default function Residents() {
     if (r.securityDeposit && r.isDepositPaid) {
       history.push({
         id: 'sec_dep',
-        date: formatDate(r.joinDate),
+        // keep raw ISO/timestamp here for reliable sorting and parsing
+        date: r.depositPaidDate ? r.depositPaidDate : r.joinDate,
         amount: r.securityDeposit,
         status: 'paid',
         title: 'Security Deposit'
@@ -79,14 +146,20 @@ export default function Residents() {
   };
 
   // Past residents logic (sorted by recents)
-  const sortedPastResidents = [...pastResidents].sort((a, b) => 
-    new Date(b.vacateDate).getTime() - new Date(a.vacateDate).getTime()
-  );
+  const sortedPastResidents = [...pastResidents].sort((a, b) => {
+    const dateA = new Date(a.createdAt || a.vacateDate).getTime();
+    const dateB = new Date(b.createdAt || b.vacateDate).getTime();
+    return dateB - dateA;
+  });
 
   let sortedResidents = [...residents];
   if (viewMode === 'all') {
     if (currentSort === 'recent') {
-      sortedResidents.sort((a, b) => new Date(b.joinDate).getTime() - new Date(a.joinDate).getTime());
+      sortedResidents.sort((a, b) => {
+        const dateA = new Date(a.createdAt || a.joinDate).getTime();
+        const dateB = new Date(b.createdAt || b.joinDate).getTime();
+        return dateB - dateA;
+      });
     } else if (currentSort === 'name_asc') {
       sortedResidents.sort((a, b) => a.name.localeCompare(b.name));
     } else if (currentSort === 'name_desc') {
@@ -494,11 +567,30 @@ export default function Residents() {
 
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
               <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-full bg-gray-50 border-2 border-white ring-1 ring-gray-200 shadow-sm flex items-center justify-center text-gray-400 overflow-hidden shrink-0">
-                  {selectedResident.photoUrl ? (
-                    <img src={selectedResident.photoUrl} alt={selectedResident.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <DefaultAvatar className="w-full h-full" />
+                <div className="relative group">
+                  <div className="w-16 h-16 rounded-full bg-gray-50 border-2 border-white ring-1 ring-gray-200 shadow-sm flex items-center justify-center text-gray-400 overflow-hidden shrink-0">
+                    {selectedResident.photoUrl ? (
+                      <img src={selectedResident.photoUrl} alt={selectedResident.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="relative w-full h-full flex items-center justify-center">
+                        <DefaultAvatar className="w-full h-full" />
+                        <label className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                          <Plus className="w-6 h-6 text-white" />
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            className="hidden" 
+                            disabled={isUploadingProfileDoc}
+                            onChange={(e) => handleProfileDocumentUpload('photo', e.target.files?.[0])}
+                          />
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                  {isUploadingProfileDoc && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-white/60 rounded-full">
+                      <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                    </div>
                   )}
                 </div>
                 <div>
@@ -591,7 +683,7 @@ export default function Residents() {
                     )}
                     <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
                       <span className="flex items-center gap-2 text-xs text-gray-500 font-medium mb-1.5"><User className="w-4 h-4" /> Aadhar No.</span>
-                      <span className="text-sm font-semibold text-gray-900">{selectedResident.aadhar || '1234 5678 9012'}</span>
+                      <span className="text-sm font-semibold text-gray-900">{selectedResident.aadhar || 'Not provided'}</span>
                     </div>
                     <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
                       <span className="flex items-center gap-2 text-xs text-gray-500 font-medium mb-1.5"><Phone className="w-4 h-4" /> Emergency</span>
@@ -603,19 +695,19 @@ export default function Residents() {
                         <span className="text-sm font-semibold text-gray-900">₹{selectedResident.dueAmount > 0 ? selectedResident.dueAmount : 7500}</span>
                       </div>
                     )}
-                    {selectedResident.securityDeposit ? (
+                    {('securityDeposit' in selectedResident && selectedResident.securityDeposit) ? (
                       <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 col-span-2">
                         <span className="flex items-center justify-between gap-2 text-xs text-gray-500 font-medium mb-1.5">
                           <span className="flex items-center gap-2"><IndianRupee className="w-4 h-4" /> Security Deposit (One-time)</span>
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${selectedResident.isDepositPaid ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                            {selectedResident.isDepositPaid ? 'Paid' : 'Unpaid'}
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${'isDepositPaid' in selectedResident && selectedResident.isDepositPaid ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                            {'isDepositPaid' in selectedResident && selectedResident.isDepositPaid ? 'Paid' : 'Unpaid'}
                           </span>
                         </span>
                         <div className="flex items-center justify-between mt-1">
                           <span className="text-sm font-semibold text-gray-900">₹{selectedResident.securityDeposit}</span>
-                          {!selectedResident.isDepositPaid && 'dueAmount' in selectedResident && (
+                          {('isDepositPaid' in selectedResident && !selectedResident.isDepositPaid) && 'dueAmount' in selectedResident && (
                             <button
-                              onClick={() => { setResidentToMarkDepositPaid(selectedResident as Resident); setDepositPaymentMethod('UPI'); }}
+                              onClick={() => { setResidentToMarkDepositPaid(selectedResident as Resident); setDepositPaymentMethod('UPI'); setDepositPaymentDate(getTodayIST()); }}
                               className="px-3 py-1 bg-green-50 text-green-700 hover:bg-green-100 rounded-lg text-xs font-bold transition-colors uppercase tracking-wider"
                             >
                               Mark Paid
@@ -630,58 +722,115 @@ export default function Residents() {
                   <div className="space-y-3 pt-4 border-t border-gray-100">
                     <div className="flex items-center justify-between">
                       <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Documents</h4>
-                      {!selectedResident.documentsComplete && (
+                      {'paymentStatus' in selectedResident && !selectedResident.documentsComplete && (
                         <span className="bg-red-50 text-red-600 text-xs font-bold px-2 py-1 rounded-md">Missing</span>
                       )}
                     </div>
-                    {selectedResident.documentsComplete ? (
+
+                    {'paymentStatus' in selectedResident ? (
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between p-3 border border-gray-200 rounded-xl hover:border-blue-300 transition-colors cursor-pointer group">
+                        <div className="flex items-center justify-between p-3 border border-gray-200 rounded-xl">
                           <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
                               <FileText className="w-5 h-5" />
                             </div>
                             <div>
                               <p className="text-sm font-medium text-gray-900">Aadhar Card</p>
-                              <p className="text-xs text-gray-500">PDF • 2.4 MB</p>
+                              <p className="text-xs text-gray-500">
+                                {selectedResident.aadharDocumentUrl ? 'Uploaded' : 'Not uploaded'}
+                              </p>
                             </div>
                           </div>
-                          <button className="text-blue-600 text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">View</button>
+                          <div className="flex items-center gap-2">
+                            {selectedResident.aadharDocumentUrl ? (
+                              <>
+                                <a
+                                  href={selectedResident.aadharDocumentUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 text-sm font-medium"
+                                >
+                                  View
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => downloadFileInstantly(selectedResident.aadharDocumentUrl!, `${selectedResident.name}-aadhar`)}
+                                  className="text-gray-700 text-sm font-medium"
+                                >
+                                  Download
+                                </button>
+                              </>
+                            ) : (
+                              <label className="text-sm font-semibold bg-gray-900 text-white px-3 py-1.5 rounded-lg hover:bg-gray-800 transition-colors cursor-pointer">
+                                Upload
+                                <input
+                                  type="file"
+                                  accept="image/*,application/pdf"
+                                  className="hidden"
+                                  disabled={isUploadingProfileDoc}
+                                  onChange={(e) => handleProfileDocumentUpload('aadhar', e.target.files?.[0])}
+                                />
+                              </label>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center justify-between p-3 border border-gray-200 rounded-xl hover:border-blue-300 transition-colors cursor-pointer group">
+
+                        <div className="flex items-center justify-between p-3 border border-gray-200 rounded-xl">
                           <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
                               <FileText className="w-5 h-5" />
                             </div>
                             <div>
                               <p className="text-sm font-medium text-gray-900">Hostel Form</p>
-                              <p className="text-xs text-gray-500">PDF • 1.1 MB</p>
+                              <p className="text-xs text-gray-500">
+                                {selectedResident.hostelFormUrl ? 'Uploaded' : 'Not uploaded'}
+                              </p>
                             </div>
                           </div>
-                          <button className="text-blue-600 text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">View</button>
+                          <div className="flex items-center gap-2">
+                            {selectedResident.hostelFormUrl ? (
+                              <>
+                                <a
+                                  href={selectedResident.hostelFormUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 text-sm font-medium"
+                                >
+                                  View
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => downloadFileInstantly(selectedResident.hostelFormUrl!, `${selectedResident.name}-hostel-form`)}
+                                  className="text-gray-700 text-sm font-medium"
+                                >
+                                  Download
+                                </button>
+                              </>
+                            ) : (
+                              <label className="text-sm font-semibold bg-gray-100 text-gray-900 border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer">
+                                Upload
+                                <input
+                                  type="file"
+                                  accept="application/pdf,image/*"
+                                  className="hidden"
+                                  disabled={isUploadingProfileDoc}
+                                  onChange={(e) => handleProfileDocumentUpload('hostelForm', e.target.files?.[0])}
+                                />
+                              </label>
+                            )}
+                          </div>
                         </div>
+
+                        {!selectedResident.aadharDocumentUrl && !selectedResident.hostelFormUrl && (
+                          <div className="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center">
+                            <p className="text-sm text-gray-600 font-medium">No documents found</p>
+                            <p className="text-xs text-gray-500">Upload Aadhar and Hostel Form to complete profile</p>
+                          </div>
+                        )}
                       </div>
                     ) : (
-                      <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 flex flex-col items-center justify-center text-center">
-                        <div className="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 mb-3">
-                          <FileText className="w-6 h-6" />
-                        </div>
-                        <p className="text-sm text-gray-600 font-medium mb-1">No documents found</p>
-                        <p className="text-xs text-gray-500 mb-4">Please add required documents</p>
-                        <div className="flex flex-col w-full gap-2 mt-2">
-                          <button 
-                            onClick={() => alert("Upload Aadhar Card dialog would open here.")}
-                            className="text-sm font-semibold bg-gray-900 text-white px-4 py-2.5 rounded-lg hover:bg-gray-800 transition-colors w-full"
-                          >
-                            Upload Aadhar Card
-                          </button>
-                          <button 
-                            onClick={() => alert("Upload Hostel Form dialog would open here.")}
-                            className="text-sm font-semibold bg-gray-100 text-gray-900 border border-gray-200 px-4 py-2.5 rounded-lg hover:bg-gray-200 transition-colors w-full"
-                          >
-                            Upload Hostel Form
-                          </button>
-                        </div>
+                      <div className="border border-gray-200 rounded-xl p-4 bg-gray-50">
+                        <p className="text-sm text-gray-600">Documents are available for active residents only.</p>
                       </div>
                     )}
                   </div>
@@ -702,7 +851,7 @@ export default function Residents() {
                             </div>
                             <div>
                               <p className="text-sm font-semibold text-gray-900">{history.title || 'Rent Payment'}</p>
-                              <p className="text-xs text-gray-500">Paid on {history.date}</p>
+                              <p className="text-xs text-gray-500">Paid on {formatDate(history.date)}</p>
                             </div>
                           </div>
                           <div className="flex flex-col items-end">
@@ -825,53 +974,108 @@ export default function Residents() {
               <div className="p-6 border-b border-gray-100 flex items-center justify-between">
                 <h3 className="text-xl font-bold text-gray-900">Edit Resident Profile</h3>
                 <button 
-                  onClick={() => setResidentToEdit(null)}
+                  onClick={() => {
+                    setResidentToEdit(null);
+                    setResidentEditFiles({});
+                  }}
                   className="p-2 hover:bg-gray-100 rounded-full transition-colors"
                 >
                   <X className="w-5 h-5 text-gray-500" />
                 </button>
               </div>
-              
-              <form onSubmit={(e) => {
+              <form onSubmit={async (e) => {
                 e.preventDefault();
                 const formData = new FormData(e.currentTarget);
-                editResident(residentToEdit.id, {
-                  name: formData.get('name'),
-                  phone: formData.get('phone'),
-                  aadhar: formData.get('aadhar'),
-                  emergencyPhone: formData.get('emergencyPhone'),
-                  monthlyRent: formData.get('monthlyRent') ? parseInt(formData.get('monthlyRent') as string, 10) : undefined,
-                  isDepositPaid: formData.get('isDepositPaid') === 'on'
-                });
-                setResidentToEdit(null);
-                // Also update selectedResident if it's currently open
-                if (selectedResident && selectedResident.id === residentToEdit.id) {
-                  setSelectedResident(prev => prev ? {
-                    ...prev, 
-                    name: formData.get('name') as string, 
-                    phone: formData.get('phone') as string,
-                    aadhar: formData.get('aadhar') as string,
-                    emergencyPhone: formData.get('emergencyPhone') as string,
-                    dueAmount: formData.get('dueAmount') ? parseInt(formData.get('dueAmount') as string, 10) : prev.dueAmount,
-                    isDepositPaid: formData.get('isDepositPaid') === 'on'
-                  } as Resident : null);
+                
+                setIsEditingFiles(true);
+                try {
+                  let uploadedPaths: any = {};
+                  if (Object.keys(residentEditFiles).length > 0 && residentToEdit && hostelProfile?.id) {
+                    uploadedPaths = await uploadResidentDocuments(residentEditFiles, hostelProfile.id);
+                  }
+
+                  editResident(residentToEdit!.id, {
+                    name: formData.get('name'),
+                    phone: formData.get('phone'),
+                    aadhar: formData.get('aadhar'),
+                    emergencyPhone: formData.get('emergencyPhone'),
+                    monthlyRent: formData.get('monthlyRent') ? parseInt(formData.get('monthlyRent') as string, 10) : undefined,
+                    photoPath: uploadedPaths.photoPath,
+                    aadharPath: uploadedPaths.aadharPath,
+                    hostelFormPath: uploadedPaths.hostelFormPath,
+                  });
+                  setResidentToEdit(null);
+                  setResidentEditFiles({});
+                  toast.success('Resident updated successfully');
+                  if (selectedResident && selectedResident.id === residentToEdit!.id) {
+                    setSelectedResident(prev => prev ? {
+                      ...prev, 
+                      name: formData.get('name') as string, 
+                      phone: formData.get('phone') as string,
+                      aadhar: formData.get('aadhar') as string,
+                      emergencyPhone: formData.get('emergencyPhone') as string,
+                      dueAmount: formData.get('monthlyRent') ? parseInt(formData.get('monthlyRent') as string, 10) : ('dueAmount' in prev ? prev.dueAmount : 0),
+                    } as Resident : null);
+                  }
+                } catch (error: any) {
+                  toast.error(error?.message || 'Failed to update resident');
+                } finally {
+                  setIsEditingFiles(false);
                 }
-              }} className="p-6 space-y-4">
+              }} className="p-6 space-y-5 max-h-[70vh] overflow-y-auto custom-scrollbar">
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-gray-900 block">Full Name <span className="text-red-500">*</span></label>
                   <input type="text" name="name" defaultValue={residentToEdit.name} required className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all" />
                 </div>
+
+                <div className="grid grid-cols-1 gap-4 pt-1">
+                  {[
+                    { label: 'Photo', key: 'photo', icon: ImageIcon, current: residentToEdit.photoUrl, accept: 'image/*' },
+                    { label: 'Aadhar', key: 'aadhar', icon: FileText, current: (residentToEdit as Resident).aadharDocumentUrl, accept: 'image/*,application/pdf' },
+                    { label: 'Hostel Form', key: 'hostelForm', icon: Upload, current: (residentToEdit as Resident).hostelFormUrl, accept: 'image/*,application/pdf' }
+                  ].map((file) => (
+                    <div key={file.key} className="flex items-center justify-between p-3.5 bg-gray-50 border border-gray-100 rounded-2xl">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-white shadow-sm border border-gray-100 flex items-center justify-center text-gray-400">
+                          <file.icon className="w-4.5 h-4.5" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">{file.label}</p>
+                          {(file.current || residentEditFiles[file.key as keyof typeof residentEditFiles]) && (
+                            <p className="text-[11px] text-green-600 font-bold flex items-center gap-1 mt-0.5">
+                              <CheckCircle2 className="w-3 h-3" /> {residentEditFiles[file.key as keyof typeof residentEditFiles] ? 'New file selected' : 'Uploaded'}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <label className="relative inline-flex items-center px-4 py-2 bg-white border border-gray-200 hover:border-gray-300 rounded-xl text-xs font-bold text-gray-700 shadow-sm cursor-pointer transition-all hover:bg-gray-50">
+                        {file.current || residentEditFiles[file.key as keyof typeof residentEditFiles] ? 'Replace' : 'Upload'}
+                        <input 
+                          type="file" 
+                          accept={file.accept}
+                          className="sr-only" 
+                          onChange={(e) => {
+                            if (e.target.files?.[0]) {
+                              setResidentEditFiles(prev => ({ ...prev, [file.key]: e.target.files![0] }));
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
+                  ))}
+                </div>
+
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-gray-900 block">Phone No. <span className="text-red-500">*</span></label>
                   <input type="tel" name="phone" defaultValue={residentToEdit.phone} required className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-gray-900 block">Aadhar No.</label>
-                  <input type="text" name="aadhar" defaultValue={residentToEdit.aadhar || '1234 5678 9012'} className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all" />
+                  <input type="text" name="aadhar" defaultValue={residentToEdit.aadhar || ''} className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-gray-900 block">Emergency Contact</label>
-                  <input type="tel" name="emergencyPhone" defaultValue={residentToEdit.emergencyPhone || '+91 98765 00000'} className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all" />
+                  <input type="tel" name="emergencyPhone" defaultValue={residentToEdit.emergencyPhone || ''} className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-gray-900 block">Monthly Rent</label>
@@ -882,32 +1086,25 @@ export default function Residents() {
                     <input type="number" name="monthlyRent" defaultValue={(residentToEdit as any).monthlyRent ?? residentToEdit.dueAmount} className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all" />
                   </div>
                 </div>
-                {residentToEdit.securityDeposit ? (
-                  <div className="space-y-1.5 pt-2 flex items-center justify-between bg-gray-50 p-3 rounded-xl border border-gray-100">
-                    <div className="flex flex-col">
-                      <span className="text-sm font-medium text-gray-900">Security Deposit Paid?</span>
-                      <span className="text-xs text-gray-500">₹{residentToEdit.securityDeposit}</span>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" name="isDepositPaid" defaultChecked={residentToEdit.isDepositPaid} className="sr-only peer" />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                    </label>
-                  </div>
-                ) : null}
-                
-                <div className="pt-4 flex items-center justify-end gap-3">
+
+                <div className="pt-4 flex items-center justify-end gap-3 sticky bottom-0 bg-white border-t border-gray-100 mt-2 -mx-6 px-6 pt-4">
                   <button 
                     type="button"
-                    onClick={() => setResidentToEdit(null)}
-                    className="px-5 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors"
+                    onClick={() => {
+                      setResidentToEdit(null);
+                      setResidentEditFiles({});
+                    }}
+                    disabled={isEditingFiles}
+                    className="px-5 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors disabled:opacity-50"
                   >
                     Cancel
                   </button>
                   <button 
                     type="submit"
-                    className="px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-sm flex items-center gap-2"
+                    disabled={isEditingFiles}
+                    className="px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Save Changes
+                    {isEditingFiles ? 'Saving...' : 'Save Changes'}
                   </button>
                 </div>
               </form>
@@ -968,6 +1165,15 @@ export default function Residents() {
                       </button>
                     </div>
                   </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-900 block mb-2">Payment Date</label>
+                    <input 
+                      type="date" 
+                      value={depositPaymentDate}
+                      onChange={(e) => setDepositPaymentDate(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all font-medium text-gray-900"
+                    />
+                  </div>
                 </div>
               </div>
               <div className="p-4 bg-gray-50 flex items-center justify-end gap-3 border-t border-gray-100">
@@ -979,7 +1185,19 @@ export default function Residents() {
                 </button>
                 <button 
                   onClick={() => {
-                    editResident(residentToMarkDepositPaid.id, { ...residentToMarkDepositPaid, isDepositPaid: true });
+                    // Implement same logic as in payments (use proper UTC time)
+                    const depositTimestamp = (() => {
+                      if (!depositPaymentDate) {
+                        return new Date().toISOString();
+                      }
+                      if (/^\d{4}-\d{2}-\d{2}$/.test(depositPaymentDate)) {
+                        const now = new Date();
+                        const localTime = now.toISOString().split('T')[1];
+                        return `${depositPaymentDate}T${localTime}`;
+                      }
+                      return depositPaymentDate;
+                    })();
+                    editResident(residentToMarkDepositPaid.id, { ...residentToMarkDepositPaid, isDepositPaid: true, depositPaidDate: depositTimestamp });
                     toast.success(`Security deposit marked as paid`);
                     setResidentToMarkDepositPaid(null);
                   }}

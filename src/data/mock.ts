@@ -34,6 +34,11 @@ export interface Resident {
   dueDate?: string;
   documentsComplete: boolean;
   photoUrl?: string;
+  photoPath?: string;
+  aadharDocumentPath?: string;
+  aadharDocumentUrl?: string;
+  hostelFormPath?: string;
+  hostelFormUrl?: string;
   lastReminderSentAt?: string;
   emergencyPhone?: string;
   aadhar?: string;
@@ -42,6 +47,8 @@ export interface Resident {
   paymentHistory?: { id: string | number; date: string; amount: number; status: string; method?: 'UPI' | 'Cash'; title?: string }[];
   securityDeposit?: number;
   isDepositPaid?: boolean;
+  depositPaidDate?: string;
+  createdAt?: string;
 }
 
 export interface PastResident {
@@ -54,8 +61,11 @@ export interface PastResident {
   vacateDate: string;
   reason: string;
   photoUrl?: string;
+  photoPath?: string;
   emergencyPhone?: string;
   aadhar?: string;
+  paymentHistory?: { id: string | number; date: string; amount: number; status: string; method?: 'UPI' | 'Cash'; title?: string }[];
+  createdAt?: string;
 }
 
 export interface JoinRequest {
@@ -66,9 +76,13 @@ export interface JoinRequest {
   preferredRoom?: string;
   emergencyContact?: string;
   aadharNumber?: string;
-  photo?: string;
+  photoPath?: string;
+  photoUrl?: string;
+  aadharDocumentPath?: string;
+  aadharDocumentUrl?: string;
   requestDate: string;
   status: 'pending' | 'approved' | 'rejected';
+  stayDuration?: number | null;
 }
 
 export const MOckFloors: Floor[] = [

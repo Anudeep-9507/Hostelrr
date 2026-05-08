@@ -144,13 +144,14 @@ function MainApp() {
   };
 
   const renderContent = () => {
+    const setTab = (t: string) => setActiveTab(t as Tab);
     switch (activeTab) {
-      case 'dashboard': return <Dashboard setActiveTab={setActiveTab} />;
-      case 'building': return <BuildingView setActiveTab={setActiveTab} />;
+      case 'dashboard': return <Dashboard setActiveTab={setTab} />;
+      case 'building': return <BuildingView setActiveTab={setTab} />;
       case 'residents': return <Residents />;
-      case 'payments': return <Payments setActiveTab={setActiveTab} />;
+      case 'payments': return <Payments setActiveTab={setTab} />;
       case 'settings': return <Settings />;
-      default: return <Dashboard setActiveTab={setActiveTab} />;
+      default: return <Dashboard setActiveTab={setTab} />;
     }
   };
 

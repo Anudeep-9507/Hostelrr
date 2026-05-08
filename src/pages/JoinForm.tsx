@@ -1,30 +1,97 @@
-import React, { useState } from 'react';
-import { Building2, CheckCircle2, ChevronLeft, Upload, Image as ImageIcon } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Building2, CheckCircle2, ChevronLeft, Upload, Image as ImageIcon, FileText, Check } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { createJoinRequestDb, uploadJoinRequestDocuments } from '../lib/supabaseAPI';
+import { toast } from 'sonner';
 
 export default function JoinForm() {
   const [submitted, setSubmitted] = useState(false);
-  const { addJoinRequest, hostelProfile } = useApp();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [aadharFile, setAadharFile] = useState<File | null>(null);
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState('');
+  const [aadharPreviewUrl, setAadharPreviewUrl] = useState('');
+  const [photoUploaded, setPhotoUploaded] = useState(false);
+  const [aadharUploaded, setAadharUploaded] = useState(false);
+  const { hostelProfile } = useApp();
   
   const hostelName = hostelProfile?.hostelName || 'My Hostel';
+  const hostelId = hostelProfile?.id;
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  useEffect(() => {
+    return () => {
+      if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
+      if (aadharPreviewUrl) URL.revokeObjectURL(aadharPreviewUrl);
+    };
+  }, [photoPreviewUrl, aadharPreviewUrl]);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
+    setErrorMsg('');
+
+    if (!hostelId) {
+      const message = 'Hostel not found. Please open the QR code from the correct hostel page.';
+      setErrorMsg(message);
+      toast.error(message);
+      return;
+    }
     
     const formData = new FormData(e.currentTarget);
-    
-    addJoinRequest({
-      name: formData.get('name') as string,
-      phone: '+91 ' + formData.get('phone'),
-      occupation: formData.get('occupation') as string,
-      preferredRoom: formData.get('preferredRoom') as string,
-      emergencyContact: formData.get('emergencyContact') ? '+91 ' + formData.get('emergencyContact') : undefined,
-      aadharNumber: formData.get('aadharNumber') as string,
-      // We don't actually upload the photo in this mock, but we would get it from formData in real app.
-      photo: formData.get('photo') ? 'Uploaded' : undefined,
-    });
-    
-    setSubmitted(true);
+
+    setIsSubmitting(true);
+    try {
+      // Extract file inputs if present
+      const nextPhotoFile = (formData.get('photo') as File | null) || photoFile;
+      const nextAadharFile = (formData.get('aadhar') as File | null) || aadharFile;
+
+      // Upload files if provided
+      let photoPath: string | undefined;
+      let aadharDocumentPath: string | undefined;
+
+      if (nextPhotoFile && nextPhotoFile.size > 0) {
+        const uploadedDocs = await uploadJoinRequestDocuments(
+          { photo: nextPhotoFile },
+          hostelId
+        );
+        photoPath = uploadedDocs.photoPath;
+        setPhotoUploaded(true);
+        toast.success('Resident photo uploaded');
+      }
+
+      if (nextAadharFile && nextAadharFile.size > 0) {
+        const uploadedDocs = await uploadJoinRequestDocuments(
+          { aadhar: nextAadharFile },
+          hostelId
+        );
+        aadharDocumentPath = uploadedDocs.aadharPath;
+        setAadharUploaded(true);
+        toast.success('Aadhar document uploaded');
+      }
+
+      // Submit join request with file paths
+      await createJoinRequestDb({
+        hostelId,
+        name: formData.get('name') as string,
+        phone: `+91 ${formData.get('phone')}`,
+        occupation: formData.get('occupation') as string,
+        preferredRoom: formData.get('preferredRoom') as string,
+        emergencyContact: formData.get('emergencyContact') ? `+91 ${formData.get('emergencyContact')}` : undefined,
+        aadharNumber: formData.get('aadharNumber') as string,
+        photoPath: photoPath ?? null,
+        aadharDocumentPath: aadharDocumentPath ?? null,
+      });
+
+      toast.success('Request sent successfully');
+      setSubmitted(true);
+    } catch (error: any) {
+      const message = error?.message || 'Failed to submit joining request';
+      setErrorMsg(message);
+      toast.error(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (submitted) {
@@ -83,15 +150,106 @@ export default function JoinForm() {
             <p className="text-sm text-gray-500 mb-6">Fill your details and submit your request. We'll get back to you soon.</p>
 
             <form onSubmit={handleSubmit} className="space-y-5">
+              {errorMsg && (
+                <div className="rounded-xl border border-red-100 bg-red-50 p-3 text-sm font-medium text-red-600">
+                  {errorMsg}
+                </div>
+              )}
+
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-gray-900 block">Resident Photo</label>
-                <div className="w-full border-2 border-dashed border-gray-200 rounded-xl p-4 flex flex-col items-center justify-center gap-2 hover:bg-gray-50 transition-colors cursor-pointer relative">
-                  <input type="file" name="photo" accept="image/*" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                  <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
-                    <ImageIcon className="w-6 h-6 text-gray-400" />
-                  </div>
-                  <div className="text-sm text-gray-600 font-medium">Tap to upload photo</div>
-                  <div className="text-xs text-gray-400">PNG, JPG up to 5MB</div>
+                <div className="space-y-2">
+                  <label className="w-full border-2 border-dashed border-gray-200 rounded-xl p-4 flex flex-col items-center justify-center gap-2 hover:bg-gray-50 transition-colors cursor-pointer relative">
+                    <input
+                      type="file"
+                      name="photo"
+                      accept="image/*"
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setPhotoFile(file);
+                        setPhotoUploaded(false);
+                        if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
+                        if (file) {
+                          setPhotoPreviewUrl(URL.createObjectURL(file));
+                        } else {
+                          setPhotoPreviewUrl('');
+                        }
+                      }}
+                    />
+                    <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center overflow-hidden">
+                      {photoPreviewUrl ? (
+                        <img src={photoPreviewUrl} alt="Resident photo preview" className="h-full w-full object-cover" />
+                      ) : (
+                        <ImageIcon className="w-6 h-6 text-gray-400" />
+                      )}
+                    </div>
+                    <div className="text-sm text-gray-600 font-medium">Tap to upload photo</div>
+                    <div className="text-xs text-gray-400">PNG, JPG up to 5MB</div>
+                  </label>
+
+                  {photoFile && (
+                    <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-3 py-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{photoFile.name}</p>
+                        <p className="text-xs text-gray-500">{Math.round(photoFile.size / 1024)} KB</p>
+                      </div>
+                      <div className={`flex h-7 w-7 items-center justify-center rounded-full ${photoUploaded ? 'bg-green-100 text-green-600' : 'bg-gray-200 text-gray-500'}`}>
+                        <Check className="w-4 h-4" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-900 block">Aadhar Document</label>
+                <div className="space-y-2">
+                  <label className="w-full border-2 border-dashed border-gray-200 rounded-xl p-4 flex flex-col items-center justify-center gap-2 hover:bg-gray-50 transition-colors cursor-pointer relative">
+                    <input
+                      type="file"
+                      name="aadhar"
+                      accept="image/*,application/pdf"
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setAadharFile(file);
+                        setAadharUploaded(false);
+                        if (aadharPreviewUrl) URL.revokeObjectURL(aadharPreviewUrl);
+                        if (file) {
+                          setAadharPreviewUrl(file.type.startsWith('image/') ? URL.createObjectURL(file) : '');
+                        } else {
+                          setAadharPreviewUrl('');
+                        }
+                      }}
+                    />
+                    <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center overflow-hidden">
+                      {aadharPreviewUrl ? (
+                        <img src={aadharPreviewUrl} alt="Aadhar preview" className="h-full w-full object-cover" />
+                      ) : (
+                        <Upload className="w-6 h-6 text-gray-400" />
+                      )}
+                    </div>
+                    <div className="text-sm text-gray-600 font-medium">Tap to upload aadhar</div>
+                    <div className="text-xs text-gray-400">PDF, PNG, JPG up to 5MB</div>
+                  </label>
+
+                  {aadharFile && (
+                    <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-3 py-2">
+                      <div className="min-w-0 flex items-center gap-2">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 shrink-0">
+                          <FileText className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{aadharFile.name}</p>
+                          <p className="text-xs text-gray-500">{aadharFile.type || 'Document'}</p>
+                        </div>
+                      </div>
+                      <div className={`flex h-7 w-7 items-center justify-center rounded-full ${aadharUploaded ? 'bg-green-100 text-green-600' : 'bg-gray-200 text-gray-500'}`}>
+                        <Check className="w-4 h-4" />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -165,9 +323,10 @@ export default function JoinForm() {
               <div className="pt-4">
                 <button 
                   type="submit"
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-4 rounded-xl shadow-lg shadow-indigo-200 transition-all active:scale-[0.98]"
+                  disabled={isSubmitting}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-4 rounded-xl shadow-lg shadow-indigo-200 transition-all active:scale-[0.98]"
                 >
-                  Submit Request
+                  {isSubmitting ? 'Submitting...' : 'Submit Request'}
                 </button>
                 <p className="text-center text-xs text-gray-400 mt-4">
                   Powered by <span className="font-semibold text-gray-500">Hostelrr</span>

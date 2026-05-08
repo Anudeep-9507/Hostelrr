@@ -27,9 +27,10 @@ export default function Settings() {
       ownerName: formData.get('ownerName'),
       phone: formData.get('phone'),
       email: formData.get('email'),
-      address: formData.get('address'),
       city: formData.get('city'),
       state: formData.get('state'),
+      country: formData.get('country'),
+      pincode: formData.get('pincode'),
     };
     
     updateHostelProfile(updatedProfile);
@@ -102,10 +103,6 @@ export default function Settings() {
                 <input name="email" type="email" defaultValue={hostelProfile?.email || ""} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" />
               </div>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-700">Full Address</label>
-              <input name="address" type="text" defaultValue={hostelProfile?.address || ""} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" />
-            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-gray-700">City</label>
@@ -114,6 +111,16 @@ export default function Settings() {
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-gray-700">State</label>
                 <input name="state" type="text" defaultValue={hostelProfile?.state || ""} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-gray-700">Country</label>
+                <select name="country" defaultValue={hostelProfile?.country || "India"} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none appearance-none cursor-pointer">
+                  <option value="India">India</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-gray-700">PIN Code</label>
+                <input name="pincode" type="text" defaultValue={hostelProfile?.pincode || ""} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" />
               </div>
             </div>
             <div className="pt-2">

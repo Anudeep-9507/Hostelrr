@@ -24,10 +24,11 @@ export default function Onboarding() {
   // Step 2
   const [hostelName, setHostelName] = useState('');
   const [ownerName, setOwnerName] = useState('');
-  const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
+  const [country, setCountry] = useState('India');
+  const [pincode, setPincode] = useState('');
 
   // Step 3
   const [numFloors, setNumFloors] = useState<number | null>(null);
@@ -46,7 +47,6 @@ export default function Onboarding() {
 
   // Step 6
   const [rentDueType, setRentDueType] = useState<'1st_of_month' | 'joining_date' | ''>('');
-  const [gracePeriod, setGracePeriod] = useState('2');
 
   const toggleSharing = (num: number) => {
     setSelectedSharing(prev =>
@@ -100,7 +100,7 @@ export default function Onboarding() {
 
     try {
       await completeOnboarding({
-        hostelName, ownerName, email, phone, city, state,
+        hostelName, ownerName, phone, city, state, country, pincode,
         numFloors: getEffectiveFloors(),
         numRooms: calculateTotalRoomsFromSharing() || getTotalRoomsFromFloors() || parseInt(numRooms || '0'),
         roomsPerFloor,
@@ -108,28 +108,7 @@ export default function Onboarding() {
         sharingConfigs,
         rentDueType: rentDueType || '1st_of_month',
         rentDueDate: rentDueType === '1st_of_month' ? 1 : 0,
-        gracePeriod: parseInt(gracePeriod || '0'),
         securityDeposit
-      });
-    } catch (e: any) {
-      alert("Failed to create hostel: " + (e.message || JSON.stringify(e)));
-    }
-  };
-
-  const handleSkip = async () => {
-    try {
-      await completeOnboarding({
-        hostelName: 'My Hostel',
-        ownerName: 'Owner',
-        phone: '',
-        city: '',
-        state: '',
-        numFloors: 1,
-        numRooms: 1,
-        sharingConfigs: [{ sharing: 2, roomCount: 1, rent: '5000' }],
-        rentDueType: '1st_of_month',
-        rentDueDate: 1,
-        gracePeriod: 0
       });
     } catch (e: any) {
       alert("Failed to create hostel: " + (e.message || JSON.stringify(e)));
@@ -170,12 +149,6 @@ export default function Onboarding() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] overflow-y-auto flex flex-col items-center justify-start py-8 px-4 sm:px-6 font-sans relative">
-      <button
-        onClick={handleSkip}
-        className="fixed top-4 right-4 sm:top-6 sm:right-6 text-gray-400 hover:text-blue-600 font-bold flex items-center gap-2 transition-all group z-50 text-sm"
-      >
-        Skip Setup <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-      </button>
       <div className="w-full max-w-lg">
         {renderProgress()}
 
@@ -223,10 +196,6 @@ export default function Onboarding() {
                     <label className={labelClass}>Owner Name</label>
                     <input type="text" value={ownerName} onChange={e => setOwnerName(e.target.value)} placeholder="e.g. Aryan O." className={inputClass} />
                   </div>
-                  <div>
-                    <label className={labelClass}>Email Address</label>
-                    <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="e.g. aryan@saikrupapg.com" className={inputClass} />
-                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className={labelClass}>Mobile Number</label>
@@ -249,6 +218,27 @@ export default function Onboarding() {
                         <option key={s} value={s}>{s}</option>
                       ))}
                     </select>
+                  </div>
+                  <div>
+                    <label className={labelClass}>Country</label>
+                    <select
+                      value={country}
+                      onChange={e => setCountry(e.target.value)}
+                      className={cn(inputClass, "appearance-none cursor-pointer")}
+                    >
+                      <option value="India">India</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className={labelClass}>PIN Code</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={pincode}
+                      onChange={e => setPincode(e.target.value)}
+                      placeholder="e.g. 500081"
+                      className={inputClass}
+                    />
                   </div>
                 </div>
 

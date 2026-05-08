@@ -19,6 +19,18 @@ interface AppContextType {
   addResident: (residentData: any, isReservedOnly?: boolean) => void;
   editResident: (residentId: string, updatedData: any) => void;
   removeJoinRequest: (requestId: string) => void;
+  approveJoinRequest: (params: {
+    requestId: string;
+    roomId: string;
+    bedId: string;
+    monthlyRent: number;
+    joinDate?: string;
+    securityDeposit?: number;
+    isDepositPaid?: boolean;
+    stayDurationDays?: number | null;
+    reviewNotes?: string | null;
+  }) => void;
+  rejectJoinRequest: (requestId: string, reviewNotes?: string) => void;
   addJoinRequest: (request: Omit<JoinRequest, 'id' | 'requestDate' | 'status'>) => void;
   activeBuildingFilter: Bed['status'] | 'all';
   setActiveBuildingFilter: (filter: Bed['status'] | 'all') => void;
@@ -42,6 +54,7 @@ interface AppContextType {
   securityDeposit: number;
   hostelProfile: any;
   updateHostelProfile: (profile: any) => void;
+  syncStateWithDb: () => Promise<void>;
   isDataLoading: boolean;
   authLoading: boolean;
   session: any | null;
@@ -297,6 +310,42 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const removeJoinRequest = (requestId: string) => {
     setJoinRequests(prev => prev.filter(req => req.id !== requestId));
+  };
+
+  const approveJoinRequest = (params: {
+    requestId: string;
+    roomId: string;
+    bedId: string;
+    monthlyRent: number;
+    joinDate?: string;
+    securityDeposit?: number;
+    isDepositPaid?: boolean;
+    stayDurationDays?: number | null;
+    reviewNotes?: string | null;
+  }) => {
+    import('../lib/supabaseAPI').then(async ({ approveJoinRequestDb }) => {
+      try {
+        await approveJoinRequestDb(params);
+        toast.success('Join request approved and resident added');
+        await syncStateWithDb();
+      } catch (e) {
+        console.error(e);
+        toast.error('Failed to approve join request');
+      }
+    });
+  };
+
+  const rejectJoinRequest = (requestId: string, reviewNotes?: string) => {
+    import('../lib/supabaseAPI').then(async ({ rejectJoinRequestDb }) => {
+      try {
+        await rejectJoinRequestDb({ requestId, reviewNotes: reviewNotes || null });
+        toast.success('Join request rejected');
+        await syncStateWithDb();
+      } catch (e) {
+        console.error(e);
+        toast.error('Failed to reject join request');
+      }
+    });
   };
 
   const addJoinRequest = (request: Omit<JoinRequest, 'id' | 'requestDate' | 'status'>) => {
@@ -626,7 +675,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   return (
     <AppContext.Provider value={{ 
       floors, residents, pastResidents, activities, joinRequests,
-      markAsPaid, markReminderSent, vacateResident, addResident, editResident, removeJoinRequest, addJoinRequest,
+      markAsPaid, markReminderSent, vacateResident, addResident, editResident, removeJoinRequest, approveJoinRequest, rejectJoinRequest, addJoinRequest,
       activeBuildingFilter, setActiveBuildingFilter,
       activePaymentsFilter, setActivePaymentsFilter,
       globalSelectedResidentId, setGlobalSelectedResidentId,
@@ -638,6 +687,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       securityDeposit,
       hostelProfile,
       updateHostelProfile,
+      syncStateWithDb,
       isDataLoading,
       authLoading,
       session

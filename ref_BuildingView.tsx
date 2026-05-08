@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Room, Bed, Resident } from '../data/mock';
 import DefaultAvatar from '../components/DefaultAvatar';
@@ -7,7 +7,6 @@ import { X, UserPlus, LogOut, Phone, IndianRupee, FileText, Plus, User, LayoutTe
 import { AnimatePresence, motion } from 'motion/react';
 import { toast } from 'sonner';
 import BedLayoutBuilder, { LAYOUT_COLORS, Template } from '../components/BedLayoutBuilder';
-import { getBedLayoutTemplates } from '../lib/supabaseAPI';
 
 function getStatusColor(status: Bed['status']) {
   switch (status) {
@@ -65,7 +64,7 @@ export default function BuildingView({ setActiveTab }: { setActiveTab?: (tab: st
   const [isRoomDropdownOpen, setIsRoomDropdownOpen] = useState(false);
   const [showBedLayout, setShowBedLayout] = useState(() => {
     const saved = localStorage.getItem('hostelrr_show_bed_layout');
-    return saved ? JSON.parse(saved) : true;
+    return saved ? JSON.parse(saved) : false;
   });
   const [isCopyLayoutModalOpen, setIsCopyLayoutModalOpen] = useState(false);
   const [targetFloorForCopy, setTargetFloorForCopy] = useState<string | null>(null);
@@ -73,23 +72,9 @@ export default function BuildingView({ setActiveTab }: { setActiveTab?: (tab: st
   const [selectedLayoutId, setSelectedLayoutId] = useState<string>('');
 
   React.useEffect(() => {
-    if (!hostelProfile?.id) {
-      setAllTemplates([]);
-      return;
-    }
-
-    const loadTemplates = async () => {
-      try {
-        const templates = await getBedLayoutTemplates(hostelProfile.id);
-        setAllTemplates(templates);
-      } catch (error) {
-        console.error('Failed to load templates:', error);
-        setAllTemplates([]);
-      }
-    };
-
-    loadTemplates();
-  }, [isAddRoomModalOpen, isBedLayoutModalOpen, hostelProfile?.id]);
+    const saved = localStorage.getItem('hostelrr_all_templates');
+    if (saved) setAllTemplates(JSON.parse(saved));
+  }, [isAddRoomModalOpen, isBedLayoutModalOpen]);
 
   React.useEffect(() => {
     const currentSharing = isCustomSharing ? parseInt(customSharingValue) : parseInt(newRoomBeds);
@@ -251,7 +236,7 @@ export default function BuildingView({ setActiveTab }: { setActiveTab?: (tab: st
 
   // Helper to toggle filters
   const toggleFilter = (status: Bed['status']) => {
-    setFilterStatus(filterStatus === status ? 'all' : status);
+    setFilterStatus(prev => prev === status ? 'all' : status);
   };
 
   const allBeds = floors.flatMap(f => f.rooms).flatMap(r => r.beds);
@@ -259,7 +244,7 @@ export default function BuildingView({ setActiveTab }: { setActiveTab?: (tab: st
   const configuredBedsCount = allBeds.length;
   const occupiedCount = allBeds.filter(b => b.status === "occupied" || b.status === "payment_due").length;
   const reservedCount = allBeds.filter(b => b.status === "reserved").length;
-  const totalBeds = Math.max(hostelProfile?.total_beds || 0, configuredBedsCount);
+  const totalBeds = Math.max(hostelProfile?.total_beds || hostelProfile?.total_capacity || 0, configuredBedsCount);
   const vacantBeds = Math.max(0, totalBeds - occupiedCount - reservedCount);
 
   const counts = {
@@ -441,7 +426,7 @@ export default function BuildingView({ setActiveTab }: { setActiveTab?: (tab: st
                         key={`${room.id}-${idx}`}
                         onClick={() => handleRoomClick(room)}
                         className={cn(
-                          "rounded-2xl border-2 p-5 cursor-pointer transition-all duration-300 hover:-translate-y-1.5 hover:shadow-lg group bg-white overflow-hidden",
+                          "rounded-2xl border-2 p-5 cursor-pointer transition-all duration-300 hover:-translate-y-1.5 hover:shadow-lg group bg-white",
                           isSelected ? "border-blue-500 shadow-lg ring-4 ring-blue-50" : "border-gray-200 hover:border-blue-200",
                           allVacant ? "bg-red-50/10 hover:bg-red-50/30" : ""
                         )}
@@ -466,6 +451,12 @@ export default function BuildingView({ setActiveTab }: { setActiveTab?: (tab: st
                             }
                             
                             if (!template) {
+                              // Legacy fallback
+                              const templateStr = localStorage.getItem(`hostelrr_template_${room.beds.length}`);
+                              template = templateStr ? JSON.parse(templateStr) : null;
+                            }
+
+                            if (!template) {
                               const defaultPositions: Record<string, any> = {};
                               Array.from({ length: room.beds.length }).forEach((_, i) => {
                                 const label = String.fromCharCode(65 + i);
@@ -487,14 +478,14 @@ export default function BuildingView({ setActiveTab }: { setActiveTab?: (tab: st
                             
                             if (!template) {
                               return (
-                                <div className="flex flex-wrap gap-3 max-w-full">
+                                <div className="flex flex-wrap gap-2">
                                   {room.beds
                                     .filter(bed => isBedMatch(bed.status, filterStatus))
                                     .map((bed, bedIdx) => {
                                     const styles = getBedPillStyles(bed.status);
                                     return (
-                                      <div key={`${bed.id}-${bedIdx}`} className={cn("flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-sm font-semibold", styles.container)}>
-                                        <span>{bed.name}</span>
+                                      <div key={`${bed.id}-${bedIdx}`} className={cn("flex items-center gap-2 px-3 py-1.5 rounded-lg border", styles.container)}>
+                                        <span className="text-sm font-medium">{bed.name}</span>
                                       </div>
                                     )
                                   })}
@@ -503,7 +494,7 @@ export default function BuildingView({ setActiveTab }: { setActiveTab?: (tab: st
                             }
 
                             return (
-                              <div className="relative w-full mx-auto aspect-[4/5] bg-white rounded-xl overflow-visible">
+                              <div className="relative w-full aspect-[4/5] bg-white rounded-xl overflow-visible mx-auto">
                                 {/* Miniature door */}
                                 {template.door && (
                                   <div className={cn(
@@ -515,11 +506,8 @@ export default function BuildingView({ setActiveTab }: { setActiveTab?: (tab: st
                                   )} />
                                 )}
 
-                                {room.beds.map((bed) => {
-                                  // Extract label from bed.name ('Bed A' → 'A') so
-                                  // template position lookup is correct regardless of
-                                  // DB fetch order — never use iteration index here.
-                                  const label = bed.name.replace(/^Bed\s+/i, '').trim();
+                                {room.beds.map((bed, bedIdx) => {
+                                  const label = String.fromCharCode(65 + bedIdx);
                                   const pos = template.positions[label];
                                   if (!pos) return null;
                                   const styles = getBedPillStyles(bed.status);
@@ -531,33 +519,19 @@ export default function BuildingView({ setActiveTab }: { setActiveTab?: (tab: st
                                   
                                   const scaleX = (snappedX / 320) * 100;
                                   const scaleY = (snappedY / 400) * 100;
-                                  const xOffsetPct = 16;
-                                  const yOffsetPct = 2;
-    
-
+                                  
                                   const isFiltered = !isBedMatch(bed.status, filterStatus);
 
-                                  // Compute responsive width/height as percentages of the
-                                  // base canvas (320x400). Use transform to center the
-                                  // bed box at the (left,top) coordinate so scaling works
-                                  // consistently across card sizes.
-                                  const bedWidthPx = pos.rotated ? 44 : 96;
-                                  const bedHeightPx = pos.rotated ? 96 : 44;
-                                  const widthPct = (bedWidthPx / 320) * 100;
-                                  const heightPct = (bedHeightPx / 400) * 100;
-
-                                  return (
-                                    <div
+                                  return (                                    <div 
                                       key={bed.id}
-                                      style={{
-                                        left: `${Math.min(scaleX + xOffsetPct, 100)}%`,
-                                        top: `${Math.min(scaleY + yOffsetPct, 100)}%`,
-                                        width: `${widthPct}%`,
-                                        height: `${heightPct}%`,
-                                        transform: 'translate(-50%, -50%)',
+                                      style={{ 
+                                        left: `${scaleX}%`, 
+                                        top: `${scaleY}%`,
+                                        width: pos.rotated ? '38px' : '80px',
+                                        height: pos.rotated ? '80px' : '38px',
                                         opacity: isFiltered ? 0.2 : 1,
-                                        zIndex: 1,
-                                        pointerEvents: 'auto'
+                                        zIndex: bedIdx + 1,
+                                        margin: '1px'
                                       }}
                                       className={cn(
                                         "absolute flex items-center justify-center rounded-lg border text-sm font-medium transition-all shadow-sm bg-white overflow-hidden",
@@ -572,14 +546,14 @@ export default function BuildingView({ setActiveTab }: { setActiveTab?: (tab: st
                             );
                           })()
                         ) : (
-                          <div className="flex flex-wrap gap-3 max-w-full">
+                          <div className="flex flex-wrap gap-2">
                             {room.beds
                               .filter(bed => isBedMatch(bed.status, filterStatus))
                               .map((bed, bedIdx) => {
                               const styles = getBedPillStyles(bed.status);
                               return (
-                                <div key={`${bed.id}-${bedIdx}`} className={cn("flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-sm font-semibold", styles.container)}>
-                                  <span>{bed.name}</span>
+                                <div key={`${bed.id}-${bedIdx}`} className={cn("flex items-center gap-2 px-3 py-1.5 rounded-lg border", styles.container)}>
+                                  <span className="text-sm font-medium">{bed.name}</span>
                                 </div>
                               )
                             })}
@@ -589,20 +563,22 @@ export default function BuildingView({ setActiveTab }: { setActiveTab?: (tab: st
                       );
                     })}
                     
-                    {/* Add Room Card - show for each floor regardless of current filter */}
-                    <div 
-                      onClick={() => {
-                        setIsSetupMode(false);
-                        setNewRoomNumber('');
-                        openAddRoomModal(floor.id);
-                      }}
-                      className="rounded-2xl border-2 border-dashed border-gray-200 p-5 cursor-pointer transition-all duration-300 hover:-translate-y-1.5 hover:shadow-lg hover:border-blue-300 hover:bg-white flex flex-col items-center justify-center min-h-[140px] group"
-                    >
-                      <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center mb-2 group-hover:bg-blue-100 transition-colors">
-                        <Plus className="w-5 h-5 text-blue-600" />
+                    {/* Add Room Card - Only show when viewing 'all' beds */}
+                    {filterStatus === 'all' && (
+                      <div 
+                        onClick={() => {
+                          setIsSetupMode(false);
+                          setNewRoomNumber('');
+                          openAddRoomModal(floor.id);
+                        }}
+                        className="rounded-2xl border-2 border-dashed border-gray-200 p-5 cursor-pointer transition-all duration-300 hover:-translate-y-1.5 hover:shadow-lg hover:border-blue-300 hover:bg-white flex flex-col items-center justify-center min-h-[140px] group"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center mb-2 group-hover:bg-blue-100 transition-colors">
+                          <Plus className="w-5 h-5 text-blue-600" />
+                        </div>
+                        <span className="text-base font-bold text-gray-700 group-hover:text-blue-600 transition-colors">Add Room</span>
                       </div>
-                      <span className="text-base font-bold text-gray-700 group-hover:text-blue-600 transition-colors">Add Room</span>
-                    </div>
+                    )}
                   </div>
                 </div>
               );
@@ -979,10 +955,7 @@ export default function BuildingView({ setActiveTab }: { setActiveTab?: (tab: st
               </button>
               
               <div className="max-h-[90vh] overflow-y-auto">
-                <BedLayoutBuilder
-                  hostelId={hostelProfile?.id}
-                  onSaveComplete={() => setIsBedLayoutModalOpen(false)}
-                />
+                <BedLayoutBuilder />
               </div>
             </motion.div>
           </motion.div>

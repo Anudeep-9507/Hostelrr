@@ -1,9 +1,8 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion } from 'motion/react';
 import { useApp } from '../context/AppContext';
-import { RotateCcw, Save, LayoutTemplate, CheckCircle, Plus, X, Minus, Move, Trash2, Loader } from 'lucide-react';
+import { RotateCcw, Save, LayoutTemplate, CheckCircle, Plus, X, Minus, Move, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getBedLayoutTemplates, saveBedLayoutTemplate, deleteBedLayoutTemplate } from '../lib/supabaseAPI';
  
 export const LAYOUT_COLORS = [
   { name: 'Blue', class: 'bg-blue-50 text-blue-600 border-blue-200', dot: 'bg-blue-500', hover: 'hover:bg-blue-100' },
@@ -100,55 +99,47 @@ function getDefaultPositions(sharing: SharingType) {
   return positions;
 }
 
-export default function BedLayoutBuilder({ hostelId, onSaveComplete }: { hostelId?: string; onSaveComplete?: () => void }) {
+export default function BedLayoutBuilder() {
   const { sharingRentMap } = useApp();
-
   const onboardedTabs = Object.keys(sharingRentMap).map(Number).sort((a, b) => a - b);
-
-  // Database-backed templates
-  const [allTemplates, setAllTemplates] = useState<Template[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-
-  const availableTabs = useMemo(() => {
-    const uniqueSharing = new Set<number>([...onboardedTabs, ...allTemplates.map(t => t.sharing)]);
-    const tabs = Array.from(uniqueSharing).sort((a, b) => a - b);
-    return tabs.length > 0 ? tabs : [1, 2, 4];
-  }, [onboardedTabs, allTemplates]);
-
-  // Load templates from database on mount
-  useEffect(() => {
-    if (!hostelId) {
-      setIsLoading(false);
-      return;
-    }
-
-    const loadTemplates = async () => {
+  const [availableTabs, setAvailableTabs] = useState<number[]>(onboardedTabs.length > 0 ? onboardedTabs : [1, 2, 4]);
+  
+  const initialTemplates = (() => {
+    try {
+      const saved = localStorage.getItem('hostelrr_all_templates');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    
+    const legacy: Template[] = [];
+    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].forEach(s => {
       try {
-        setIsLoading(true);
-        const templates = await getBedLayoutTemplates(hostelId);
-        setAllTemplates(templates);
-      } catch (error) {
-        console.error('Failed to load templates:', error);
-        toast.error('Failed to load templates');
-      } finally {
-        setIsLoading(false);
-      }
-    };
+        const old = localStorage.getItem(`hostelrr_template_${s}`);
+        if (old) {
+          const p = JSON.parse(old);
+          legacy.push({
+            id: `t${s}_legacy`,
+            sharing: s,
+            positions: p.positions,
+            door: p.door,
+            color: 'Blue'
+          });
+        }
+      } catch (e) {}
+    });
+    return legacy;
+  })();
 
-    loadTemplates();
-  }, [hostelId]);
+  const [allTemplates, setAllTemplates] = useState<Template[]>(initialTemplates);
 
-  const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
-  const [activeSharing, setActiveSharing] = useState<number>(() => availableTabs[0]);
-
-  // Update activeTemplateId and activeSharing when templates load
-  useEffect(() => {
-    if (allTemplates.length > 0 && !activeTemplateId) {
-      setActiveTemplateId(allTemplates[0].id);
-      setActiveSharing(allTemplates[0].sharing);
-    }
-  }, [allTemplates]);
+  const [activeTemplateId, setActiveTemplateId] = useState<string | null>(() => {
+    if (initialTemplates.length > 0) return initialTemplates[0].id;
+    return null;
+  });
+  
+  const [activeSharing, setActiveSharing] = useState<number>(() => {
+    if (initialTemplates.length > 0) return initialTemplates[0].sharing;
+    return availableTabs[0];
+  });
 
   const roomRef = useRef<HTMLDivElement>(null);
   
@@ -223,46 +214,30 @@ export default function BedLayoutBuilder({ hostelId, onSaveComplete }: { hostelI
     setEditingPositions(newPos);
   };
 
-  const handleSave = async () => {
-    if (!hostelId) {
-      toast.error('Hostel ID is required to save templates');
-      return;
+  const handleSave = () => {
+    let updatedTemplates = [...allTemplates];
+    const newTemplate: Template = {
+      id: activeTemplateId || `t${activeSharing}_${Date.now()}`,
+      sharing: activeSharing,
+      positions: editingPositions,
+      door: editingDoor,
+      color: editingColor
+    };
+
+    const index = updatedTemplates.findIndex(t => t.id === newTemplate.id);
+    if (index >= 0) {
+      updatedTemplates[index] = newTemplate;
+    } else {
+      updatedTemplates.push(newTemplate);
     }
 
-    try {
-      setIsSaving(true);
-      const newTemplate: Template = {
-        id: activeTemplateId || '',
-        sharing: activeSharing,
-        positions: editingPositions,
-        door: editingDoor,
-        color: editingColor
-      };
-
-      const savedTemplate = await saveBedLayoutTemplate(hostelId, newTemplate);
-      
-      // Update local state
-      let updatedTemplates = [...allTemplates];
-      const index = updatedTemplates.findIndex(t => t.id === newTemplate.id);
-      if (index >= 0) {
-        updatedTemplates[index] = savedTemplate;
-      } else {
-        updatedTemplates.push(savedTemplate);
-      }
-
-      setAllTemplates(updatedTemplates);
-      setActiveTemplateId(savedTemplate.id);
-      toast.success('Template saved successfully!');
-      onSaveComplete?.();
-    } catch (error) {
-      console.error('Failed to save template:', error);
-      toast.error('Failed to save template');
-    } finally {
-      setIsSaving(false);
-    }
+    setAllTemplates(updatedTemplates);
+    localStorage.setItem('hostelrr_all_templates', JSON.stringify(updatedTemplates));
+    setActiveTemplateId(newTemplate.id);
+    toast.success('Template saved successfully!');
   };
 
-  const handleDeleteTemplate = async () => {
+  const handleDeleteTemplate = () => {
     if (!activeTemplateId) return;
     
     const templateToDelete = allTemplates.find(t => t.id === activeTemplateId);
@@ -270,66 +245,44 @@ export default function BedLayoutBuilder({ hostelId, onSaveComplete }: { hostelI
 
     if (!window.confirm(`Are you sure you want to delete this ${templateToDelete.sharing}-sharing layout version?`)) return;
 
-    try {
-      setIsSaving(true);
-      await deleteBedLayoutTemplate(activeTemplateId);
-
-      const newTemplates = allTemplates.filter(t => t.id !== activeTemplateId);
-      setAllTemplates(newTemplates);
-      
-      if (newTemplates.length > 0) {
-        // Try to find another template with the same sharing
-        const sameSharing = newTemplates.find(t => t.sharing === templateToDelete.sharing);
-        if (sameSharing) {
-          setActiveTemplateId(sameSharing.id);
-          setActiveSharing(sameSharing.sharing);
-        } else {
-          setActiveTemplateId(newTemplates[0].id);
-          setActiveSharing(newTemplates[0].sharing);
-        }
+    const newTemplates = allTemplates.filter(t => t.id !== activeTemplateId);
+    setAllTemplates(newTemplates);
+    localStorage.setItem('hostelrr_all_templates', JSON.stringify(newTemplates));
+    
+    if (newTemplates.length > 0) {
+      // Try to find another template with the same sharing
+      const sameSharing = newTemplates.find(t => t.sharing === templateToDelete.sharing);
+      if (sameSharing) {
+        setActiveTemplateId(sameSharing.id);
+        setActiveSharing(sameSharing.sharing);
       } else {
-        setActiveTemplateId(null);
+        setActiveTemplateId(newTemplates[0].id);
+        setActiveSharing(newTemplates[0].sharing);
       }
-      toast.success("Layout version deleted successfully");
-    } catch (error) {
-      console.error('Failed to delete template:', error);
-      toast.error('Failed to delete template');
-    } finally {
-      setIsSaving(false);
+    } else {
+      setActiveTemplateId(null);
     }
+    toast.success("Layout version deleted successfully");
   };
 
-  const handleAddNewLayout = async (sharing: number) => {
-    if (!hostelId) {
-      toast.error('Hostel ID is required to add layouts');
-      return;
-    }
-
-    try {
-      setIsSaving(true);
-      // Find next available color
-      const existingColors = allTemplates.filter(t => t.sharing === sharing).map(t => t.color);
-      const nextColor = LAYOUT_COLORS.find(c => !existingColors.includes(c.name))?.name || 'Blue';
-      
-      const newTemplate: Template = {
-        id: '',
-        sharing: sharing,
-        positions: getDefaultPositions(sharing),
-        door: null,
-        color: nextColor
-      };
-      
-      const savedTemplate = await saveBedLayoutTemplate(hostelId, newTemplate);
-      const updated = [...allTemplates, savedTemplate];
-      setAllTemplates(updated);
-      setActiveTemplateId(savedTemplate.id);
-      setActiveSharing(sharing);
-    } catch (error) {
-      console.error('Failed to add new layout:', error);
-      toast.error('Failed to add new layout');
-    } finally {
-      setIsSaving(false);
-    }
+  const handleAddNewLayout = (sharing: number) => {
+    // Find next available color
+    const existingColors = allTemplates.filter(t => t.sharing === sharing).map(t => t.color);
+    const nextColor = LAYOUT_COLORS.find(c => !existingColors.includes(c.name))?.name || 'Blue';
+    
+    const newTemplate: Template = {
+      id: `t${sharing}_${Date.now()}`,
+      sharing: sharing,
+      positions: getDefaultPositions(sharing),
+      door: null,
+      color: nextColor
+    };
+    
+    const updated = [...allTemplates, newTemplate];
+    setAllTemplates(updated);
+    localStorage.setItem('hostelrr_all_templates', JSON.stringify(updated));
+    setActiveTemplateId(newTemplate.id);
+    setActiveSharing(sharing);
   };
 
   const handleAddCustomLayoutClick = () => {
@@ -337,17 +290,21 @@ export default function BedLayoutBuilder({ hostelId, onSaveComplete }: { hostelI
     setCustomSharingValue('');
   };
 
-  const handleConfirmCustomLayout = async () => {
+  const handleConfirmCustomLayout = () => {
     const newSharing = parseInt(customSharingValue, 10);
     if (isNaN(newSharing) || newSharing <= 0) {
       toast.error("Please enter a valid number greater than 0");
       return;
     }
     
+    if (!availableTabs.includes(newSharing)) {
+      setAvailableTabs(prev => [...prev, newSharing].sort((a, b) => a - b));
+    }
+    
     // Create first template for this sharing if not exists
     const existing = allTemplates.find(t => t.sharing === newSharing);
     if (!existing) {
-      await handleAddNewLayout(newSharing);
+      handleAddNewLayout(newSharing);
     } else {
       setActiveSharing(newSharing);
       setActiveTemplateId(existing.id);
@@ -364,17 +321,10 @@ export default function BedLayoutBuilder({ hostelId, onSaveComplete }: { hostelI
           <LayoutTemplate className="w-6 h-6 text-[#1D4ED8]" />
           Bed Layout Templates
         </h3>
-        <p className="text-gray-400 text-[13px] mt-0.5">Create standard bed positions for {availableTabs.length > 0 ? `your selected sharing types: ${availableTabs.join(', ')}` : 'each sharing room type'}.</p>
+        <p className="text-gray-400 text-[13px] mt-0.5">Create standard bed positions for each sharing room type.</p>
         
-        {isLoading ? (
-          <div className="flex items-center gap-2 mt-3 text-gray-500">
-            <Loader className="w-4 h-4 animate-spin" />
-            <span className="text-sm">Loading templates...</span>
-          </div>
-        ) : (
-          <>
-            {/* Tabs */}
-            <div className="flex items-center gap-2 mt-3 overflow-x-auto pb-1 scrollbar-hide">
+        {/* Tabs */}
+        <div className="flex items-center gap-2 mt-3 overflow-x-auto pb-1 scrollbar-hide">
           {availableTabs.map(sharing => {
             const templates = allTemplates.filter(t => t.sharing === sharing);
             return (
@@ -418,38 +368,34 @@ export default function BedLayoutBuilder({ hostelId, onSaveComplete }: { hostelI
             )
           })}
           {isAddingCustom ? (
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-1 ml-2 bg-white border border-blue-200 rounded-xl p-1 shadow-sm">
-                <input 
-                  type="number" 
-                  min="1" 
-                  value={customSharingValue}
-                  onChange={(e) => setCustomSharingValue(e.target.value)}
-                  className="w-16 px-2 py-1 text-sm outline-none bg-transparent"
-                  placeholder="Beds"
-                  title={`Enter sharing type from: ${availableTabs.join(', ')}`}
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleConfirmCustomLayout();
-                    if (e.key === 'Escape') setIsAddingCustom(false);
-                  }}
-                />
-                <button 
-                  onClick={handleConfirmCustomLayout}
-                  className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
-                  title="Confirm"
-                >
-                  <CheckCircle className="w-4 h-4" />
-                </button>
-                <button 
-                  onClick={() => setIsAddingCustom(false)}
-                  className="p-1.5 bg-gray-50 text-gray-500 rounded-lg hover:bg-gray-100 transition-colors"
-                  title="Cancel"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              <p className="text-xs text-gray-500 ml-2">Available sharing types: {availableTabs.join(', ')}</p>
+            <div className="flex items-center gap-1 ml-2 bg-white border border-blue-200 rounded-xl p-1 shadow-sm">
+              <input 
+                type="number" 
+                min="1" 
+                value={customSharingValue}
+                onChange={(e) => setCustomSharingValue(e.target.value)}
+                className="w-16 px-2 py-1 text-sm outline-none bg-transparent"
+                placeholder="Beds"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleConfirmCustomLayout();
+                  if (e.key === 'Escape') setIsAddingCustom(false);
+                }}
+              />
+              <button 
+                onClick={handleConfirmCustomLayout}
+                className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
+                title="Confirm"
+              >
+                <CheckCircle className="w-4 h-4" />
+              </button>
+              <button 
+                onClick={() => setIsAddingCustom(false)}
+                className="p-1.5 bg-gray-50 text-gray-500 rounded-lg hover:bg-gray-100 transition-colors"
+                title="Cancel"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
           ) : (
             <button
@@ -459,9 +405,7 @@ export default function BedLayoutBuilder({ hostelId, onSaveComplete }: { hostelI
               <Plus className="w-4 h-4" /> Custom Layout
             </button>
           )}
-            </div>
-          </>
-        )}
+        </div>
       </div>
 
       <div className="flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-gray-100">
@@ -660,20 +604,10 @@ export default function BedLayoutBuilder({ hostelId, onSaveComplete }: { hostelI
           <div className="pt-4 mt-4 border-t border-gray-100">
             <button
               onClick={handleSave}
-              disabled={isSaving || isLoading}
-              className="w-full py-3.5 px-4 bg-[#1D4ED8] hover:bg-[#1e40af] disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-colors shadow-sm"
+              className="w-full py-3.5 px-4 bg-[#1D4ED8] hover:bg-[#1e40af] text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-colors shadow-sm"
             >
-              {isSaving ? (
-                <>
-                  <Loader className="w-4 h-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4" />
-                  Save Template
-                </>
-              )}
+              <Save className="w-4 h-4" />
+              Save Template
             </button>
           </div>
         </div>
