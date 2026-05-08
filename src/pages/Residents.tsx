@@ -986,6 +986,12 @@ export default function Residents() {
               <form onSubmit={async (e) => {
                 e.preventDefault();
                 const formData = new FormData(e.currentTarget);
+                const normalizePhone = (value: FormDataEntryValue | null) => {
+                  const digits = String(value ?? '').replace(/\D/g, '');
+                  return digits.length > 10 ? digits.slice(-10) : digits;
+                };
+                const normalizedPhone = normalizePhone(formData.get('phone'));
+                const normalizedEmergencyPhone = normalizePhone(formData.get('emergencyPhone'));
                 
                 setIsEditingFiles(true);
                 try {
@@ -996,9 +1002,9 @@ export default function Residents() {
 
                   editResident(residentToEdit!.id, {
                     name: formData.get('name'),
-                    phone: formData.get('phone'),
+                    phone: normalizedPhone,
                     aadhar: formData.get('aadhar'),
-                    emergencyPhone: formData.get('emergencyPhone'),
+                    emergencyPhone: normalizedEmergencyPhone,
                     monthlyRent: formData.get('monthlyRent') ? parseInt(formData.get('monthlyRent') as string, 10) : undefined,
                     photoPath: uploadedPaths.photoPath,
                     aadharPath: uploadedPaths.aadharPath,
@@ -1011,9 +1017,9 @@ export default function Residents() {
                     setSelectedResident(prev => prev ? {
                       ...prev, 
                       name: formData.get('name') as string, 
-                      phone: formData.get('phone') as string,
+                      phone: normalizedPhone,
                       aadhar: formData.get('aadhar') as string,
-                      emergencyPhone: formData.get('emergencyPhone') as string,
+                      emergencyPhone: normalizedEmergencyPhone,
                       dueAmount: formData.get('monthlyRent') ? parseInt(formData.get('monthlyRent') as string, 10) : ('dueAmount' in prev ? prev.dueAmount : 0),
                     } as Resident : null);
                   }
@@ -1067,15 +1073,55 @@ export default function Residents() {
 
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-gray-900 block">Phone No. <span className="text-red-500">*</span></label>
-                  <input type="tel" name="phone" defaultValue={residentToEdit.phone} required className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all" />
+                  <div className="flex">
+                    <span className="inline-flex items-center px-4 rounded-l-xl border border-r-0 border-gray-200 bg-white text-gray-500 text-sm font-medium">
+                      +91
+                    </span>
+                    <input
+                      type="tel"
+                      name="phone"
+                      defaultValue={(residentToEdit.phone || '').replace(/\D/g, '').slice(-10)}
+                      required
+                      inputMode="numeric"
+                      pattern="\d{10}"
+                      minLength={10}
+                      maxLength={10}
+                      title="Phone number must be exactly 10 digits"
+                      onInput={(e) => {
+                        const input = e.currentTarget;
+                        input.value = input.value.replace(/\D/g, '').slice(0, 10);
+                      }}
+                      className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-r-xl px-4 py-3 text-sm outline-none transition-all"
+                    />
+                  </div>
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-gray-900 block">Aadhar No.</label>
                   <input type="text" name="aadhar" defaultValue={residentToEdit.aadhar || ''} className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all" />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-gray-900 block">Emergency Contact</label>
-                  <input type="tel" name="emergencyPhone" defaultValue={residentToEdit.emergencyPhone || ''} className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all" />
+                  <label className="text-sm font-medium text-gray-900 block">Emergency Contact <span className="text-red-500">*</span></label>
+                  <div className="flex">
+                    <span className="inline-flex items-center px-4 rounded-l-xl border border-r-0 border-gray-200 bg-white text-gray-500 text-sm font-medium">
+                      +91
+                    </span>
+                    <input
+                      type="tel"
+                      name="emergencyPhone"
+                      defaultValue={(residentToEdit.emergencyPhone || '').replace(/\D/g, '').slice(-10)}
+                      required
+                      inputMode="numeric"
+                      pattern="\d{10}"
+                      minLength={10}
+                      maxLength={10}
+                      title="Emergency number must be exactly 10 digits"
+                      onInput={(e) => {
+                        const input = e.currentTarget;
+                        input.value = input.value.replace(/\D/g, '').slice(0, 10);
+                      }}
+                      className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-r-xl px-4 py-3 text-sm outline-none transition-all"
+                    />
+                  </div>
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-gray-900 block">Monthly Rent</label>

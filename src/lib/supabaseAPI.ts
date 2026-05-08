@@ -529,7 +529,9 @@ export async function addResidentDb(hostelId: string, roomId: string, bedId: str
     p_stay_duration_days: residentData.stayTime ? parseInt(residentData.stayTime as string) : null,
     p_emergency_contact: residentData.emergencyPhone,
     p_aadhar_number: residentData.aadhar,
-    p_email: residentData.email
+    p_area_and_city: residentData.areaAndCity || null,
+    p_state: residentData.state || null,
+    p_country: residentData.country || 'India'
   });
   if (error) throw error;
   
@@ -742,6 +744,9 @@ export async function createJoinRequestDb(requestData: {
   occupation?: string;
   preferredRoom?: string;
   aadharNumber?: string;
+  areaAndCity?: string;
+  state?: string;
+  country?: string;
   photoPath?: string | null;
   aadharDocumentPath?: string | null;
 }) {
@@ -753,6 +758,9 @@ export async function createJoinRequestDb(requestData: {
     p_occupation: requestData.occupation || null,
     p_preferred_room: requestData.preferredRoom || null,
     p_aadhar_number: requestData.aadharNumber || null,
+    p_area_and_city: requestData.areaAndCity || null,
+    p_state: requestData.state || null,
+    p_country: requestData.country || 'India',
     p_photo_path: requestData.photoPath ?? null,
     p_aadhar_document_path: requestData.aadharDocumentPath ?? null,
   });

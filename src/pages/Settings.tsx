@@ -21,11 +21,15 @@ export default function Settings() {
     e.preventDefault();
     setIsSaving(true);
     const formData = new FormData(e.currentTarget);
+    const normalizePhone = (value: FormDataEntryValue | null) => {
+      const digits = String(value ?? '').replace(/\D/g, '');
+      return digits.length > 10 ? digits.slice(-10) : digits;
+    };
     const updatedProfile = {
       ...hostelProfile,
       hostelName: formData.get('hostelName'),
       ownerName: formData.get('ownerName'),
-      phone: formData.get('phone'),
+      phone: normalizePhone(formData.get('phone')),
       email: formData.get('email'),
       city: formData.get('city'),
       state: formData.get('state'),
@@ -96,7 +100,26 @@ export default function Settings() {
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-gray-700">Mobile Number</label>
-                <input name="phone" type="tel" defaultValue={hostelProfile?.phone || ""} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" />
+                <div className="flex">
+                  <span className="inline-flex items-center px-4 rounded-l-xl border border-r-0 border-gray-200 bg-white text-gray-500 text-sm font-medium">
+                    +91
+                  </span>
+                  <input
+                    name="phone"
+                    type="tel"
+                    defaultValue={(hostelProfile?.phone || "").replace(/\D/g, '').slice(-10)}
+                    inputMode="numeric"
+                    pattern="\d{10}"
+                    minLength={10}
+                    maxLength={10}
+                    title="Phone number must be exactly 10 digits"
+                    onInput={(e) => {
+                      const input = e.currentTarget;
+                      input.value = input.value.replace(/\D/g, '').slice(0, 10);
+                    }}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-r-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none"
+                  />
+                </div>
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-gray-700">Email</label>
@@ -235,7 +258,25 @@ export default function Settings() {
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-gray-700">Mobile Number</label>
-                <input type="tel" defaultValue={hostelProfile?.phone || ""} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" />
+                <div className="flex">
+                  <span className="inline-flex items-center px-4 rounded-l-xl border border-r-0 border-gray-200 bg-white text-gray-500 text-sm font-medium">
+                    +91
+                  </span>
+                  <input
+                    type="tel"
+                    defaultValue={(hostelProfile?.phone || "").replace(/\D/g, '').slice(-10)}
+                    inputMode="numeric"
+                    pattern="\d{10}"
+                    minLength={10}
+                    maxLength={10}
+                    title="Phone number must be exactly 10 digits"
+                    onInput={(e) => {
+                      const input = e.currentTarget;
+                      input.value = input.value.replace(/\D/g, '').slice(0, 10);
+                    }}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-r-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none"
+                  />
+                </div>
               </div>
               <div className="space-y-2 md:col-span-2">
                 <label className="text-sm font-semibold text-gray-700">Email</label>

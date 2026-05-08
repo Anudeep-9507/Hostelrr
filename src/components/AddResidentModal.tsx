@@ -145,12 +145,19 @@ export default function AddResidentModal({
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const isReservedOnly = formData.get('reserved') === 'yes';
+    const normalizePhone = (value: FormDataEntryValue | null) => {
+      const digits = String(value ?? '').replace(/\D/g, '');
+      return digits.length > 10 ? digits.slice(-10) : digits;
+    };
     
     const residentData = {
       name: formData.get('name') as string,
-      phone: formData.get('phone') as string,
-      emergencyPhone: formData.get('emergencyPhone') as string,
+      phone: normalizePhone(formData.get('phone')),
+      emergencyPhone: normalizePhone(formData.get('emergencyPhone')),
       aadhar: formData.get('aadhar') as string,
+      areaAndCity: formData.get('areaAndCity') as string,
+      state: formData.get('state') as string,
+      country: formData.get('country') as string,
       rent: Number(formData.get('rent')),
       stayTime: formData.get('stayTime') as string,
       joinDate: formData.get('joiningDate') as string || joiningDate || getTodayIST(),
@@ -302,15 +309,29 @@ export default function AddResidentModal({
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-gray-900 block">Phone No. <span className="text-red-500">*</span></label>
-              <input 
-                type="text"
-                name="phone"
-                required
-                defaultValue={reAddData?.phone || ''}
-                placeholder="+91 98765 43210" 
-                className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400"
-              />
-            </div>
+                <div className="flex">
+                  <span className="inline-flex items-center px-4 rounded-l-xl border border-r-0 border-gray-200 bg-white text-gray-500 text-sm font-medium">
+                    +91
+                  </span>
+                  <input 
+                    type="tel"
+                    name="phone"
+                    required
+                    inputMode="numeric"
+                    pattern="\d{10}"
+                    minLength={10}
+                    maxLength={10}
+                    title="Phone number must be exactly 10 digits"
+                    defaultValue={(reAddData?.phone || '').replace(/\D/g, '').slice(-10)}
+                    onInput={(e) => {
+                      const input = e.currentTarget;
+                      input.value = input.value.replace(/\D/g, '').slice(0, 10);
+                    }}
+                    placeholder="98765 43210" 
+                    className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-r-xl px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400"
+                  />
+                </div>
+              </div>
             <div className="space-y-1.5 relative">
               <div className="flex items-center gap-1.5">
                 <label className="text-sm font-medium text-gray-900 block">Joining Date</label>
@@ -386,14 +407,29 @@ export default function AddResidentModal({
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-900 block">Emergency Contact No.</label>
-                <input 
-                  type="text"
-                  name="emergencyPhone"
-                  defaultValue={reAddData?.emergencyPhone || ''}
-                  placeholder="+91 98765 43210" 
-                  className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400"
-                />
+                <label className="text-sm font-medium text-gray-900 block">Emergency Contact No. <span className="text-red-500">*</span></label>
+                <div className="flex">
+                  <span className="inline-flex items-center px-4 rounded-l-xl border border-r-0 border-gray-200 bg-white text-gray-500 text-sm font-medium">
+                    +91
+                  </span>
+                  <input 
+                    type="tel"
+                    name="emergencyPhone"
+                    required
+                    inputMode="numeric"
+                    pattern="\d{10}"
+                    minLength={10}
+                    maxLength={10}
+                    title="Emergency number must be exactly 10 digits"
+                    defaultValue={(reAddData?.emergencyPhone || '').replace(/\D/g, '').slice(-10)}
+                    onInput={(e) => {
+                      const input = e.currentTarget;
+                      input.value = input.value.replace(/\D/g, '').slice(0, 10);
+                    }}
+                    placeholder="98765 43210" 
+                    className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-r-xl px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400"
+                  />
+                </div>
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-gray-900 block">Aadhar No.</label>
@@ -402,6 +438,40 @@ export default function AddResidentModal({
                 name="aadhar"
                 defaultValue={reAddData?.aadhar || ''}
                 placeholder="1234 5678 9012"
+                className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-gray-900 block">Area & City</label>
+            <input 
+              type="text"
+              name="areaAndCity"
+              defaultValue={reAddData?.areaAndCity || ''}
+              placeholder="e.g. Sector 5, Bengaluru" 
+              className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-gray-900 block">State</label>
+              <input 
+                type="text"
+                name="state"
+                defaultValue={reAddData?.state || ''}
+                placeholder="e.g. Karnataka" 
+                className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-gray-900 block">Country</label>
+              <input 
+                type="text"
+                name="country"
+                defaultValue={reAddData?.country || 'India'}
+                placeholder="e.g. India" 
                 className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400"
               />
             </div>

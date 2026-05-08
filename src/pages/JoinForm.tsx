@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Building2, CheckCircle2, ChevronLeft, Upload, Image as ImageIcon, FileText, Check } from 'lucide-react';
+import { Building2, CheckCircle2, ChevronLeft, Image as ImageIcon, FileText } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { createJoinRequestDb, uploadJoinRequestDocuments } from '../lib/supabaseAPI';
 import { toast } from 'sonner';
@@ -10,21 +10,10 @@ export default function JoinForm() {
   const [errorMsg, setErrorMsg] = useState('');
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [aadharFile, setAadharFile] = useState<File | null>(null);
-  const [photoPreviewUrl, setPhotoPreviewUrl] = useState('');
-  const [aadharPreviewUrl, setAadharPreviewUrl] = useState('');
-  const [photoUploaded, setPhotoUploaded] = useState(false);
-  const [aadharUploaded, setAadharUploaded] = useState(false);
   const { hostelProfile } = useApp();
   
   const hostelName = hostelProfile?.hostelName || 'My Hostel';
   const hostelId = hostelProfile?.id;
-
-  useEffect(() => {
-    return () => {
-      if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
-      if (aadharPreviewUrl) URL.revokeObjectURL(aadharPreviewUrl);
-    };
-  }, [photoPreviewUrl, aadharPreviewUrl]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -56,7 +45,6 @@ export default function JoinForm() {
           hostelId
         );
         photoPath = uploadedDocs.photoPath;
-        setPhotoUploaded(true);
         toast.success('Resident photo uploaded');
       }
 
@@ -66,7 +54,6 @@ export default function JoinForm() {
           hostelId
         );
         aadharDocumentPath = uploadedDocs.aadharPath;
-        setAadharUploaded(true);
         toast.success('Aadhar document uploaded');
       }
 
@@ -79,6 +66,9 @@ export default function JoinForm() {
         preferredRoom: formData.get('preferredRoom') as string,
         emergencyContact: formData.get('emergencyContact') ? `+91 ${formData.get('emergencyContact')}` : undefined,
         aadharNumber: formData.get('aadharNumber') as string,
+        areaAndCity: formData.get('areaAndCity') as string,
+        state: formData.get('state') as string,
+        country: formData.get('country') as string,
         photoPath: photoPath ?? null,
         aadharDocumentPath: aadharDocumentPath ?? null,
       });
@@ -157,99 +147,73 @@ export default function JoinForm() {
               )}
 
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-900 block">Resident Photo</label>
-                <div className="space-y-2">
-                  <label className="w-full border-2 border-dashed border-gray-200 rounded-xl p-4 flex flex-col items-center justify-center gap-2 hover:bg-gray-50 transition-colors cursor-pointer relative">
-                    <input
-                      type="file"
-                      name="photo"
-                      accept="image/*"
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0] || null;
-                        setPhotoFile(file);
-                        setPhotoUploaded(false);
-                        if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
-                        if (file) {
-                          setPhotoPreviewUrl(URL.createObjectURL(file));
-                        } else {
-                          setPhotoPreviewUrl('');
-                        }
-                      }}
-                    />
-                    <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center overflow-hidden">
-                      {photoPreviewUrl ? (
-                        <img src={photoPreviewUrl} alt="Resident photo preview" className="h-full w-full object-cover" />
-                      ) : (
-                        <ImageIcon className="w-6 h-6 text-gray-400" />
-                      )}
-                    </div>
-                    <div className="text-sm text-gray-600 font-medium">Tap to upload photo</div>
-                    <div className="text-xs text-gray-400">PNG, JPG up to 5MB</div>
-                  </label>
-
-                  {photoFile && (
-                    <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-3 py-2">
+                <label className="text-sm font-medium text-gray-900 block">Resident Documents</label>
+                <div className="grid grid-cols-1 gap-4 pt-1">
+                  <div className="flex items-center justify-between p-3.5 bg-gray-50 border border-gray-100 rounded-2xl">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-xl bg-white shadow-sm border border-gray-100 flex items-center justify-center text-gray-400 shrink-0">
+                        <ImageIcon className="w-4.5 h-4.5" />
+                      </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{photoFile.name}</p>
-                        <p className="text-xs text-gray-500">{Math.round(photoFile.size / 1024)} KB</p>
-                      </div>
-                      <div className={`flex h-7 w-7 items-center justify-center rounded-full ${photoUploaded ? 'bg-green-100 text-green-600' : 'bg-gray-200 text-gray-500'}`}>
-                        <Check className="w-4 h-4" />
+                        <p className="text-sm font-semibold text-gray-900">Photo</p>
+                        {photoFile ? (
+                          <>
+                            <p className="text-[11px] text-green-600 font-bold flex items-center gap-1 mt-0.5">
+                              <CheckCircle2 className="w-3 h-3" /> New file selected
+                            </p>
+                            <p className="text-[11px] text-gray-500 truncate mt-0.5">{photoFile.name}</p>
+                          </>
+                        ) : (
+                          <p className="text-[11px] text-gray-500 mt-0.5">PNG, JPG up to 3MB</p>
+                        )}
                       </div>
                     </div>
-                  )}
-                </div>
-              </div>
+                    <label className="relative inline-flex items-center px-4 py-2 bg-white border border-gray-200 hover:border-gray-300 rounded-xl text-xs font-bold text-gray-700 shadow-sm cursor-pointer transition-all hover:bg-gray-50 shrink-0">
+                      {photoFile ? 'Replace' : 'Upload'}
+                      <input
+                        type="file"
+                        name="photo"
+                        accept="image/*"
+                        className="sr-only"
+                        onChange={(e) => {
+                          setPhotoFile(e.target.files?.[0] || null);
+                        }}
+                      />
+                    </label>
+                  </div>
 
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-900 block">Aadhar Document</label>
-                <div className="space-y-2">
-                  <label className="w-full border-2 border-dashed border-gray-200 rounded-xl p-4 flex flex-col items-center justify-center gap-2 hover:bg-gray-50 transition-colors cursor-pointer relative">
-                    <input
-                      type="file"
-                      name="aadhar"
-                      accept="image/*,application/pdf"
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0] || null;
-                        setAadharFile(file);
-                        setAadharUploaded(false);
-                        if (aadharPreviewUrl) URL.revokeObjectURL(aadharPreviewUrl);
-                        if (file) {
-                          setAadharPreviewUrl(file.type.startsWith('image/') ? URL.createObjectURL(file) : '');
-                        } else {
-                          setAadharPreviewUrl('');
-                        }
-                      }}
-                    />
-                    <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center overflow-hidden">
-                      {aadharPreviewUrl ? (
-                        <img src={aadharPreviewUrl} alt="Aadhar preview" className="h-full w-full object-cover" />
-                      ) : (
-                        <Upload className="w-6 h-6 text-gray-400" />
-                      )}
-                    </div>
-                    <div className="text-sm text-gray-600 font-medium">Tap to upload aadhar</div>
-                    <div className="text-xs text-gray-400">PDF, PNG, JPG up to 5MB</div>
-                  </label>
-
-                  {aadharFile && (
-                    <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-3 py-2">
-                      <div className="min-w-0 flex items-center gap-2">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 shrink-0">
-                          <FileText className="w-4 h-4" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">{aadharFile.name}</p>
-                          <p className="text-xs text-gray-500">{aadharFile.type || 'Document'}</p>
-                        </div>
+                  <div className="flex items-center justify-between p-3.5 bg-gray-50 border border-gray-100 rounded-2xl">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-xl bg-white shadow-sm border border-gray-100 flex items-center justify-center text-gray-400 shrink-0">
+                        <FileText className="w-4.5 h-4.5" />
                       </div>
-                      <div className={`flex h-7 w-7 items-center justify-center rounded-full ${aadharUploaded ? 'bg-green-100 text-green-600' : 'bg-gray-200 text-gray-500'}`}>
-                        <Check className="w-4 h-4" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-gray-900">Aadhar</p>
+                        {aadharFile ? (
+                          <>
+                            <p className="text-[11px] text-green-600 font-bold flex items-center gap-1 mt-0.5">
+                              <CheckCircle2 className="w-3 h-3" /> New file selected
+                            </p>
+                            <p className="text-[11px] text-gray-500 truncate mt-0.5">{aadharFile.name}</p>
+                          </>
+                        ) : (
+                          <p className="text-[11px] text-gray-500 mt-0.5">PDF, PNG, JPG up to 3MB</p>
+                        )}
                       </div>
                     </div>
-                  )}
+                    <label className="relative inline-flex items-center px-4 py-2 bg-white border border-gray-200 hover:border-gray-300 rounded-xl text-xs font-bold text-gray-700 shadow-sm cursor-pointer transition-all hover:bg-gray-50 shrink-0">
+                      {aadharFile ? 'Replace' : 'Upload'}
+                      <input
+                        type="file"
+                        name="aadhar"
+                        accept="image/*,application/pdf"
+                        className="sr-only"
+                        onChange={(e) => {
+                          setAadharFile(e.target.files?.[0] || null);
+                        }}
+                      />
+                    </label>
+                  </div>
                 </div>
               </div>
 
@@ -275,7 +239,15 @@ export default function JoinForm() {
                       type="tel"
                       name="phone"
                       required
-                      pattern="[0-9]{10}"
+                      inputMode="numeric"
+                      pattern="\d{10}"
+                      minLength={10}
+                      maxLength={10}
+                      title="Phone number must be exactly 10 digits"
+                      onInput={(e) => {
+                        const input = e.currentTarget;
+                        input.value = input.value.replace(/\D/g, '').slice(0, 10);
+                      }}
                       placeholder="98765 43210" 
                       className="w-full border border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 rounded-r-xl px-4 py-3.5 text-[15px] outline-none transition-all placeholder:text-gray-400 bg-gray-50 focus:bg-white"
                     />
@@ -283,14 +255,27 @@ export default function JoinForm() {
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-gray-900 block">Emergency No. <span className="text-red-500">*</span></label>
-                  <input 
-                    type="tel"
-                    name="emergencyContact"
-                    required
-                    pattern="[0-9]{10}"
-                    placeholder="98765 43210" 
-                    className="w-full border border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 rounded-xl px-4 py-3.5 text-[15px] outline-none transition-all placeholder:text-gray-400 bg-gray-50 focus:bg-white"
-                  />
+                  <div className="flex">
+                    <span className="inline-flex items-center px-4 rounded-l-xl border border-r-0 border-gray-200 bg-white text-gray-500 sm:text-sm font-medium">
+                      +91
+                    </span>
+                    <input 
+                      type="tel"
+                      name="emergencyContact"
+                      required
+                      inputMode="numeric"
+                      pattern="\d{10}"
+                      minLength={10}
+                      maxLength={10}
+                      title="Emergency number must be exactly 10 digits"
+                      onInput={(e) => {
+                        const input = e.currentTarget;
+                        input.value = input.value.replace(/\D/g, '').slice(0, 10);
+                      }}
+                      placeholder="98765 43210" 
+                      className="w-full border border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 rounded-r-xl px-4 py-3.5 text-[15px] outline-none transition-all placeholder:text-gray-400 bg-gray-50 focus:bg-white"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -319,6 +304,39 @@ export default function JoinForm() {
                 </div>
               </div>
 
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-900 block">Area & City <span className="text-red-500">*</span></label>
+                <input 
+                  type="text"
+                  name="areaAndCity"
+                  required
+                  placeholder="e.g. Sector 5, Bengaluru" 
+                  className="w-full border border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 rounded-xl px-4 py-3.5 text-[15px] outline-none transition-all placeholder:text-gray-400 bg-gray-50 focus:bg-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-gray-900 block">State <span className="text-red-500">*</span></label>
+                  <input 
+                    type="text"
+                    name="state"
+                    required
+                    placeholder="e.g. Karnataka" 
+                    className="w-full border border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 rounded-xl px-4 py-3.5 text-[15px] outline-none transition-all placeholder:text-gray-400 bg-gray-50 focus:bg-white"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-gray-900 block">Country <span className="text-red-500">*</span></label>
+                  <input 
+                    type="text"
+                    name="country"
+                    defaultValue="India"
+                    placeholder="e.g. India" 
+                    className="w-full border border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 rounded-xl px-4 py-3.5 text-[15px] outline-none transition-all placeholder:text-gray-400 bg-gray-50 focus:bg-white"
+                  />
+                </div>
+              </div>
 
               <div className="pt-4">
                 <button 

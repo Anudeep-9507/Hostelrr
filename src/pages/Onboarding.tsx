@@ -146,6 +146,7 @@ export default function Onboarding() {
   const buttonClass = "w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 text-base shadow-sm";
   const inputClass = "w-full border border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400 bg-gray-50 hover:bg-gray-100/50 focus:bg-white";
   const labelClass = "text-sm font-bold text-gray-800 block mb-1.5";
+  const isStep2Valid = Boolean(hostelName.trim()) && phone.length === 10;
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] overflow-y-auto flex flex-col items-center justify-start py-8 px-4 sm:px-6 font-sans relative">
@@ -199,7 +200,23 @@ export default function Onboarding() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className={labelClass}>Mobile Number</label>
-                      <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="e.g. 9876543210" className={inputClass} />
+                      <div className="flex">
+                        <span className="inline-flex items-center px-4 rounded-l-xl border border-r-0 border-gray-200 bg-white text-gray-500 text-sm font-medium">
+                          +91
+                        </span>
+                        <input
+                          type="tel"
+                          inputMode="numeric"
+                          value={phone}
+                          onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                          pattern="\d{10}"
+                          minLength={10}
+                          maxLength={10}
+                          title="Phone number must be exactly 10 digits"
+                          placeholder="98765 43210"
+                          className={cn(inputClass, "rounded-l-none")}
+                        />
+                      </div>
                     </div>
                     <div>
                       <label className={labelClass}>Area & City</label>
@@ -246,7 +263,7 @@ export default function Onboarding() {
                   <button onClick={prevStep} className="p-3 bg-gray-50 text-gray-600 hover:bg-gray-100 rounded-xl transition-colors shrink-0">
                     <ArrowLeft className="w-5 h-5" />
                   </button>
-                  <button onClick={nextStep} disabled={!hostelName} className={cn(buttonClass, !hostelName && "opacity-50 cursor-not-allowed")}>
+                  <button onClick={nextStep} disabled={!isStep2Valid} className={cn(buttonClass, !isStep2Valid && "opacity-50 cursor-not-allowed")}>
                     Next
                   </button>
                 </div>
