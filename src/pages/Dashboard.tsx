@@ -72,7 +72,7 @@ export default function Dashboard({ setActiveTab }: { setActiveTab?: (tab: strin
   });
 
   const totalBeds = Math.max(hostelProfile?.total_beds || 0, configuredBedsCount);
-  const vacantBeds = Math.max(0, totalBeds - occupiedBeds - reservedBeds);
+  const vacantBeds = configuredBedsCount - occupiedBeds - reservedBeds;
 
   // Pending = total owed by all residents with unpaid/partial cycles
   const dueResidents = residents.filter(r => r.paymentStatus === 'due' || r.paymentStatus === 'late' || r.paymentStatus === 'partially_paid');
@@ -164,10 +164,12 @@ export default function Dashboard({ setActiveTab }: { setActiveTab?: (tab: strin
                     e.stopPropagation();
                     setIsRevenueInfoModalOpen(true);
                   }}
-                  className="w-4 h-4 rounded-full border border-emerald-500 text-emerald-600 flex items-center justify-center hover:bg-emerald-100"
+                  className="w-4 h-4 rounded-full bg-[#1A73E8] text-white flex items-center justify-center hover:bg-[#1557B0] transition-colors shadow-sm"
                   aria-label="Open expected revenue breakdown"
                 >
-                  <Info className="w-2.5 h-2.5" />
+                  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-7 h-7">
+                    <path d="M12 16V12M12 8H12.01" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
                 </button>
               </div>
             </div>
@@ -186,45 +188,76 @@ export default function Dashboard({ setActiveTab }: { setActiveTab?: (tab: strin
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setIsRevenueInfoModalOpen(false)}
-            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[1px] flex items-center justify-center p-4"
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.97, y: 8 }}
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.97, y: 8 }}
-              transition={{ duration: 0.16 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-xl"
+              className="w-full max-w-sm bg-white rounded-3xl overflow-hidden shadow-2xl border border-gray-100"
             >
-              <div className="flex items-center justify-between p-4 border-b border-gray-100">
-                <h3 className="text-base font-bold text-gray-900">Expected Revenue Breakdown</h3>
+              <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-6 text-white relative">
                 <button
                   onClick={() => setIsRevenueInfoModalOpen(false)}
-                  className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100"
-                  aria-label="Close modal"
+                  className="absolute top-4 right-4 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white/90 transition-colors"
                 >
                   <X className="w-4 h-4" />
                 </button>
+                <div className="flex items-center gap-3 mb-1">
+                  <div className="p-2 bg-white/20 rounded-xl backdrop-blur-md">
+                    <PieChart className="w-5 h-5 text-white" />
+                  </div>
+                  <h3 className="text-lg font-bold">Revenue Projections</h3>
+                </div>
+                <p className="text-blue-100 text-sm">Monthly expected earnings overview</p>
               </div>
 
-              <div className="p-4 space-y-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Expected monthly rent</span>
-                  <span className="font-semibold text-gray-900">₹{expectedMonthlyRevenue.toLocaleString('en-IN')}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Expected security deposit</span>
-                  <span className="font-semibold text-gray-900">₹{expectedTotalSecurityDeposit.toLocaleString('en-IN')}</span>
-                </div>
-                <p className="text-xs text-gray-500">{occupiedResidentsCount} occupied residents × ₹{defaultSecurityDeposit.toLocaleString('en-IN')} security deposit</p>
+              <div className="p-6 space-y-5">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-3.5 rounded-2xl bg-gray-50 border border-gray-100 group hover:border-blue-200 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
+                        <IndianRupee className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-gray-500 uppercase tracking-tight">Monthly Rent</p>
+                        <p className="text-sm font-medium text-gray-400">Fixed monthly income</p>
+                      </div>
+                    </div>
+                    <span className="text-lg font-bold text-gray-900">₹{expectedMonthlyRevenue.toLocaleString('en-IN')}</span>
+                  </div>
 
-                <div className="h-px bg-gray-100" />
-
-                <div className="flex items-center justify-between text-base">
-                  <span className="font-semibold text-gray-800">Final expected revenue</span>
-                  <span className="font-bold text-emerald-700">₹{finalExpectedRevenue.toLocaleString('en-IN')}</span>
+                  <div className="flex items-center justify-between p-3.5 rounded-2xl bg-gray-50 border border-gray-100 group hover:border-indigo-200 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600">
+                        <Users className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-gray-500 uppercase tracking-tight">Security Deposits</p>
+                        <p className="text-sm font-medium text-gray-400">{occupiedResidentsCount} active residents</p>
+                      </div>
+                    </div>
+                    <span className="text-lg font-bold text-gray-900">₹{expectedTotalSecurityDeposit.toLocaleString('en-IN')}</span>
+                  </div>
                 </div>
-                <p className="text-xs text-gray-500">Expected rent + expected security deposit</p>
+
+                <div className="pt-2">
+                  <div className="p-5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-bold text-emerald-800 uppercase tracking-wider">Total Expected</span>
+                      <span className="text-2xl font-black text-emerald-700">₹{finalExpectedRevenue.toLocaleString('en-IN')}</span>
+                    </div>
+                    <p className="text-xs text-emerald-600/80 font-medium">Sum of all rent and security deposits</p>
+                  </div>
+                </div>
+                
+                <button 
+                  onClick={() => setIsRevenueInfoModalOpen(false)}
+                  className="w-full py-3.5 bg-gray-900 text-white rounded-2xl font-bold text-sm hover:bg-black transition-all active:scale-[0.98] shadow-lg shadow-gray-200"
+                >
+                  Got it
+                </button>
               </div>
             </motion.div>
           </motion.div>
@@ -311,7 +344,10 @@ export default function Dashboard({ setActiveTab }: { setActiveTab?: (tab: strin
                         <p className="text-xs text-gray-500">Due {r.dueDate ? formatDate(r.dueDate) : 'Unknown'}</p>
                       </div>
                       <button 
-                        onClick={() => window.open(`https://wa.me/91${(r.phone || '').replace(/[^0-9]/g, '')}?text=Hi%20${encodeURIComponent(r.name)},%20this%20is%20a%20reminder%20that%20your%20rent%20of%20Rs.%20${r.dueAmount}%20is%20pending.%20Please%20pay%20at%20your%20earliest%20convenience.`, '_blank')}
+                        onClick={() => {
+                          const msg = `Hi ${r.name}, this is a reminder that your rent of Rs. *${r.dueAmount}* is pending. Please pay at your earliest convenience.\n\nThank you\uD83D\uDE01`;
+                          window.open(`https://wa.me/91${(r.phone || '').replace(/[^0-9]/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
+                        }}
                         className="bg-[#25D366] hover:bg-[#20BE5B] text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center justify-center gap-1.5" title="Send WhatsApp Reminder"
                       >
                         <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">

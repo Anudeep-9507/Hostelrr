@@ -419,7 +419,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await syncStateWithDb();
       } catch(e) { 
         console.error(e);
-        toast.error('Failed to add resident');
+        import('sonner').then(({ toast }) => {
+          const msg = (e && (e.message || e.error)) || (typeof e === 'string' ? e : JSON.stringify(e));
+          toast.error(msg || 'Failed to add resident');
+        });
       }
     });
   };

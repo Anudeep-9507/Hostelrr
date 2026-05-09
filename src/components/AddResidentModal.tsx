@@ -168,6 +168,22 @@ export default function AddResidentModal({
       oldResidentId: isReAdd ? reAddData.id : undefined
     };
 
+    // Client-side validations to avoid RPC errors
+    if (!selectedRoomId || !selectedBedId) {
+      import('sonner').then(({ toast }) => {
+        toast.error('No vacant bed selected');
+      });
+      return;
+    }
+
+    // Ensure phone is 10 digits
+    if (!residentData.phone || String(residentData.phone).length !== 10) {
+      import('sonner').then(({ toast }) => {
+        toast.error('Phone number must be exactly 10 digits');
+      });
+      return;
+    }
+
     if (isJoinRequest) {
       approveJoinRequest({
         requestId: reAddData.id,

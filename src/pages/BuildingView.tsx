@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { Room, Bed, Resident } from '../data/mock';
 import DefaultAvatar from '../components/DefaultAvatar';
 import { cn, formatDate, getNamesFromIds } from '../lib/utils';
-import { X, UserPlus, LogOut, Phone, IndianRupee, FileText, Plus, User, LayoutTemplate, Trash2, BedDouble, Search, ChevronDown, Copy } from 'lucide-react';
+import { X, UserPlus, LogOut, Phone, IndianRupee, FileText, Plus, User, LayoutTemplate, Trash2, BedDouble, Search, ChevronDown, Copy, Eye } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { toast } from 'sonner';
 import BedLayoutBuilder, { LAYOUT_COLORS, Template } from '../components/BedLayoutBuilder';
@@ -71,6 +71,7 @@ export default function BuildingView({ setActiveTab }: { setActiveTab?: (tab: st
   const [targetFloorForCopy, setTargetFloorForCopy] = useState<string | null>(null);
   const [allTemplates, setAllTemplates] = useState<Template[]>([]);
   const [selectedLayoutId, setSelectedLayoutId] = useState<string>('');
+  const [previewTemplateId, setPreviewTemplateId] = useState<string | null>(null);
 
   React.useEffect(() => {
     if (!hostelProfile?.id) {
@@ -260,7 +261,7 @@ export default function BuildingView({ setActiveTab }: { setActiveTab?: (tab: st
   const occupiedCount = allBeds.filter(b => b.status === "occupied" || b.status === "payment_due").length;
   const reservedCount = allBeds.filter(b => b.status === "reserved").length;
   const totalBeds = Math.max(hostelProfile?.total_beds || 0, configuredBedsCount);
-  const vacantBeds = Math.max(0, totalBeds - occupiedCount - reservedCount);
+  const vacantBeds = allBeds.filter(b => b.status === 'vacant').length;
 
   const counts = {
     all: totalBeds,
@@ -736,7 +737,7 @@ export default function BuildingView({ setActiveTab }: { setActiveTab?: (tab: st
                 {(() => {
                   const currentSharing = isCustomSharing ? parseInt(customSharingValue) : parseInt(newRoomBeds);
                   const templates = allTemplates.filter(t => t.sharing === currentSharing);
-                  if (templates.length <= 1) return null;
+                  if (templates.length === 0) return null;
 
                   return (
                     <div className="space-y-3 pt-2">
@@ -749,7 +750,7 @@ export default function BuildingView({ setActiveTab }: { setActiveTab?: (tab: st
                             <button
                               key={t.id}
                               onClick={() => setSelectedLayoutId(t.id)}
-                              className={`flex items-center gap-3 p-3 rounded-2xl border-2 transition-all text-left ${
+                              className={`flex items-center gap-3 p-3 rounded-2xl border-2 transition-all text-left group/version ${
                                 isSelected 
                                   ? `${colorConfig.class} border-opacity-100 ring-4 ring-blue-500/5` 
                                   : 'border-gray-100 hover:border-gray-200 text-gray-600'
@@ -758,10 +759,20 @@ export default function BuildingView({ setActiveTab }: { setActiveTab?: (tab: st
                               <div className={`w-8 h-8 rounded-full flex items-center justify-center ${colorConfig.dot} bg-opacity-20`}>
                                 <div className={`w-3 h-3 rounded-full ${colorConfig.dot}`} />
                               </div>
-                              <div className="flex flex-col">
+                              <div className="flex flex-col flex-1">
                                 <span className="text-xs font-bold uppercase tracking-wider">Version {idx + 1}</span>
                                 <span className="text-[10px] opacity-70 font-medium">{colorConfig.name} Theme</span>
                               </div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPreviewTemplateId(t.id);
+                                }}
+                                className="p-1.5 hover:bg-black/5 rounded-lg transition-colors text-gray-400 hover:text-gray-900"
+                                title="Preview Layout"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
                             </button>
                           )
                         })}
@@ -1493,6 +1504,104 @@ export default function BuildingView({ setActiveTab }: { setActiveTab?: (tab: st
               </div>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Bed Layout Preview Modal */}
+      <AnimatePresence>
+        {previewTemplateId && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <div 
+              className="absolute inset-0 bg-gray-900/60 backdrop-blur-md" 
+              onClick={() => setPreviewTemplateId(null)}
+            ></div>
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-[32px] shadow-2xl w-full max-w-[360px] relative z-10 overflow-hidden flex flex-col"
+            >
+              <div className="p-6 pb-2 flex justify-between items-center">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">Layout Preview</h3>
+                  <p className="text-sm text-gray-500">
+                    {(() => {
+                      const t = allTemplates.find(tpl => tpl.id === previewTemplateId);
+                      return t ? `${t.sharing} Sharing — ${t.color} Theme` : '';
+                    })()}
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setPreviewTemplateId(null)}
+                  className="p-2 text-gray-400 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 flex items-center justify-center bg-gray-50/50">
+                {(() => {
+                  const template = allTemplates.find(t => t.id === previewTemplateId);
+                  if (!template) return null;
+
+                  return (
+                    <div className="relative w-[280px] h-[350px] bg-white border-2 border-gray-200 rounded-[24px] shadow-sm overflow-hidden">
+                      {/* Miniature door */}
+                      {template.door && (
+                        <div className={cn(
+                          "absolute bg-amber-700/40 rounded-sm z-0",
+                          template.door === 'N' && "top-0 left-1/2 -translate-x-1/2 w-12 h-1.5",
+                          template.door === 'S' && "bottom-0 left-1/2 -translate-x-1/2 w-12 h-1.5",
+                          template.door === 'E' && "right-0 top-1/2 -translate-y-1/2 w-1.5 h-12",
+                          template.door === 'W' && "left-0 top-1/2 -translate-y-1/2 w-1.5 h-12"
+                        )} />
+                      )}
+
+                      {Object.entries(template.positions).map(([label, pos]) => {
+                        const bedWidthPx = pos.rotated ? 44 : 96;
+                        const bedHeightPx = pos.rotated ? 96 : 44;
+                        
+                        // Template is based on 320x400
+                        // Preview is 280x350
+                        const scaleX = (pos.x / 320) * 100;
+                        const scaleY = (pos.y / 400) * 100;
+                        const widthPct = (bedWidthPx / 320) * 100;
+                        const heightPct = (bedHeightPx / 400) * 100;
+                        
+                        return (
+                          <div
+                            key={label}
+                            style={{
+                              left: `${scaleX}%`,
+                              top: `${scaleY}%`,
+                              width: `${widthPct}%`,
+                              height: `${heightPct}%`,
+                              zIndex: 1,
+                            }}
+                            className={cn(
+                              "absolute flex items-center justify-center rounded-lg border text-[10px] font-bold shadow-sm bg-white overflow-hidden",
+                              LAYOUT_COLORS.find(c => c.name === template.color)?.class || LAYOUT_COLORS[0].class
+                            )}
+                          >
+                            <span className={pos.rotated ? "-rotate-90 whitespace-nowrap" : ""}>{label}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              <div className="p-6 bg-white flex justify-center">
+                <button 
+                  onClick={() => setPreviewTemplateId(null)}
+                  className="w-full bg-[#1D4ED8] text-white py-3.5 rounded-2xl font-bold hover:bg-[#1e40af] transition-colors shadow-lg shadow-blue-200"
+                >
+                  Close Preview
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 

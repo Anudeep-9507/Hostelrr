@@ -29,6 +29,9 @@ export default function Residents() {
   const [isEditingFiles, setIsEditingFiles] = useState(false);
   const [isUploadingProfileDoc, setIsUploadingProfileDoc] = useState(false);
   const [residentToMarkDepositPaid, setResidentToMarkDepositPaid] = useState<Resident | null>(null);
+  const [showConfirmBedModal, setShowConfirmBedModal] = useState(false);
+  const [confirmRoomId, setConfirmRoomId] = useState<string | null>(null);
+  const [confirmBedId, setConfirmBedId] = useState<string | null>(null);
   const [depositPaymentMethod, setDepositPaymentMethod] = useState<'UPI' | 'Cash'>('UPI');
   const [depositPaymentDate, setDepositPaymentDate] = useState<string>(getTodayIST());
 
@@ -121,6 +124,39 @@ export default function Residents() {
     }
   };
 
+  const hasExplicitTimezone = (dateString: string) => /[zZ]|[+-]\d{2}:?\d{2}$/.test(dateString);
+
+  const getTransactionDateForDisplay = (dateString: string) => {
+    if (!dateString) return '';
+
+    if (!hasExplicitTimezone(dateString)) {
+      const simpleDateMatch = dateString.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (simpleDateMatch) {
+        return `${simpleDateMatch[3]}-${simpleDateMatch[2]}-${simpleDateMatch[1]}`;
+      }
+    }
+
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return dateString;
+
+    const dateIST = convertToIST(d);
+    return `${String(dateIST.getUTCDate()).padStart(2, '0')}-${String(dateIST.getUTCMonth() + 1).padStart(2, '0')}-${dateIST.getUTCFullYear()}`;
+  };
+
+  const getTransactionDateForSort = (dateString: string) => {
+    if (!dateString) return new Date(NaN);
+
+    if (!hasExplicitTimezone(dateString)) {
+      const simpleDateMatch = dateString.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (simpleDateMatch) {
+        return new Date(Date.UTC(Number(simpleDateMatch[1]), Number(simpleDateMatch[2]) - 1, Number(simpleDateMatch[3])));
+      }
+    }
+
+    const d = new Date(dateString);
+    return isNaN(d.getTime()) ? new Date(NaN) : convertToIST(d);
+  };
+
   const getMockHistory = (resident: Resident | PastResident) => {
     const r = resident as any;
     const rentAmount = r.dueAmount > 0 ? r.dueAmount : 7500;
@@ -142,7 +178,7 @@ export default function Residents() {
       { id: 'm2', date: '05 Feb 2026', amount: rentAmount, status: 'paid' as string, method: undefined as string | undefined, title: 'Rent Payment' },
       { id: 'm3', date: '05 Jan 2026', amount: rentAmount, status: 'paid' as string, method: undefined as string | undefined, title: 'Rent Payment' },
     ] : [];
-    return [...history, ...mock].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      return [...history, ...mock].sort((a: any, b: any) => getTransactionDateForSort(b.date).getTime() - getTransactionDateForSort(a.date).getTime());
   };
 
   // Past residents logic (sorted by recents)
@@ -178,6 +214,17 @@ export default function Residents() {
       return <span className="bg-[#DC3545] text-white px-3 py-1 text-xs font-bold rounded-full">Late</span>;
     }
     return <span className="bg-[#F89C1E] text-white px-3 py-1 text-xs font-bold rounded-full text-gray-900">Pending</span>;
+  };
+
+  const getBedStatusFor = (resident: Resident) => {
+    for (const floor of floors) {
+      const room = floor.rooms.find(r => r.id === resident.roomId);
+      if (room) {
+        const bed = room.beds.find(b => b.id === resident.bedId);
+        if (bed) return bed.status;
+      }
+    }
+    return 'unknown';
   };
 
   const renderPastCard = (resident: PastResident) => {
@@ -244,6 +291,7 @@ export default function Residents() {
     const { roomName: roomNum, bedName: bedLetter } = getNamesFromIds(floors, resident.roomId, resident.bedId);
     const joinDate = formatDate(resident.joinDate);
     const rentAmount = resident.dueAmount > 0 ? resident.dueAmount : 7500; // Mock rent
+    const bedStatus = getBedStatusFor(resident);
 
     return (
       <div 
@@ -262,6 +310,11 @@ export default function Residents() {
           <div>
             <div className="font-bold text-gray-900 leading-tight">{resident.name}</div>
             <div className="text-sm text-gray-500 mt-1">Room {roomNum} · {bedLetter}</div>
+            {bedStatus === 'reserved' && (
+              <div className="mt-2">
+                <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-bold rounded-md">RESERVED</span>
+              </div>
+            )}
           </div>
         </div>
         
@@ -613,6 +666,22 @@ export default function Residents() {
                 </a>
               </div>
 
+              {/* Confirm bed for reserved residents */}
+              {('paymentStatus' in selectedResident) && selectedBedStatus === 'reserved' && (
+                <div className="pt-3">
+                  <button
+                    onClick={() => {
+                      setConfirmRoomId(selectedResident.roomId || null);
+                      setConfirmBedId(selectedResident.bedId || null);
+                      setShowConfirmBedModal(true);
+                    }}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
+                  >
+                    Confirm Bed
+                  </button>
+                </div>
+              )}
+
               {/* Status Section */}
               {('paymentStatus' in selectedResident) && (
                 <div className="space-y-3">
@@ -717,6 +786,80 @@ export default function Residents() {
                       </div>
                     ) : null}
                   </div>
+
+                  {/* Confirm Bed Modal */}
+                  <AnimatePresence>
+                    {showConfirmBedModal && selectedResident && (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+                      >
+                        <motion.div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+                          <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-bold">Confirm Bed</h3>
+                            <button onClick={() => setShowConfirmBedModal(false)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full"><X className="w-4 h-4" /></button>
+                          </div>
+
+                          <div className="space-y-3">
+                            <div>
+                              <label className="text-xs text-gray-500">Select Room</label>
+                              <select value={confirmRoomId || ''} onChange={(e) => { setConfirmRoomId(e.target.value); setConfirmBedId(null); }} className="w-full mt-1 p-3 border rounded-xl">
+                                <option value="">Choose room</option>
+                                {floors.flatMap(f => f.rooms).map(r => (
+                                  <option key={r.id} value={r.id}>Room {r.number} — {r.beds.length} beds</option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="text-xs text-gray-500">Select Bed</label>
+                              <select value={confirmBedId || ''} onChange={(e) => setConfirmBedId(e.target.value)} className="w-full mt-1 p-3 border rounded-xl">
+                                <option value="">Choose bed</option>
+                                {confirmRoomId && (() => {
+                                  const room = floors.flatMap(f => f.rooms).find(r => r.id === confirmRoomId);
+                                  if (!room) return null;
+                                  return room.beds.map(b => (
+                                    <option key={b.id} value={b.id}>{b.name} — {b.status}</option>
+                                  ));
+                                })()}
+                              </select>
+                            </div>
+
+                            <div className="flex items-center gap-2 pt-2">
+                              <button
+                                onClick={async () => {
+                                  if (!confirmRoomId || !confirmBedId || !selectedResident) return;
+                                  // Build resident payload and call addResident with oldResidentId
+                                  const payload: any = {
+                                    name: selectedResident.name,
+                                    phone: selectedResident.phone,
+                                    emergencyPhone: (selectedResident as any).emergencyPhone || '',
+                                    aadhar: (selectedResident as any).aadhar,
+                                    rent: (selectedResident as any).monthlyRent || (selectedResident as any).dueAmount || 0,
+                                    securityDeposit: (selectedResident as any).securityDeposit || 0,
+                                    isDepositPaid: (selectedResident as any).isDepositPaid || false,
+                                    roomId: confirmRoomId,
+                                    bedId: confirmBedId,
+                                    joinDate: (selectedResident as any).joinDate || new Date().toISOString(),
+                                    oldResidentId: selectedResident.id
+                                  };
+                                  addResident(payload, false);
+                                  setShowConfirmBedModal(false);
+                                  setSelectedResident(null);
+                                }}
+                                className="bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700"
+                              >
+                                Confirm
+                              </button>
+                              <button onClick={() => setShowConfirmBedModal(false)} className="px-4 py-2 rounded-xl border">Cancel</button>
+                            </div>
+                          </div>
+                        </motion.div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
 
                   {/* Documents Section */}
                   <div className="space-y-3 pt-4 border-t border-gray-100">
@@ -851,7 +994,7 @@ export default function Residents() {
                             </div>
                             <div>
                               <p className="text-sm font-semibold text-gray-900">{history.title || 'Rent Payment'}</p>
-                              <p className="text-xs text-gray-500">Paid on {formatDate(history.date)}</p>
+                              <p className="text-xs text-gray-500">Paid on {getTransactionDateForDisplay(history.date)}</p>
                             </div>
                           </div>
                           <div className="flex flex-col items-end">
@@ -1231,19 +1374,7 @@ export default function Residents() {
                 </button>
                 <button 
                   onClick={() => {
-                    // Implement same logic as in payments (use proper UTC time)
-                    const depositTimestamp = (() => {
-                      if (!depositPaymentDate) {
-                        return new Date().toISOString();
-                      }
-                      if (/^\d{4}-\d{2}-\d{2}$/.test(depositPaymentDate)) {
-                        const now = new Date();
-                        const localTime = now.toISOString().split('T')[1];
-                        return `${depositPaymentDate}T${localTime}`;
-                      }
-                      return depositPaymentDate;
-                    })();
-                    editResident(residentToMarkDepositPaid.id, { ...residentToMarkDepositPaid, isDepositPaid: true, depositPaidDate: depositTimestamp });
+                    editResident(residentToMarkDepositPaid.id, { ...residentToMarkDepositPaid, isDepositPaid: true, depositPaidDate: depositPaymentDate });
                     toast.success(`Security deposit marked as paid`);
                     setResidentToMarkDepositPaid(null);
                   }}

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { Save, Building2, Bell, User, Lock, CreditCard, HelpCircle, LogOut, Check } from 'lucide-react';
+import { Save, Building2, Bell, User, Lock, CreditCard, HelpCircle, LogOut, Check, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from '../context/AppContext';
 import { supabase } from '../supabaseClient';
@@ -8,6 +8,9 @@ import { supabase } from '../supabaseClient';
 export default function Settings() {
   const { hostelProfile, updateHostelProfile } = useApp();
   const [isSaving, setIsSaving] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   // Load from local storage for other non-profile data
   const onboardingRaw = localStorage.getItem('hostelrr_onboarding_data');
@@ -53,8 +56,33 @@ export default function Settings() {
     }, 800);
   };
 
-  const handlePasswordChange = () => {
-    toast.success('Password updated successfully');
+  const handlePasswordChange = async () => {
+    if (!newPassword || !confirmPassword) {
+      toast.error('Please fill in both password fields');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+    
+    setIsChangingPassword(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      toast.success('Password updated successfully');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'Failed to update password');
+    } finally {
+      setIsChangingPassword(false);
+    }
   };
 
   const handleExport = (type: string) => {
@@ -218,7 +246,7 @@ export default function Settings() {
               <label className="text-sm font-semibold text-gray-700">Default Rent Reminder Message</label>
               <textarea 
                 rows={4}
-                defaultValue="Hello {{name}}, your hostel rent of ₹{{amount}} for Room {{room}} is pending. Please pay soon." 
+                defaultValue={`Hello {{name}}, your hostel rent of ₹{{amount}} for Room {{room}} is pending. Please pay soon. Thank you\uD83D\uDE01`} 
                 className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none resize-none"
               />
             </div>
@@ -303,22 +331,35 @@ export default function Settings() {
           <div className="p-6 space-y-6">
             <div className="grid grid-cols-1 gap-6 max-w-md">
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-700">Current Password</label>
-                <input type="password" placeholder="••••••••" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" />
-              </div>
-              <div className="space-y-2">
                 <label className="text-sm font-semibold text-gray-700">New Password</label>
-                <input type="password" placeholder="••••••••" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" />
+                <input 
+                  type="password" 
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="••••••••" 
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" 
+                />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-gray-700">Confirm New Password</label>
-                <input type="password" placeholder="••••••••" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" />
+                <input 
+                  type="password" 
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••" 
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" 
+                />
               </div>
             </div>
             
             <div className="pt-2 flex flex-wrap gap-4 items-center border-t border-gray-100 mt-6 pt-6">
-              <button onClick={handlePasswordChange} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-6 py-2.5 rounded-xl font-semibold transition-colors">
-                Change Password
+              <button 
+                onClick={handlePasswordChange} 
+                disabled={isChangingPassword}
+                className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-6 py-2.5 rounded-xl font-semibold transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isChangingPassword ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                {isChangingPassword ? 'Updating...' : 'Change Password'}
               </button>
               <button onClick={() => setShowLogoutModal(true)} className="bg-red-50 hover:bg-red-100 text-red-600 px-6 py-2.5 rounded-xl font-semibold transition-colors flex items-center gap-2">
                 <LogOut className="w-4 h-4" /> Logout

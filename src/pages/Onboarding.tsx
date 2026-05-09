@@ -456,7 +456,7 @@ export default function Onboarding() {
                       ))}
                     </div>
                     <div className="space-y-4 bg-gray-50 p-5 rounded-2xl border border-gray-100 mt-4">
-                      <label className="text-sm font-bold tracking-wide text-gray-800 uppercase block mb-1">Global Security Deposit</label>
+                      <label className="text-sm font-bold tracking-wide text-gray-800 uppercase block mb-1">Security Deposit</label>
                       <div className="relative">
                         <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">₹</div>
                         <input

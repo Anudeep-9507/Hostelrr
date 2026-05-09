@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp, PaymentsFilterType } from '../context/AppContext';
 import DefaultAvatar from '../components/DefaultAvatar';
-import { CheckCircle2, Wallet, Clock, AlertTriangle, Check, Send, X, Smartphone, Banknote, IndianRupee, AlertCircle, Info } from 'lucide-react';
+import { CheckCircle2, Wallet, Clock, AlertTriangle, Check, Send, X, Smartphone, Banknote, IndianRupee, AlertCircle, Info, PieChart, Users } from 'lucide-react';
 import { cn, formatDate, getNamesFromIds, getTodayIST, formatTimeIST, convertToIST } from '../lib/utils';
 import { Resident } from '../data/mock';
 import { toast } from 'sonner';
@@ -32,6 +32,53 @@ export default function Payments({ setActiveTab }: { setActiveTab?: (tab: string
     return formatDate(dateString);
   };
 
+  const hasExplicitTimezone = (dateString: string) => /[zZ]|[+-]\d{2}:?\d{2}$/.test(dateString);
+
+  const getTransactionDateForDisplay = (dateString: string) => {
+    if (!dateString) return '';
+
+    if (!hasExplicitTimezone(dateString)) {
+      const simpleDateMatch = dateString.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (simpleDateMatch) {
+        return `${simpleDateMatch[3]}-${simpleDateMatch[2]}-${simpleDateMatch[1]}`;
+      }
+    }
+
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return dateString;
+
+    const dateIST = convertToIST(d);
+    return `${String(dateIST.getUTCDate()).padStart(2, '0')}-${String(dateIST.getUTCMonth() + 1).padStart(2, '0')}-${dateIST.getUTCFullYear()}`;
+  };
+
+  const getTransactionDateForSort = (dateString: string) => {
+    if (!dateString) return new Date(NaN);
+
+    if (!hasExplicitTimezone(dateString)) {
+      const simpleDateMatch = dateString.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (simpleDateMatch) {
+        return new Date(Date.UTC(Number(simpleDateMatch[1]), Number(simpleDateMatch[2]) - 1, Number(simpleDateMatch[3])));
+      }
+    }
+
+    const d = new Date(dateString);
+    return isNaN(d.getTime()) ? new Date(NaN) : convertToIST(d);
+  };
+
+  const getBedStatusForResident = (roomId?: string, bedId?: string) => {
+    if (!roomId || !bedId) return 'unknown';
+
+    for (const floor of floors) {
+      const room = floor.rooms.find(r => r.id === roomId);
+      if (!room) continue;
+
+      const bed = room.beds.find(b => b.id === bedId);
+      return bed?.status || 'unknown';
+    }
+
+    return 'unknown';
+  };
+
   React.useEffect(() => {
     if (residentToMarkPaid) {
       setPaymentDate(getTodayIST());
@@ -56,7 +103,7 @@ export default function Payments({ setActiveTab }: { setActiveTab?: (tab: string
     const rentAmount = resident.dueAmount > 0 ? resident.dueAmount : 7500;
     const dueDateDisplay = resident.dueDate ? getDayAndMonth(resident.dueDate) : 'Today';
 
-    const message = `Hello ${resident.name}, your hostel rent of *₹${rentAmount}* for Room ${roomNum} is currently pending.\n\nDue Date: *${dueDateDisplay}*\n\nPlease make the payment soon.\n\nThank you,\n${hostelName}\nPowered by Hostelrr`;
+    const message = `Hello ${resident.name}, your hostel rent of *₹${rentAmount}* for Room ${roomNum} is currently pending.\n\nDue Date: *${dueDateDisplay}*\n\nPlease make the payment soon and reply *PAID* once done.\n\nThank you\uD83D\uDE01\n${hostelName}\nPowered by Hostelrr`;
 
     markReminderSent(resident.id);
     
@@ -101,7 +148,7 @@ export default function Payments({ setActiveTab }: { setActiveTab?: (tab: string
     if (resident.securityDeposit && resident.isDepositPaid) {
       history.push({
         id: 'sec_dep',
-        date: resident.depositPaidDate ? formatDate(resident.depositPaidDate) : formatDate(resident.joinDate),
+        date: resident.depositPaidDate || resident.joinDate,
         amount: resident.securityDeposit,
         status: 'paid',
         title: 'Security Deposit'
@@ -113,7 +160,7 @@ export default function Payments({ setActiveTab }: { setActiveTab?: (tab: string
       { id: 'm2', date: '05 Feb 2026', amount: rentAmount, status: 'paid' as string, method: undefined as string | undefined, title: 'Rent Payment' },
       { id: 'm3', date: '05 Jan 2026', amount: rentAmount, status: 'paid' as string, method: undefined as string | undefined, title: 'Rent Payment' },
     ] : [];
-    return [...history, ...mock].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return [...history, ...mock].sort((a: any, b: any) => getTransactionDateForSort(b.date).getTime() - getTransactionDateForSort(a.date).getTime());
   };
 
   const dueResidents = residents.filter(r => r.paymentStatus === 'due' || r.paymentStatus === 'late' || r.paymentStatus === 'partially_paid');
@@ -216,29 +263,29 @@ export default function Payments({ setActiveTab }: { setActiveTab?: (tab: string
 
     if (historyTimeFilter === 'Today') {
       base = base.filter(p => {
-        const d = new Date(p.date);
-        const dateIST = convertToIST(d);
+        const dateIST = getTransactionDateForSort(p.date);
         const dateStr = `${dateIST.getUTCFullYear()}-${String(dateIST.getUTCMonth() + 1).padStart(2, '0')}-${String(dateIST.getUTCDate()).padStart(2, '0')}`;
         return dateStr === today;
       });
     } else if (historyTimeFilter === 'Monthly') {
       base = base.filter(p => {
-        const d = new Date(p.date);
-        const dateIST = convertToIST(d);
+        const dateIST = getTransactionDateForSort(p.date);
         return dateIST.getUTCMonth() === currentMonth && dateIST.getUTCFullYear() === currentYear;
       });
     } else if (historyTimeFilter === 'Yearly') {
       base = base.filter(p => {
-        const d = new Date(p.date);
-        const dateIST = convertToIST(d);
+        const dateIST = getTransactionDateForSort(p.date);
         return dateIST.getUTCFullYear() === currentYear;
       });
     } else if (historyTimeFilter === 'Security Deposits') {
       base = base.filter(p => p.title === 'Security Deposit');
     }
 
-    return base.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return base.sort((a, b) => getTransactionDateForSort(b.date).getTime() - getTransactionDateForSort(a.date).getTime());
   }, [residents, pastResidents, historyTimeFilter]);
+
+  const totalHistoryAmount = allPaymentsTransactions.reduce((acc, p) => acc + p.amount, 0);
+  const isSecurityDepositHistory = historyTimeFilter === 'Security Deposits';
   
   // KPI counts
   const dueTodayCount = pendingCount;
@@ -319,10 +366,12 @@ export default function Payments({ setActiveTab }: { setActiveTab?: (tab: string
                         e.stopPropagation();
                         setIsRevenueInfoModalOpen(true);
                       }}
-                      className="w-4 h-4 rounded-full border border-green-500 text-green-700 flex items-center justify-center hover:bg-green-100"
+                      className="w-4 h-4 rounded-full bg-[#1A73E8] text-white flex items-center justify-center hover:bg-[#1557B0] transition-colors shadow-sm"
                       aria-label="Open expected revenue breakdown"
                     >
-                      <Info className="w-2.5 h-2.5" />
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-7 h-7">
+                        <path d="M12 16V12M12 8H12.01" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
                     </button>
                   </div>
                 </div>
@@ -357,45 +406,76 @@ export default function Payments({ setActiveTab }: { setActiveTab?: (tab: string
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setIsRevenueInfoModalOpen(false)}
-            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[1px] flex items-center justify-center p-4"
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.97, y: 8 }}
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.97, y: 8 }}
-              transition={{ duration: 0.16 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-xl"
+              className="w-full max-w-sm bg-white rounded-3xl overflow-hidden shadow-2xl border border-gray-100"
             >
-              <div className="flex items-center justify-between p-4 border-b border-gray-100">
-                <h3 className="text-base font-bold text-gray-900">Expected Revenue Breakdown</h3>
+              <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-6 text-white relative">
                 <button
                   onClick={() => setIsRevenueInfoModalOpen(false)}
-                  className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100"
-                  aria-label="Close modal"
+                  className="absolute top-4 right-4 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white/90 transition-colors"
                 >
                   <X className="w-4 h-4" />
                 </button>
+                <div className="flex items-center gap-3 mb-1">
+                  <div className="p-2 bg-white/20 rounded-xl backdrop-blur-md">
+                    <PieChart className="w-5 h-5 text-white" />
+                  </div>
+                  <h3 className="text-lg font-bold">Revenue Projections</h3>
+                </div>
+                <p className="text-blue-100 text-sm">Monthly expected earnings overview</p>
               </div>
 
-              <div className="p-4 space-y-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Expected monthly rent</span>
-                  <span className="font-semibold text-gray-900">₹{expectedMonthlyRevenue.toLocaleString('en-IN')}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Expected security deposit</span>
-                  <span className="font-semibold text-gray-900">₹{expectedTotalSecurityDeposit.toLocaleString('en-IN')}</span>
-                </div>
-                <p className="text-xs text-gray-500">{occupiedResidentsCount} occupied residents × ₹{defaultSecurityDeposit.toLocaleString('en-IN')} security deposit</p>
+              <div className="p-6 space-y-5">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-3.5 rounded-2xl bg-gray-50 border border-gray-100 group hover:border-blue-200 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
+                        <IndianRupee className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-gray-500 uppercase tracking-tight">Monthly Rent</p>
+                        <p className="text-sm font-medium text-gray-400">Fixed monthly income</p>
+                      </div>
+                    </div>
+                    <span className="text-lg font-bold text-gray-900">₹{expectedMonthlyRevenue.toLocaleString('en-IN')}</span>
+                  </div>
 
-                <div className="h-px bg-gray-100" />
-
-                <div className="flex items-center justify-between text-base">
-                  <span className="font-semibold text-gray-800">Final expected revenue</span>
-                  <span className="font-bold text-green-700">₹{finalExpectedRevenue.toLocaleString('en-IN')}</span>
+                  <div className="flex items-center justify-between p-3.5 rounded-2xl bg-gray-50 border border-gray-100 group hover:border-indigo-200 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600">
+                        <Users className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-gray-500 uppercase tracking-tight">Security Deposits</p>
+                        <p className="text-sm font-medium text-gray-400">{occupiedResidentsCount} active residents</p>
+                      </div>
+                    </div>
+                    <span className="text-lg font-bold text-gray-900">₹{expectedTotalSecurityDeposit.toLocaleString('en-IN')}</span>
+                  </div>
                 </div>
-                <p className="text-xs text-gray-500">Expected rent + expected security deposit</p>
+
+                <div className="pt-2">
+                  <div className="p-5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-bold text-emerald-800 uppercase tracking-wider">Total Expected</span>
+                      <span className="text-2xl font-black text-emerald-700">₹{finalExpectedRevenue.toLocaleString('en-IN')}</span>
+                    </div>
+                    <p className="text-xs text-emerald-600/80 font-medium">Sum of all rent and security deposits</p>
+                  </div>
+                </div>
+                
+                <button 
+                  onClick={() => setIsRevenueInfoModalOpen(false)}
+                  className="w-full py-3.5 bg-gray-900 text-white rounded-2xl font-bold text-sm hover:bg-black transition-all active:scale-[0.98] shadow-lg shadow-gray-200"
+                >
+                  Got it
+                </button>
               </div>
             </motion.div>
           </motion.div>
@@ -492,6 +572,7 @@ export default function Payments({ setActiveTab }: { setActiveTab?: (tab: string
                 ) : (
                   filteredResidents.map((r) => {
                     const { roomName: roomNum, bedName: bedLetter } = getNamesFromIds(floors, r.roomId, r.bedId);
+                    const bedStatus = getBedStatusForResident(r.roomId, r.bedId);
                     const displayDate = r.paymentStatus === 'paid' ? `Due: ${r.dueDate ? formatDate(r.dueDate) : 'Next Cycle'}` : (r.paymentStatus === 'late' ? `Due: ${r.dueDate ? formatDate(r.dueDate) : 'Overdue'}` : 'Due: Today');
                     const rentAmount = r.dueAmount > 0 ? r.dueAmount : (r.monthlyRent || 7500);
 
@@ -503,7 +584,12 @@ export default function Payments({ setActiveTab }: { setActiveTab?: (tab: string
                               {r.photoUrl ? <img src={r.photoUrl} className="w-full h-full object-cover" /> : <DefaultAvatar className="w-full h-full" />}
                             </div>
                             <div>
-                              <div className="font-bold text-gray-900 text-[15px]">{r.name}</div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <div className="font-bold text-gray-900 text-[15px]">{r.name}</div>
+                                {bedStatus === 'reserved' && (
+                                  <span className="px-1.5 py-0.5 rounded-md bg-blue-100 text-blue-700 text-[10px] font-bold uppercase tracking-wider leading-none">Reserved</span>
+                                )}
+                              </div>
                               <div className="text-sm text-gray-400">Room {roomNum} · {bedLetter}</div>
                             </div>
                           </div>
@@ -534,7 +620,7 @@ export default function Payments({ setActiveTab }: { setActiveTab?: (tab: string
                                   <div key={h.id} className={cn("px-4 py-3 flex items-center justify-between transition-colors border-l-4", h.status === 'partial' ? "border-l-purple-500 bg-purple-50" : "border-l-transparent hover:bg-white")}>
                                     <div className="flex items-center gap-3">
                                       <div className={cn("w-8 h-8 rounded-full flex items-center justify-center", h.status === 'partial' ? "bg-purple-100 text-purple-600" : "bg-green-50 text-green-600")}><Check className="w-4 h-4" /></div>
-                                      <div><p className="text-sm font-semibold text-gray-900">{h.title || 'Rent Payment'}</p><p className="text-xs text-gray-500">{formatDate(h.date)}</p></div>
+                                      <div><p className="text-sm font-semibold text-gray-900">{h.title || 'Rent Payment'}</p><p className="text-xs text-gray-500">{getTransactionDateForDisplay(h.date)}</p></div>
                                     </div>
                                     <div className="text-right">
                                       <p className="text-sm font-bold text-gray-900">₹{h.amount.toLocaleString('en-IN')}</p>
@@ -577,7 +663,12 @@ export default function Payments({ setActiveTab }: { setActiveTab?: (tab: string
                   ))}
                 </div>
                 <div className="bg-white px-4 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 whitespace-nowrap">
-                  Total: ₹{allPaymentsTransactions.reduce((acc, p) => acc + p.amount, 0).toLocaleString('en-IN')}
+                  <div>{isSecurityDepositHistory ? 'Collected' : 'Total'}: ₹{totalHistoryAmount.toLocaleString('en-IN')}</div>
+                  {isSecurityDepositHistory && (
+                    <div className="mt-1 pt-1 border-t border-gray-100 text-[11px] font-medium text-gray-500">
+                      Expected: ₹{expectedTotalSecurityDeposit.toLocaleString('en-IN')}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -604,9 +695,8 @@ export default function Payments({ setActiveTab }: { setActiveTab?: (tab: string
                   ) : (
                     allPaymentsTransactions.map((payment, idx) => {
                       const { roomName } = getNamesFromIds(floors, payment.roomId, payment.bedId);
-                      const d = new Date(payment.date);
-                      const dateIST = convertToIST(d);
-                      const formattedDate = `${String(dateIST.getUTCDate()).padStart(2, '0')}-${String(dateIST.getUTCMonth() + 1).padStart(2, '0')}-${dateIST.getUTCFullYear()}`;
+                        const bedStatus = getBedStatusForResident(payment.roomId, payment.bedId);
+                      const formattedDate = getTransactionDateForDisplay(payment.date);
                       const formattedTime = formatTimeIST(payment.date);
 
                       return (
@@ -617,7 +707,12 @@ export default function Payments({ setActiveTab }: { setActiveTab?: (tab: string
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-600">{formattedDate}</td>
                           <td className="px-6 py-4">
                             <div className="flex flex-col">
-                              <span className="text-sm font-bold text-gray-900">{payment.residentName}</span>
+                              <span className="text-sm font-bold text-gray-900 flex items-center gap-2 flex-wrap">
+                                {payment.residentName}
+                                {bedStatus === 'reserved' && (
+                                  <span className="px-1.5 py-0.5 rounded-md bg-blue-100 text-blue-700 text-[10px] font-bold uppercase tracking-wider leading-none">Reserved</span>
+                                )}
+                              </span>
                               <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">{payment.title || 'Rent Payment'}</span>
                             </div>
                           </td>

@@ -1,6 +1,57 @@
 import { supabase } from '../supabaseClient';
 import { Floor, Room, Bed, Resident, JoinRequest } from '../data/mock';
 
+const IST_TIME_ZONE = 'Asia/Kolkata';
+const IST_OFFSET_LABEL = '+05:30';
+
+function getCurrentISTDateTimeParts() {
+  const formatter = new Intl.DateTimeFormat('en-GB', {
+    timeZone: IST_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+
+  const parts = formatter.formatToParts(new Date());
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return {
+    year: values.year,
+    month: values.month,
+    day: values.day,
+    hour: values.hour,
+    minute: values.minute,
+    second: values.second,
+  };
+}
+
+function normalizeIstTimestamp(value?: string) {
+  const current = getCurrentISTDateTimeParts();
+
+  if (!value) {
+    return `${current.year}-${current.month}-${current.day}T${current.hour}:${current.minute}:${current.second}${IST_OFFSET_LABEL}`;
+  }
+
+  if (/[zZ]|[+-]\d{2}:?\d{2}$/.test(value)) {
+    return value;
+  }
+
+  const dateOnlyMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateOnlyMatch) {
+    return `${dateOnlyMatch[1]}-${dateOnlyMatch[2]}-${dateOnlyMatch[3]}T${current.hour}:${current.minute}:${current.second}${IST_OFFSET_LABEL}`;
+  }
+
+  const dateTimeMatch = value.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?)/);
+  if (dateTimeMatch) {
+    return `${dateTimeMatch[1]}T${dateTimeMatch[2]}${IST_OFFSET_LABEL}`;
+  }
+
+  return value;
+}
+
 export async function getSignedFileUrl(path?: string | null): Promise<string | undefined> {
   if (!path) return undefined;
 
@@ -396,6 +447,7 @@ export async function createHostelData(userId: string, data: any) {
       .from('users')
       .update({
         name: data.ownerName || userData.user.user_metadata?.name || 'Hostel Owner',
+        phone: data.phone || null,
       })
       .eq('id', userId);
     if (userError) console.error('Failed to update user:', userError);
@@ -574,21 +626,7 @@ export async function markAsPaidDb(residentId: string, amount: number, method: s
         p_cycle_id: cycle.id,
         p_amount: amountToApply,
         p_method: method.toLowerCase(),
-        p_paid_on: (() => {
-          if (!paymentDate) {
-            const now = new Date();
-            const offset = now.getTimezoneOffset() * 60000;
-            return new Date(now.getTime() - offset).toISOString().replace('Z', '');
-          }
-          // If paymentDate is just YYYY-MM-DD, append the current time
-          if (/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)) {
-            const now = new Date();
-            const offset = now.getTimezoneOffset() * 60000;
-            const localTime = new Date(now.getTime() - offset).toISOString().split('T')[1];
-            return `${paymentDate}T${localTime}`;
-          }
-          return paymentDate;
-        })()
+        p_paid_on: normalizeIstTimestamp(paymentDate)
       });
       if (error) throw error;
       remainingParamAmount -= amountToApply;
@@ -611,7 +649,7 @@ export async function editResidentDb(residentId: string, updatedData: any) {
   if (updatedData.hostelFormPath !== undefined) updatePayload.hostel_form_path = updatedData.hostelFormPath;
   if (updatedData.monthlyRent !== undefined) updatePayload.monthly_rent = updatedData.monthlyRent;
   if (updatedData.isDepositPaid !== undefined) updatePayload.is_deposit_paid = updatedData.isDepositPaid;
-  if (updatedData.depositPaidDate !== undefined) updatePayload.deposit_paid_at = updatedData.depositPaidDate;
+  if (updatedData.depositPaidDate !== undefined) updatePayload.deposit_paid_at = normalizeIstTimestamp(updatedData.depositPaidDate);
 
   const { data, error } = await supabase
     .from('residents')
