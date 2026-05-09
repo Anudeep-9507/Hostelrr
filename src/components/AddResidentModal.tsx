@@ -20,6 +20,7 @@ export default function AddResidentModal({
   const [joiningDate, setJoiningDate] = React.useState<string>(getTodayIST());
 
   // States for smart filtering
+  const [selectedSharingType, setSelectedSharingType] = React.useState<string>('');
   const [selectedFloorId, setSelectedFloorId] = React.useState<string>('');
   const [selectedRoomId, setSelectedRoomId] = React.useState<string>('');
   const [selectedBedId, setSelectedBedId] = React.useState<string>('');
@@ -30,23 +31,38 @@ export default function AddResidentModal({
   const [resolvedPhotoUrl, setResolvedPhotoUrl] = React.useState<string | undefined>(reAddData?.photoUrl);
   const [resolvedAadharUrl, setResolvedAadharUrl] = React.useState<string | undefined>(reAddData?.aadharDocumentUrl);
 
-  // 1. Available Floors (must have at least one vacant bed)
+  // 0. Available Sharing Types (from vacant rooms)
+  const availableSharingTypes = React.useMemo(() => {
+    const types = new Set<number>();
+    floors.forEach(floor => {
+      floor.rooms.forEach(room => {
+        if (room.beds.some(bed => bed.status === 'vacant')) {
+          types.add(room.beds.length);
+        }
+      });
+    });
+    return Array.from(types).sort((a, b) => a - b);
+  }, [floors]);
+
+  // 1. Available Floors (must have at least one vacant bed of selected sharing)
   const availableFloors = React.useMemo(() => {
     return floors.filter(floor => 
       floor.rooms.some(room => 
+        (!selectedSharingType || room.beds.length === Number(selectedSharingType)) &&
         room.beds.some(bed => bed.status === 'vacant')
       )
     );
-  }, [floors]);
+  }, [floors, selectedSharingType]);
 
   // 2. Available Rooms for selected floor
   const availableRooms = React.useMemo(() => {
     const floor = floors.find(f => f.id === selectedFloorId);
     if (!floor) return [];
     return floor.rooms.filter(room => 
+      (!selectedSharingType || room.beds.length === Number(selectedSharingType)) &&
       room.beds.some(bed => bed.status === 'vacant')
     );
-  }, [floors, selectedFloorId]);
+  }, [floors, selectedFloorId, selectedSharingType]);
 
   // 3. Available Beds for selected room
   const availableBeds = React.useMemo(() => {
@@ -66,26 +82,43 @@ export default function AddResidentModal({
       if (reAddData?.roomId) {
         const floor = floors.find(f => f.rooms.some(r => r.id === reAddData.roomId));
         if (floor) {
+          const room = floor.rooms.find(r => r.id === reAddData.roomId);
+          if (room) {
+            setSelectedSharingType(String(room.beds.length));
+          }
           setSelectedFloorId(floor.id);
           setSelectedRoomId(reAddData.roomId);
           if (reAddData.bedId) {
             setSelectedBedId(reAddData.bedId);
           } else {
-            const room = floor.rooms.find(r => r.id === reAddData.roomId);
             const firstVacant = room?.beds.find(b => b.status === 'vacant');
             setSelectedBedId(firstVacant?.id || '');
           }
         }
       } else {
-        // Defaults: first available floor/room/bed
-        const firstFloor = availableFloors[0];
-        if (firstFloor) {
-          setSelectedFloorId(firstFloor.id);
-          const firstRoom = firstFloor.rooms.find(r => r.beds.some(b => b.status === 'vacant'));
-          if (firstRoom) {
-            setSelectedRoomId(firstRoom.id);
-            const firstBed = firstRoom.beds.find(b => b.status === 'vacant');
-            if (firstBed) setSelectedBedId(firstBed.id);
+        // Defaults: first available sharing -> floor -> room -> bed
+        if (availableSharingTypes.length > 0) {
+          const firstSharing = String(availableSharingTypes[0]);
+          setSelectedSharingType(firstSharing);
+          
+          const firstFloor = floors.find(floor => 
+            floor.rooms.some(room => 
+              room.beds.length === Number(firstSharing) &&
+              room.beds.some(bed => bed.status === 'vacant')
+            )
+          );
+
+          if (firstFloor) {
+            setSelectedFloorId(firstFloor.id);
+            const firstRoom = firstFloor.rooms.find(r => 
+              r.beds.length === Number(firstSharing) && 
+              r.beds.some(b => b.status === 'vacant')
+            );
+            if (firstRoom) {
+              setSelectedRoomId(firstRoom.id);
+              const firstBed = firstRoom.beds.find(b => b.status === 'vacant');
+              if (firstBed) setSelectedBedId(firstBed.id);
+            }
           }
         }
       }
@@ -94,7 +127,7 @@ export default function AddResidentModal({
     if (isOpen) {
       setJoiningDate(getTodayIST());
     }
-  }, [isOpen, reAddData, floors, availableFloors]);
+  }, [isOpen, reAddData, floors, availableSharingTypes]);
 
   // Derived pre-filled rent from sharingRentMap or room's baseRent
   const prefilledRent = React.useMemo(() => {
@@ -311,61 +344,48 @@ export default function AddResidentModal({
             )}
 
             {!isSpecificBed && (
-              <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-4">
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-gray-900 block">Floor</label>
+                  <label className="text-sm font-medium text-gray-900 block">Sharing Type</label>
                   <div className="relative">
                     <select 
-                      value={selectedFloorId}
+                      value={selectedSharingType}
                       onChange={(e) => {
-                        const newFloorId = e.target.value;
-                        setSelectedFloorId(newFloorId);
-                        // Update room to first available in new floor
-                        const floor = floors.find(f => f.id === newFloorId);
-                        const firstRoom = floor?.rooms.find(r => r.beds.some(b => b.status === 'vacant'));
-                        if (firstRoom) {
-                          setSelectedRoomId(firstRoom.id);
-                          const firstBed = firstRoom.beds.find(b => b.status === 'vacant');
-                          setSelectedBedId(firstBed?.id || '');
-                        }
-                      }}
-                      className="w-full appearance-none border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 pr-10 text-sm outline-none transition-all bg-white cursor-pointer"
-                    >
-                      {availableFloors.map(floor => (
-                        <option key={floor.id} value={floor.id}>{floor.name}</option>
-                      ))}
-                      {availableFloors.length === 0 && <option value="">No vacancy</option>}
-                    </select>
-                    <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-500">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-gray-900 block">Room</label>
-                  <div className="relative">
-                    <select 
-                      value={selectedRoomId}
-                      onChange={(e) => {
-                        const newRoomId = e.target.value;
-                        setSelectedRoomId(newRoomId);
-                        // Update bed to first available in new room
-                        for (const f of floors) {
-                          const r = f.rooms.find(room => room.id === newRoomId);
-                          if (r) {
-                            const firstBed = r.beds.find(b => b.status === 'vacant');
+                        const newSharing = e.target.value;
+                        setSelectedSharingType(newSharing);
+                        
+                        // Update floor to first available for this sharing
+                        const firstFloor = floors.find(floor => 
+                          floor.rooms.some(room => 
+                            (!newSharing || room.beds.length === Number(newSharing)) &&
+                            room.beds.some(bed => bed.status === 'vacant')
+                          )
+                        );
+
+                        if (firstFloor) {
+                          setSelectedFloorId(firstFloor.id);
+                          const firstRoom = firstFloor.rooms.find(r => 
+                            (!newSharing || r.beds.length === Number(newSharing)) && 
+                            r.beds.some(b => b.status === 'vacant')
+                          );
+                          if (firstRoom) {
+                            setSelectedRoomId(firstRoom.id);
+                            const firstBed = firstRoom.beds.find(b => b.status === 'vacant');
                             setSelectedBedId(firstBed?.id || '');
-                            break;
                           }
+                        } else {
+                          setSelectedFloorId('');
+                          setSelectedRoomId('');
+                          setSelectedBedId('');
                         }
                       }}
                       className="w-full appearance-none border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 pr-10 text-sm outline-none transition-all bg-white cursor-pointer"
                     >
-                      {availableRooms.map(room => (
-                        <option key={room.id} value={room.id}>{room.number}</option>
+                      <option value="">All Sharing Types</option>
+                      {availableSharingTypes.map(type => (
+                        <option key={type} value={type}>{type} Sharing</option>
                       ))}
-                      {availableRooms.length === 0 && <option value="">Select Floor first</option>}
+                      {availableSharingTypes.length === 0 && <option value="">No vacancy</option>}
                     </select>
                     <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-500">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
@@ -373,21 +393,87 @@ export default function AddResidentModal({
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-gray-900 block">Bed</label>
-                  <div className="relative">
-                    <select 
-                      value={selectedBedId}
-                      onChange={(e) => setSelectedBedId(e.target.value)}
-                      className="w-full appearance-none border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 pr-10 text-sm outline-none transition-all bg-white cursor-pointer"
-                    >
-                      {availableBeds.map(bed => (
-                        <option key={bed.id} value={bed.id}>{bed.name}</option>
-                      ))}
-                      {availableBeds.length === 0 && <option value="">Select Room first</option>}
-                    </select>
-                    <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-500">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-gray-900 block">Floor</label>
+                    <div className="relative">
+                      <select 
+                        value={selectedFloorId}
+                        onChange={(e) => {
+                          const newFloorId = e.target.value;
+                          setSelectedFloorId(newFloorId);
+                          // Update room to first available in new floor with selected sharing
+                          const floor = floors.find(f => f.id === newFloorId);
+                          const firstRoom = floor?.rooms.find(r => 
+                            (!selectedSharingType || r.beds.length === Number(selectedSharingType)) &&
+                            r.beds.some(b => b.status === 'vacant')
+                          );
+                          if (firstRoom) {
+                            setSelectedRoomId(firstRoom.id);
+                            const firstBed = firstRoom.beds.find(b => b.status === 'vacant');
+                            setSelectedBedId(firstBed?.id || '');
+                          }
+                        }}
+                        className="w-full appearance-none border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 pr-10 text-sm outline-none transition-all bg-white cursor-pointer"
+                      >
+                        {availableFloors.map(floor => (
+                          <option key={floor.id} value={floor.id}>{floor.name}</option>
+                        ))}
+                        {availableFloors.length === 0 && <option value="">No vacancy</option>}
+                      </select>
+                      <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-500">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-gray-900 block">Room</label>
+                    <div className="relative">
+                      <select 
+                        value={selectedRoomId}
+                        onChange={(e) => {
+                          const newRoomId = e.target.value;
+                          setSelectedRoomId(newRoomId);
+                          // Update bed to first available in new room
+                          for (const f of floors) {
+                            const r = f.rooms.find(room => room.id === newRoomId);
+                            if (r) {
+                              const firstBed = r.beds.find(b => b.status === 'vacant');
+                              setSelectedBedId(firstBed?.id || '');
+                              break;
+                            }
+                          }
+                        }}
+                        className="w-full appearance-none border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 pr-10 text-sm outline-none transition-all bg-white cursor-pointer"
+                      >
+                        {availableRooms.map(room => (
+                          <option key={room.id} value={room.id}>{room.number}</option>
+                        ))}
+                        {availableRooms.length === 0 && <option value="">Select Floor first</option>}
+                      </select>
+                      <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-500">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-gray-900 block">Bed</label>
+                    <div className="relative">
+                      <select 
+                        value={selectedBedId}
+                        onChange={(e) => setSelectedBedId(e.target.value)}
+                        className="w-full appearance-none border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 pr-10 text-sm outline-none transition-all bg-white cursor-pointer"
+                      >
+                        {availableBeds.map(bed => (
+                          <option key={bed.id} value={bed.id}>{bed.name}</option>
+                        ))}
+                        {availableBeds.length === 0 && <option value="">Select Room first</option>}
+                      </select>
+                      <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-500">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                      </div>
                     </div>
                   </div>
                 </div>

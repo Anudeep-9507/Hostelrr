@@ -19,7 +19,7 @@ export const WhatsAppIcon = ({ className }: { className?: string }) => (
 export default function Residents() {
   const { residents, pastResidents, floors, hostelProfile, globalSelectedResidentId, setGlobalSelectedResidentId, vacateResident, addResident, editResident, markAsPaid, markReminderSent, isDemoMode } = useApp();
   const [viewMode, setViewMode] = useState<ViewMode>('all');
-  const [currentSort, setCurrentSort] = useState('recent');
+  const [currentSort, setCurrentSort] = useState('all');
   const [showHistory, setShowHistory] = useState(false);
   const [selectedResident, setSelectedResident] = useState<Resident | PastResident | null>(null);
   const [profileTab, setProfileTab] = useState<'info' | 'payment'>('info');
@@ -110,7 +110,7 @@ export default function Residents() {
   // When view mode changes, reset sort appropriately
   const handleViewModeChange = (mode: ViewMode) => {
     setViewMode(mode);
-    if (mode === 'all') setCurrentSort('recent');
+    if (mode === 'all') setCurrentSort('all');
     else if (mode === 'floor') setCurrentSort('floor_asc');
     else if (mode === 'room') setCurrentSort('room_asc');
   };
@@ -236,17 +236,18 @@ export default function Residents() {
 
   let sortedResidents = [...residents];
   if (viewMode === 'all') {
-    if (currentSort === 'recent') {
-      sortedResidents.sort((a, b) => {
-        const dateA = new Date(a.createdAt || a.joinDate).getTime();
-        const dateB = new Date(b.createdAt || b.joinDate).getTime();
-        return dateB - dateA;
-      });
-    } else if (currentSort === 'name_asc') {
-      sortedResidents.sort((a, b) => a.name.localeCompare(b.name));
-    } else if (currentSort === 'name_desc') {
-      sortedResidents.sort((a, b) => b.name.localeCompare(a.name));
+    if (currentSort === 'paid') {
+      sortedResidents = sortedResidents.filter(r => r.isDepositPaid);
+    } else if (currentSort === 'unpaid') {
+      sortedResidents = sortedResidents.filter(r => !r.isDepositPaid);
     }
+    
+    // Always sort by recent as default behavior
+    sortedResidents.sort((a, b) => {
+      const dateA = new Date(a.createdAt || a.joinDate).getTime();
+      const dateB = new Date(b.createdAt || b.joinDate).getTime();
+      return dateB - dateA;
+    });
   }
 
   const getStatusPill = (resident: Resident) => {
@@ -599,9 +600,9 @@ export default function Residents() {
             >
               {viewMode === 'all' && (
                 <>
-                  <option value="recent">Sort by: Recent</option>
-                  <option value="name_asc">Name: A to Z</option>
-                  <option value="name_desc">Name: Z to A</option>
+                  <option value="all">Deposit: All</option>
+                  <option value="paid">Deposit: Paid</option>
+                  <option value="unpaid">Deposit: Unpaid</option>
                 </>
               )}
               {viewMode === 'floor' && (
