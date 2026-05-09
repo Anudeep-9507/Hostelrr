@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
-import { Building2, Mail, Lock, Loader2, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Mail, Lock, Loader2, ArrowRight, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function SignIn() {
@@ -85,7 +85,11 @@ export default function SignIn() {
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex justify-center text-blue-600">
-          <Building2 className="w-12 h-12" />
+          <img 
+            src="https://res.cloudinary.com/dfkfysygf/image/upload/v1778354944/20260510_005330_xrv4xj.jpg" 
+            alt="Hostelrr Logo" 
+            className="w-16 h-16 rounded-2xl object-cover shadow-sm"
+          />
         </div>
         <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900">
           {isResetView ? 'Reset your password' : 'Sign in to your account'}

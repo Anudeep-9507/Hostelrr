@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { Save, Building2, Bell, User, Lock, CreditCard, HelpCircle, LogOut, Check, Loader2 } from 'lucide-react';
+import { Save, Bell, User, Lock, HelpCircle, LogOut, Check, Loader2, Home, LayoutGrid } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from '../context/AppContext';
 import { supabase } from '../supabaseClient';
+import { cn } from '../lib/utils';
 
 export default function Settings() {
   const { hostelProfile, updateHostelProfile } = useApp();
+  const [activeTab, setActiveTab] = useState('hostel');
   const [isSaving, setIsSaving] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -14,6 +16,7 @@ export default function Settings() {
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isCurrentPasswordVerified, setIsCurrentPasswordVerified] = useState(false);
   const [isVerifyingPassword, setIsVerifyingPassword] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   // Load from local storage for other non-profile data
   const onboardingRaw = localStorage.getItem('hostelrr_onboarding_data');
@@ -22,6 +25,15 @@ export default function Settings() {
   const numFloors = onboardingData?.numFloors || 3;
   const numRooms = onboardingData?.numRooms || 12;
   const numBeds = onboardingData?.numBeds || 36;
+
+  const TABS = [
+    { id: 'hostel', label: 'Hostel', icon: Home, color: 'blue' },
+    { id: 'layout', label: 'Layout', icon: LayoutGrid, color: 'purple' },
+    { id: 'reminders', label: 'Reminders', icon: Bell, color: 'emerald' },
+    { id: 'profile', label: 'Profile', icon: User, color: 'orange' },
+    { id: 'security', label: 'Security', icon: Lock, color: 'rose' },
+    { id: 'support', label: 'Support', icon: HelpCircle, color: 'teal' },
+  ];
 
   const handleSaveHostelDetails = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -36,7 +48,6 @@ export default function Settings() {
       hostelName: formData.get('hostelName'),
       ownerName: formData.get('ownerName'),
       phone: normalizePhone(formData.get('phone')),
-      email: formData.get('email'),
       city: formData.get('city'),
       state: formData.get('state'),
       country: formData.get('country'),
@@ -128,8 +139,6 @@ export default function Settings() {
     toast.success(`${type} export started`);
   };
 
-  const [showLogoutModal, setShowLogoutModal] = useState(false);
-
   const confirmLogout = async () => {
     setShowLogoutModal(false);
     toast.success('Logging out...');
@@ -137,414 +146,398 @@ export default function Settings() {
     window.location.href = '/';
   };
 
+  const getPillColor = (color: string, isActive: boolean) => {
+    if (!isActive) return "bg-white border-gray-200 text-gray-500 hover:bg-gray-50 hover:border-gray-300 shadow-sm";
+    
+    const colors: Record<string, string> = {
+      blue: "bg-blue-600 border-blue-600 text-white shadow-blue-200 shadow-lg",
+      purple: "bg-purple-600 border-purple-600 text-white shadow-purple-200 shadow-lg",
+      emerald: "bg-emerald-600 border-emerald-600 text-white shadow-emerald-200 shadow-lg",
+      orange: "bg-orange-600 border-orange-600 text-white shadow-orange-200 shadow-lg",
+      rose: "bg-rose-600 border-rose-600 text-white shadow-rose-200 shadow-lg",
+      teal: "bg-teal-600 border-teal-600 text-white shadow-teal-200 shadow-lg",
+    };
+    return colors[color] || colors.blue;
+  };
+
   return (
-    <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-8 pb-32">
+    <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-6 pb-32">
       {/* Page Header */}
-      <div>
+      <div className="flex flex-col gap-1">
         <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Settings</h1>
-        <p className="text-gray-500 mt-2">Manage your hostel preferences and account.</p>
+        <p className="text-gray-500">Manage your hostel preferences and account details.</p>
       </div>
 
-      <div className="space-y-8 relative">
+      {/* Horizontal Pill Navigation Bar */}
+      <div className="sticky top-0 z-30 -mx-4 md:mx-0 px-4 md:px-0 py-3 bg-gray-50/80 backdrop-blur-md border-b border-gray-200/50 -mt-2">
+        <div className="flex items-center gap-2.5 overflow-x-auto no-scrollbar pb-1">
+          {TABS.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  "flex-none inline-flex items-center gap-2 px-4 py-2.5 rounded-full transition-all duration-300 border text-[13px] outline-none",
+                  isActive 
+                    ? cn(getPillColor(tab.color, true), "font-bold")
+                    : cn(getPillColor(tab.color, false), "font-medium")
+                )}
+              >
+                <div className={cn(
+                  "w-5 h-5 rounded-full flex items-center justify-center shrink-0 overflow-hidden ring-2",
+                  isActive ? "ring-white/30" : "ring-gray-100 bg-gray-100"
+                )}>
+                  <Icon className={cn("w-3 h-3", isActive ? "text-white" : "text-gray-400")} />
+                </div>
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
-        {/* SECTION 1: HOSTEL DETAILS */}
-        <section className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-gray-100 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
-              <Building2 className="w-5 h-5" />
-            </div>
-            <h2 className="text-xl font-bold text-gray-900">Hostel Details</h2>
-          </div>
-          <form onSubmit={handleSaveHostelDetails} className="p-6 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-700">Hostel Name</label>
-                <input name="hostelName" type="text" defaultValue={hostelProfile?.hostelName || "My Hostel"} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-700">Owner Name</label>
-                <input name="ownerName" type="text" defaultValue={hostelProfile?.ownerName || "Hostel Owner"} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-700">Mobile Number</label>
-                <div className="flex">
-                  <span className="inline-flex items-center px-4 rounded-l-xl border border-r-0 border-gray-200 bg-white text-gray-500 text-sm font-medium">
-                    +91
-                  </span>
-                  <input
-                    name="phone"
-                    type="tel"
-                    defaultValue={(hostelProfile?.phone || "").replace(/\D/g, '').slice(-10)}
-                    inputMode="numeric"
-                    pattern="\d{10}"
-                    minLength={10}
-                    maxLength={10}
-                    title="Phone number must be exactly 10 digits"
-                    onInput={(e) => {
-                      const input = e.currentTarget;
-                      input.value = input.value.replace(/\D/g, '').slice(0, 10);
-                    }}
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-r-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none"
-                  />
+      <div className="relative pt-4">
+        <AnimatePresence mode="wait">
+          {activeTab === 'hostel' && (
+            <motion.section
+              key="hostel"
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden"
+            >
+              <div className="p-6 pb-0 flex items-center">
+                <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-blue-50 border border-blue-100 shadow-sm">
+                  <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 ring-2 ring-white">
+                    <Home className="w-3.5 h-3.5" />
+                  </div>
+                  <h2 className="text-[13px] font-semibold text-blue-700">Hostel Details</h2>
                 </div>
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-700">Email</label>
-                <input name="email" type="email" defaultValue={hostelProfile?.email || ""} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-700">City</label>
-                <input name="city" type="text" defaultValue={hostelProfile?.city || ""} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-700">State</label>
-                <input name="state" type="text" defaultValue={hostelProfile?.state || ""} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-700">Country</label>
-                <select name="country" defaultValue={hostelProfile?.country || "India"} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none appearance-none cursor-pointer">
-                  <option value="India">India</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-700">PIN Code</label>
-                <input name="pincode" type="text" defaultValue={hostelProfile?.pincode || ""} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" />
-              </div>
-            </div>
-            <div className="pt-2">
-              <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-semibold transition-colors flex items-center gap-2 shadow-sm">
-                <Save className="w-4 h-4" /> Save Changes
-              </button>
-            </div>
-          </form>
-        </section>
+              <form onSubmit={handleSaveHostelDetails} className="p-6 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-gray-700">Hostel Name</label>
+                    <input name="hostelName" type="text" defaultValue={hostelProfile?.hostelName || "My Hostel"} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-gray-700">Owner Name</label>
+                    <input name="ownerName" type="text" defaultValue={hostelProfile?.ownerName || "Hostel Owner"} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-gray-700">Mobile Number</label>
+                    <div className="flex">
+                      <span className="inline-flex items-center px-4 rounded-l-xl border border-r-0 border-gray-200 bg-white text-gray-500 text-sm font-medium">+91</span>
+                      <input
+                        name="phone"
+                        type="tel"
+                        defaultValue={(hostelProfile?.phone || "").replace(/\D/g, '').slice(-10)}
+                        inputMode="numeric"
+                        pattern="\d{10}"
+                        minLength={10}
+                        maxLength={10}
+                        onInput={(e) => { e.currentTarget.value = e.currentTarget.value.replace(/\D/g, '').slice(0, 10); }}
+                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-r-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-gray-700">City</label>
+                    <input name="city" type="text" defaultValue={hostelProfile?.city || ""} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-gray-700">State</label>
+                    <input name="state" type="text" defaultValue={hostelProfile?.state || ""} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-gray-700">Country</label>
+                    <select name="country" defaultValue={hostelProfile?.country || "India"} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none appearance-none cursor-pointer">
+                      <option value="India">India</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-gray-700">PIN Code</label>
+                    <input name="pincode" type="text" defaultValue={hostelProfile?.pincode || ""} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" />
+                  </div>
+                </div>
+                <div className="pt-2">
+                  <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-semibold transition-colors flex items-center gap-2 shadow-sm">
+                    <Save className="w-4 h-4" /> Save Changes
+                  </button>
+                </div>
+              </form>
+            </motion.section>
+          )}
 
-        {/* SECTION 2: FLOORS / ROOMS CONFIGURATION */}
-        <section className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-gray-100 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600">
-              <Building2 className="w-5 h-5" />
-            </div>
-            <h2 className="text-xl font-bold text-gray-900">Rooms & Floors Setup</h2>
-          </div>
-          <div className="p-6 space-y-6">
-            <p className="text-gray-500 text-sm">Use this section to manage your building structure.</p>
-            
-            <div className="grid grid-cols-3 gap-4">
-              <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 text-center">
-                <div className="text-2xl font-bold text-gray-900 mb-1">{numFloors}</div>
-                <div className="text-sm font-medium text-gray-500">Total Floors</div>
-              </div>
-              <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 text-center">
-                <div className="text-2xl font-bold text-gray-900 mb-1">{numRooms}</div>
-                <div className="text-sm font-medium text-gray-500">Total Rooms</div>
-              </div>
-              <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 text-center">
-                <div className="text-2xl font-bold text-gray-900 mb-1">{numBeds}</div>
-                <div className="text-sm font-medium text-gray-500">Total Beds</div>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-3 pt-2">
-              <button onClick={() => toast.success('Navigation coming soon')} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-2.5 rounded-xl font-semibold transition-colors">
-                Manage Rooms & Beds
-              </button>
-              <button onClick={() => toast.success('Navigation coming soon')} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-2.5 rounded-xl font-semibold transition-colors">
-                Add New Floor
-              </button>
-              <button onClick={() => toast.success('Navigation coming soon')} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-2.5 rounded-xl font-semibold transition-colors">
-                Add New Room
-              </button>
-            </div>
-          </div>
-        </section>
-
-        {/* SECTION 3: PAYMENT REMINDER SETTINGS */}
-        <section className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-gray-100 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#25D366]/10 flex items-center justify-center text-[#25D366]">
-              <Bell className="w-5 h-5" />
-            </div>
-            <h2 className="text-xl font-bold text-gray-900">Payment Reminders</h2>
-          </div>
-          <div className="p-6 space-y-6">
-            <div className="grid grid-cols-1 gap-6">
-              <div className="space-y-2 max-w-md">
-                <label className="text-sm font-semibold text-gray-700">Monthly Rent Due Date</label>
-                <select className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none appearance-none">
-                  {[...Array(31)].map((_, i) => (
-                    <option key={i + 1} value={i + 1}>{i + 1}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-700">Default Rent Reminder Message</label>
-              <textarea 
-                rows={4}
-                defaultValue={`Hello {{name}}, your hostel rent of ₹{{amount}} for Room {{room}} is pending. Please pay soon. Thank you\uD83D\uDE01`} 
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none resize-none"
-              />
-            </div>
-
-            <div className="space-y-4 pt-2">
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input type="checkbox" defaultChecked className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                <span className="text-sm font-medium text-gray-700">Enable manual reminders</span>
-              </label>
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input type="checkbox" defaultChecked className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                <span className="text-sm font-medium text-gray-700">Show reminder button in payments page</span>
-              </label>
-            </div>
-
-            <div className="pt-2">
-              <button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-semibold transition-colors flex items-center gap-2 shadow-sm">
-                <Save className="w-4 h-4" /> Save Reminder Settings
-              </button>
-            </div>
-          </div>
-        </section>
-
-        {/* SECTION 4: ACCOUNT PROFILE */}
-        <section className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-gray-100 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-orange-600">
-              <User className="w-5 h-5" />
-            </div>
-            <h2 className="text-xl font-bold text-gray-900">Profile</h2>
-          </div>
-          <div className="p-6 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-700">Full Name</label>
-                <input type="text" defaultValue={hostelProfile?.ownerName || "Hostel Owner"} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-700">Mobile Number</label>
-                <div className="flex">
-                  <span className="inline-flex items-center px-4 rounded-l-xl border border-r-0 border-gray-200 bg-white text-gray-500 text-sm font-medium">
-                    +91
-                  </span>
-                  <input
-                    type="tel"
-                    defaultValue={(hostelProfile?.phone || "").replace(/\D/g, '').slice(-10)}
-                    inputMode="numeric"
-                    pattern="\d{10}"
-                    minLength={10}
-                    maxLength={10}
-                    title="Phone number must be exactly 10 digits"
-                    onInput={(e) => {
-                      const input = e.currentTarget;
-                      input.value = input.value.replace(/\D/g, '').slice(0, 10);
-                    }}
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-r-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none"
-                  />
+          {activeTab === 'layout' && (
+            <motion.section
+              key="layout"
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden"
+            >
+              <div className="p-6 pb-0 flex items-center">
+                <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-purple-50 border border-purple-100 shadow-sm">
+                  <div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 ring-2 ring-white">
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                  </div>
+                  <h2 className="text-[13px] font-semibold text-purple-700">Rooms & Floors Setup</h2>
                 </div>
               </div>
-              <div className="space-y-2 md:col-span-2">
-                <label className="text-sm font-semibold text-gray-700">Email</label>
-                <input type="email" defaultValue={hostelProfile?.email || ""} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" />
+              <div className="p-6 space-y-6">
+                <p className="text-gray-500 text-sm">Use this section to manage your building structure.</p>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 text-center">
+                    <div className="text-2xl font-bold text-gray-900 mb-1">{numFloors}</div>
+                    <div className="text-sm font-medium text-gray-500">Total Floors</div>
+                  </div>
+                  <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 text-center">
+                    <div className="text-2xl font-bold text-gray-900 mb-1">{numRooms}</div>
+                    <div className="text-sm font-medium text-gray-500">Total Rooms</div>
+                  </div>
+                  <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 text-center">
+                    <div className="text-2xl font-bold text-gray-900 mb-1">{numBeds}</div>
+                    <div className="text-sm font-medium text-gray-500">Total Beds</div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-3 pt-2">
+                  <button onClick={() => toast.success('Navigation coming soon')} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-2.5 rounded-xl font-semibold transition-colors">Manage Rooms & Beds</button>
+                  <button onClick={() => toast.success('Navigation coming soon')} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-2.5 rounded-xl font-semibold transition-colors">Add New Floor</button>
+                  <button onClick={() => toast.success('Navigation coming soon')} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-2.5 rounded-xl font-semibold transition-colors">Add New Room</button>
+                </div>
               </div>
-            </div>
-            
-            <div className="pt-2">
-              <button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-semibold transition-colors flex items-center gap-2 shadow-sm">
-                <Save className="w-4 h-4" /> Update Profile
-              </button>
-            </div>
-          </div>
-        </section>
+            </motion.section>
+          )}
 
-        {/* SECTION 5: SECURITY */}
-        <section className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-gray-100 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center text-red-600">
-              <Lock className="w-5 h-5" />
-            </div>
-            <h2 className="text-xl font-bold text-gray-900">Security</h2>
-          </div>
-          <div className="p-6 space-y-6">
-            <div className="grid grid-cols-1 gap-6 max-w-md">
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-700">Current Password</label>
-                <div className="flex gap-2">
-                  <input 
-                    type="password" 
-                    value={currentPassword}
-                    onChange={(e) => {
-                      setCurrentPassword(e.target.value);
-                      setIsCurrentPasswordVerified(false);
-                    }}
-                    disabled={isCurrentPasswordVerified}
-                    placeholder="••••••••" 
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none disabled:opacity-50" 
+          {activeTab === 'reminders' && (
+            <motion.section
+              key="reminders"
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden"
+            >
+              <div className="p-6 pb-0 flex items-center">
+                <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-emerald-50 border border-emerald-100 shadow-sm">
+                  <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 ring-2 ring-white">
+                    <Bell className="w-3.5 h-3.5" />
+                  </div>
+                  <h2 className="text-[13px] font-semibold text-emerald-700">Payment Reminders</h2>
+                </div>
+              </div>
+              <div className="p-6 space-y-6">
+                <div className="grid grid-cols-1 gap-6">
+                  <div className="space-y-2 max-w-md">
+                    <label className="text-sm font-semibold text-gray-700">Monthly Rent Due Date</label>
+                    <select className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none appearance-none">
+                      {[...Array(31)].map((_, i) => (
+                        <option key={i + 1} value={i + 1}>{i + 1}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-gray-700">Default Rent Reminder Message</label>
+                  <textarea 
+                    rows={4}
+                    defaultValue={`Hello {{name}}, your hostel rent of ₹{{amount}} for Room {{room}} is pending. Please pay soon. Thank you\uD83D\uDE01`} 
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none resize-none"
                   />
-                  <button
-                    type="button"
-                    onClick={handleVerifyCurrentPassword}
-                    disabled={isVerifyingPassword || isCurrentPasswordVerified || !currentPassword}
-                    className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2.5 rounded-xl font-semibold transition-colors disabled:opacity-50 flex items-center whitespace-nowrap"
-                  >
-                    {isVerifyingPassword ? <Loader2 className="w-4 h-4 animate-spin" /> : (isCurrentPasswordVerified ? <Check className="w-4 h-4 text-green-600" /> : 'Verify')}
+                </div>
+                <div className="space-y-4 pt-2">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" defaultChecked className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                    <span className="text-sm font-medium text-gray-700">Enable manual reminders</span>
+                  </label>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" defaultChecked className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                    <span className="text-sm font-medium text-gray-700">Show reminder button in payments page</span>
+                  </label>
+                </div>
+                <div className="pt-2">
+                  <button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-semibold transition-colors flex items-center gap-2 shadow-sm">
+                    <Save className="w-4 h-4" /> Save Reminder Settings
                   </button>
                 </div>
               </div>
-              
-              {isCurrentPasswordVerified && (
-                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-6">
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold text-gray-700">New Password</label>
-                    <input 
-                      type="password" 
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      placeholder="••••••••" 
-                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" 
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold text-gray-700">Confirm New Password</label>
-                    <input 
-                      type="password" 
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="••••••••" 
-                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" 
-                    />
-                  </div>
-                </motion.div>
-              )}
-            </div>
-            
-            <div className="pt-2 flex flex-wrap gap-4 items-center border-t border-gray-100 mt-6 pt-6">
-              <button 
-                type="button"
-                onClick={handlePasswordChange} 
-                disabled={isChangingPassword || !isCurrentPasswordVerified}
-                className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-6 py-2.5 rounded-xl font-semibold transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isChangingPassword ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                {isChangingPassword ? 'Updating...' : 'Change Password'}
-              </button>
-              <button onClick={() => setShowLogoutModal(true)} className="bg-red-50 hover:bg-red-100 text-red-600 px-6 py-2.5 rounded-xl font-semibold transition-colors flex items-center gap-2">
-                <LogOut className="w-4 h-4" /> Logout
-              </button>
-            </div>
-          </div>
-        </section>
+            </motion.section>
+          )}
 
-        {/* SECTION 6: SUBSCRIPTION PLAN */}
-        <section className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-gray-100 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center text-green-600">
-              <CreditCard className="w-5 h-5" />
-            </div>
-            <h2 className="text-xl font-bold text-gray-900">Current Plan</h2>
-          </div>
-          <div className="p-6">
-            <div className="bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-2xl p-6 max-w-md">
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900">Starter Plan</h3>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-2xl font-extrabold text-blue-600">₹499</span>
-                    <span className="text-sm font-medium text-gray-500">/ month</span>
+          {activeTab === 'profile' && (
+            <motion.section
+              key="profile"
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden"
+            >
+              <div className="p-6 pb-0 flex items-center">
+                <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-orange-50 border border-orange-100 shadow-sm">
+                  <div className="w-6 h-6 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 ring-2 ring-white">
+                    <User className="w-3.5 h-3.5" />
                   </div>
-                </div>
-                <div className="px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full uppercase tracking-wide">
-                  Active
+                  <h2 className="text-[13px] font-semibold text-orange-700">Profile</h2>
                 </div>
               </div>
-              
-              <ul className="space-y-3 mb-6">
-                <li className="flex items-center gap-2 text-sm text-gray-700">
-                  <Check className="w-4 h-4 text-green-500" /> Up to 50 beds
-                </li>
-                <li className="flex items-center gap-2 text-sm text-gray-700">
-                  <Check className="w-4 h-4 text-green-500" /> Payments tracking
-                </li>
-                <li className="flex items-center gap-2 text-sm text-gray-700">
-                  <Check className="w-4 h-4 text-green-500" /> WhatsApp reminders
-                </li>
-                <li className="flex items-center gap-2 text-sm text-gray-700">
-                  <Check className="w-4 h-4 text-green-500" /> Resident records
-                </li>
-              </ul>
-              
-              <div className="flex gap-3">
-                <button onClick={() => toast.success('Upgrade feature coming soon')} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl font-semibold transition-colors shadow-sm">
-                  Upgrade Plan
-                </button>
-                <button onClick={() => toast.success('Billing history coming soon')} className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-xl font-semibold transition-colors">
-                  Billing History
-                </button>
+              <div className="p-6 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-gray-700">Full Name</label>
+                    <input type="text" defaultValue={hostelProfile?.ownerName || "Hostel Owner"} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-gray-700">Mobile Number</label>
+                    <div className="flex">
+                      <span className="inline-flex items-center px-4 rounded-l-xl border border-r-0 border-gray-200 bg-white text-gray-500 text-sm font-medium">+91</span>
+                      <input
+                        type="tel"
+                        defaultValue={(hostelProfile?.phone || "").replace(/\D/g, '').slice(-10)}
+                        inputMode="numeric"
+                        pattern="\d{10}"
+                        minLength={10}
+                        maxLength={10}
+                        onInput={(e) => { e.currentTarget.value = e.currentTarget.value.replace(/\D/g, '').slice(0, 10); }}
+                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-r-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <label className="text-sm font-semibold text-gray-700">Email</label>
+                    <input type="email" defaultValue={hostelProfile?.email || ""} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" />
+                  </div>
+                </div>
+                <div className="pt-2">
+                  <button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-semibold transition-colors flex items-center gap-2 shadow-sm">
+                    <Save className="w-4 h-4" /> Update Profile
+                  </button>
+                </div>
               </div>
-            </div>
-          </div>
-        </section>
+            </motion.section>
+          )}
 
-        {/* SECTION 7: DATA & SUPPORT */}
-        <section className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-gray-100 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center text-teal-600">
-              <HelpCircle className="w-5 h-5" />
-            </div>
-            <h2 className="text-xl font-bold text-gray-900">Data & Support</h2>
-          </div>
-          <div className="p-6 flex flex-wrap gap-4">
-            <button onClick={() => handleExport('Residents CSV')} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-2.5 rounded-xl font-semibold transition-colors">
-              Export Residents CSV
-            </button>
-            <button onClick={() => handleExport('Payments CSV')} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-2.5 rounded-xl font-semibold transition-colors">
-              Export Payments CSV
-            </button>
-            <button onClick={() => handleExport('Join Requests')} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-2.5 rounded-xl font-semibold transition-colors">
-              Download Join Requests
-            </button>
-            <div className="w-full border-t border-gray-100 my-2"></div>
-            <button onClick={() => toast.success('Support center coming soon')} className="bg-blue-50 border border-blue-100 hover:bg-blue-100 text-blue-700 px-5 py-2.5 rounded-xl font-semibold transition-colors">
-              Contact Support
-            </button>
-            <button onClick={() => toast.success('Help guide coming soon')} className="bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-700 px-5 py-2.5 rounded-xl font-semibold transition-colors">
-              Help Guide
-            </button>
-          </div>
-        </section>
+          {activeTab === 'security' && (
+            <motion.section
+              key="security"
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden"
+            >
+              <div className="p-6 pb-0 flex items-center">
+                <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-rose-50 border border-rose-100 shadow-sm">
+                  <div className="w-6 h-6 rounded-full bg-rose-100 flex items-center justify-center text-rose-600 ring-2 ring-white">
+                    <Lock className="w-3.5 h-3.5" />
+                  </div>
+                  <h2 className="text-[13px] font-semibold text-rose-700">Security</h2>
+                </div>
+              </div>
+              <div className="p-6 space-y-6">
+                <div className="grid grid-cols-1 gap-6 max-w-md">
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-gray-700">Current Password</label>
+                    <div className="flex gap-2">
+                      <input 
+                        type="password" 
+                        value={currentPassword}
+                        onChange={(e) => { setCurrentPassword(e.target.value); setIsCurrentPasswordVerified(false); }}
+                        disabled={isCurrentPasswordVerified}
+                        placeholder="••••••••" 
+                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none disabled:opacity-50" 
+                      />
+                      <button
+                        type="button"
+                        onClick={handleVerifyCurrentPassword}
+                        disabled={isVerifyingPassword || isCurrentPasswordVerified || !currentPassword}
+                        className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2.5 rounded-xl font-semibold transition-colors disabled:opacity-50 flex items-center whitespace-nowrap"
+                      >
+                        {isVerifyingPassword ? <Loader2 className="w-4 h-4 animate-spin" /> : (isCurrentPasswordVerified ? <Check className="w-4 h-4 text-green-600" /> : 'Verify')}
+                      </button>
+                    </div>
+                  </div>
+                  {isCurrentPasswordVerified && (
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-6">
+                      <div className="space-y-2">
+                        <label className="text-sm font-semibold text-gray-700">New Password</label>
+                        <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="••••••••" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-semibold text-gray-700">Confirm New Password</label>
+                        <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="••••••••" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" />
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+                <div className="pt-2 flex flex-wrap gap-4 items-center border-t border-gray-100 mt-6 pt-6">
+                  <button 
+                    type="button"
+                    onClick={handlePasswordChange} 
+                    disabled={isChangingPassword || !isCurrentPasswordVerified}
+                    className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-6 py-2.5 rounded-xl font-semibold transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isChangingPassword && <Loader2 className="w-4 h-4 animate-spin" />}
+                    {isChangingPassword ? 'Updating...' : 'Change Password'}
+                  </button>
+                  <button onClick={() => setShowLogoutModal(true)} className="bg-red-50 hover:bg-red-100 text-red-600 px-6 py-2.5 rounded-xl font-semibold transition-colors flex items-center gap-2">
+                    <LogOut className="w-4 h-4" /> Logout
+                  </button>
+                </div>
+              </div>
+            </motion.section>
+          )}
 
+          {activeTab === 'support' && (
+            <motion.section
+              key="support"
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden"
+            >
+              <div className="p-6 pb-0 flex items-center">
+                <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-teal-50 border border-teal-100 shadow-sm">
+                  <div className="w-6 h-6 rounded-full bg-teal-100 flex items-center justify-center text-teal-600 ring-2 ring-white">
+                    <HelpCircle className="w-3.5 h-3.5" />
+                  </div>
+                  <h2 className="text-[13px] font-semibold text-teal-700">Data & Support</h2>
+                </div>
+              </div>
+              <div className="p-6 flex flex-wrap gap-4">
+                <button onClick={() => handleExport('Residents CSV')} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-2.5 rounded-xl font-semibold transition-colors">Export Residents CSV</button>
+                <button onClick={() => handleExport('Payments CSV')} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-2.5 rounded-xl font-semibold transition-colors">Export Payments CSV</button>
+                <button onClick={() => handleExport('Join Requests')} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-2.5 rounded-xl font-semibold transition-colors">Download Join Requests</button>
+                <div className="w-full border-t border-gray-100 my-2"></div>
+                <button onClick={() => toast.success('Support center coming soon')} className="bg-blue-50 border border-blue-100 hover:bg-blue-100 text-blue-700 px-5 py-2.5 rounded-xl font-semibold transition-colors">Contact Support</button>
+                <button onClick={() => toast.success('Help guide coming soon')} className="bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-700 px-5 py-2.5 rounded-xl font-semibold transition-colors">Help Guide</button>
+              </div>
+            </motion.section>
+          )}
+        </AnimatePresence>
       </div>
 
-      {/* Sticky Save Button (Optional feature, implementing as simple bottom bar if needed, but per request it's just a bonus. Making it subtle) */}
       <AnimatePresence>
         {isSaving && (
-          <motion.div 
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 50 }}
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-blue-600 text-white px-6 py-3 rounded-full font-bold shadow-xl flex items-center gap-3"
-          >
+          <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-blue-600 text-white px-6 py-3 rounded-full font-bold shadow-xl flex items-center gap-3">
             <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
             Saving changes...
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Logout Modal */}
       <AnimatePresence>
         {showLogoutModal && (
           <>
-            <motion.div 
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50"
-              onClick={() => setShowLogoutModal(false)}
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-              className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm bg-white rounded-3xl shadow-xl z-50 overflow-hidden"
-            >
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50" onClick={() => setShowLogoutModal(false)} />
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm bg-white rounded-3xl shadow-xl z-50 overflow-hidden">
               <div className="p-6 text-center">
                 <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
                   <LogOut className="w-8 h-8 ml-1" />
@@ -552,12 +545,8 @@ export default function Settings() {
                 <h3 className="text-xl font-bold text-gray-900 mb-2">Log Out?</h3>
                 <p className="text-gray-500 mb-6 font-medium">Are you sure you want to log out of your account?</p>
                 <div className="flex gap-3">
-                  <button onClick={() => setShowLogoutModal(false)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 rounded-xl font-semibold transition-colors">
-                    Cancel
-                  </button>
-                  <button onClick={confirmLogout} className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl font-semibold transition-colors">
-                    Log Out
-                  </button>
+                  <button onClick={() => setShowLogoutModal(false)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 rounded-xl font-semibold transition-colors">Cancel</button>
+                  <button onClick={confirmLogout} className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl font-semibold transition-colors">Log Out</button>
                 </div>
               </div>
             </motion.div>

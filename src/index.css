@@ -1,1 +1,24 @@
 @import "tailwindcss";
+
+@keyframes door-blink {
+	0%, 100% {
+		opacity: 1;
+		transform: scale(1);
+	}
+	25% {
+		opacity: 0.25;
+		transform: scale(0.96);
+	}
+	50% {
+		opacity: 1;
+		transform: scale(1.04);
+	}
+	75% {
+		opacity: 0.35;
+		transform: scale(0.97);
+	}
+}
+
+.door-blink {
+	animation: door-blink 0.7s ease-in-out 3;
+}

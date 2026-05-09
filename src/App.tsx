@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { 
-  Building2, 
   IndianRupee, 
   FileText, 
   Settings as SettingsIcon,
@@ -16,8 +15,11 @@ import {
   Users,
   Activity,
   Menu,
-  X
+  X,
+  LogOut,
+  HelpCircle
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Toaster, toast } from 'sonner';
 import { cn, getNamesFromIds } from './lib/utils';
 import Dashboard from './pages/Dashboard';
@@ -52,6 +54,7 @@ function MainApp() {
   const [isAddResidentModalOpen, setIsAddResidentModalOpen] = useState(false);
   const [addResidentData, setAddResidentData] = useState<any>(null);
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
   const hostelDisplayName = hostelProfile?.hostelName || 'My Hostel';
   const ownerDisplayName = hostelProfile?.ownerName || 'Hostel Owner';
@@ -194,7 +197,11 @@ function MainApp() {
 
         <div className={cn("p-6 flex items-center transition-all", isSidebarCollapsed ? "md:justify-center" : "gap-2")}>
           <div className="flex items-center gap-2 text-blue-600">
-            <Building2 className="w-8 h-8 shrink-0" />
+            <img 
+              src="https://res.cloudinary.com/dfkfysygf/image/upload/v1778354944/20260510_005330_xrv4xj.jpg" 
+              alt="Hostelrr Logo" 
+              className="w-10 h-10 shrink-0 rounded-lg object-cover"
+            />
             <span className={cn("text-2xl font-bold tracking-tight transition-opacity", isSidebarCollapsed ? "md:hidden" : "block")}>Hostelrr</span>
           </div>
         </div>
@@ -273,8 +280,38 @@ function MainApp() {
           <p className="text-[14px] font-bold text-blue-600">+91 7330744800</p>
         </div>
 
-        <div className="p-4 border-t border-gray-100">
-          <div className={cn("flex items-center gap-3 px-2 py-2 rounded-xl bg-gray-50 border border-gray-100 cursor-pointer transition-all", isSidebarCollapsed && "md:justify-center md:px-0 md:bg-transparent md:border-transparent")}>
+        <div className="p-4 border-t border-gray-100 relative">
+          <AnimatePresence>
+            {isProfileMenuOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                className="absolute bottom-20 left-4 right-4 bg-white border border-gray-200 rounded-2xl shadow-xl z-50 overflow-hidden"
+              >
+                <button
+                  onClick={async () => {
+                    toast.success('Logging out...');
+                    await supabase.auth.signOut();
+                    window.location.href = '/';
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 transition-colors font-semibold text-sm"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Logout</span>
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div 
+            onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+            className={cn(
+              "flex items-center gap-3 px-2 py-2 rounded-xl bg-gray-50 border border-gray-100 cursor-pointer transition-all hover:bg-gray-100", 
+              isSidebarCollapsed && "md:justify-center md:px-0 md:bg-transparent md:border-transparent",
+              isProfileMenuOpen && "bg-gray-100 ring-2 ring-gray-200/50"
+            )}
+          >
             <div className="w-9 h-9 flex items-center justify-center rounded-full bg-white border border-gray-200 text-gray-400 overflow-hidden shrink-0">
               <DefaultAvatar className="w-full h-full" />
             </div>
@@ -297,9 +334,8 @@ function MainApp() {
             >
               <Menu className="w-5 h-5" />
             </button>
-            <div className="hidden sm:flex items-center gap-2 cursor-pointer hover:bg-gray-50 py-1.5 px-3 rounded-lg transition-colors border border-transparent hover:border-gray-200">
+            <div className="hidden sm:flex items-center gap-2 py-1.5 px-4 border border-gray-200 rounded-xl bg-gray-50/50 shadow-sm">
               <span className="font-semibold text-gray-800">{hostelDisplayName}</span>
-              <ChevronDown className="w-4 h-4 text-gray-500" />
             </div>
           </div>
 
@@ -378,17 +414,11 @@ function MainApp() {
               <span className="hidden sm:inline">Hostel QR</span>
             </button>
             <button 
-              onClick={handleSimulateQRRequest}
-              title="Simulate QR Join Request"
-              className="text-gray-400 hover:text-blue-600 transition-colors p-2 bg-gray-50 border border-gray-200 rounded-xl"
+              onClick={() => setActiveTab('settings')}
+              className="flex items-center gap-2 bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-700 px-3 py-2 rounded-xl text-sm font-semibold transition-colors"
             >
-              <Users className="w-5 h-5" />
-            </button>
-            <button className="relative text-gray-400 hover:text-gray-600 transition-colors">
-              <Bell className="w-5 h-5" />
-              {joinRequests.length > 0 && (
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
-              )}
+              <HelpCircle className="w-4 h-4" />
+              <span className="hidden sm:inline">Help</span>
             </button>
           </div>
         </header>

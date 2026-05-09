@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { BedDouble, Users, AlertCircle, IndianRupee, PieChart, CheckCircle, Clock, LogOut, X, Info, Phone } from 'lucide-react';
+import { BedDouble, Users, AlertCircle, IndianRupee, PieChart, CheckCircle, Clock, LogOut, X, Info, Phone, ChevronRight } from 'lucide-react';
 import { cn, formatDate, getNamesFromIds } from '../lib/utils';
 import { PieChart as RePieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { AnimatePresence, motion } from 'motion/react';
@@ -164,19 +164,17 @@ export default function Dashboard({ setActiveTab }: { setActiveTab?: (tab: strin
             <div className="space-y-1">
               <div className="flex items-center gap-1">
                 <span>Expected: ₹{expectedMonthlyRevenue.toLocaleString('en-IN')}</span>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsRevenueInfoModalOpen(true);
-                  }}
-                  className="w-4 h-4 rounded-full bg-[#1A73E8] text-white flex items-center justify-center hover:bg-[#1557B0] transition-colors shadow-sm"
-                  aria-label="Open expected revenue breakdown"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-7 h-7">
-                    <path d="M12 16V12M12 8H12.01" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsRevenueInfoModalOpen(true);
+                    }}
+                    className="w-4 h-4 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center hover:bg-gray-200 transition-all shadow-sm active:scale-90"
+                    aria-label="Open expected revenue breakdown"
+                  >
+                    <ChevronRight className="w-3 h-3" />
+                  </button>
               </div>
             </div>
           }

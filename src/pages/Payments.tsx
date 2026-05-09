@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp, PaymentsFilterType } from '../context/AppContext';
 import DefaultAvatar from '../components/DefaultAvatar';
-import { CheckCircle2, Wallet, Clock, AlertTriangle, Check, Send, X, Smartphone, Banknote, IndianRupee, AlertCircle, Info, PieChart, Users } from 'lucide-react';
+import { CheckCircle2, Wallet, Clock, AlertTriangle, Check, Send, X, Smartphone, Banknote, IndianRupee, AlertCircle, Info, PieChart, Users, ChevronRight } from 'lucide-react';
 import { cn, formatDate, getNamesFromIds, getTodayIST, formatTimeIST, convertToIST } from '../lib/utils';
 import { Resident } from '../data/mock';
 import { toast } from 'sonner';
@@ -366,12 +366,10 @@ export default function Payments({ setActiveTab }: { setActiveTab?: (tab: string
                         e.stopPropagation();
                         setIsRevenueInfoModalOpen(true);
                       }}
-                      className="w-4 h-4 rounded-full bg-[#1A73E8] text-white flex items-center justify-center hover:bg-[#1557B0] transition-colors shadow-sm"
+                      className="w-4 h-4 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center hover:bg-gray-200 transition-all shadow-sm active:scale-90"
                       aria-label="Open expected revenue breakdown"
                     >
-                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-7 h-7">
-                        <path d="M12 16V12M12 8H12.01" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
+                      <ChevronRight className="w-3 h-3" />
                     </button>
                   </div>
                 </div>

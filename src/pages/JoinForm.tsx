@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Building2, CheckCircle2, ChevronLeft, Image as ImageIcon, FileText } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, Image as ImageIcon, FileText } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { createJoinRequestDb, uploadJoinRequestDocuments } from '../lib/supabaseAPI';
 import { toast } from 'sonner';
@@ -123,8 +123,12 @@ export default function JoinForm() {
           >
             <ChevronLeft className="w-6 h-6" />
           </button>
-          <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center">
-            <Building2 className="w-5 h-5 text-white" />
+          <div className="w-10 h-10 bg-white border border-gray-100 rounded-xl flex items-center justify-center overflow-hidden">
+            <img 
+              src="https://res.cloudinary.com/dfkfysygf/image/upload/v1778354944/20260510_005330_xrv4xj.jpg" 
+              alt="Hostelrr Logo" 
+              className="w-full h-full object-cover"
+            />
           </div>
           <div>
             <h1 className="font-bold text-gray-900 leading-tight">{hostelName}</h1>

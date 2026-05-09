@@ -22,6 +22,7 @@ export interface Template {
 }
  
 type SharingType = number;
+const DRAFT_TEMPLATE_ID = '__draft_template__';
 
 function getDefaultPositions(sharing: SharingType) {
   const positions: Record<string, {x: number, y: number, rotated: boolean}> = {};
@@ -142,6 +143,7 @@ export default function BedLayoutBuilder({ hostelId, onSaveComplete }: { hostelI
   const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
   const [activeSharing, setActiveSharing] = useState<number>(() => availableTabs[0]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [doorValidationPulse, setDoorValidationPulse] = useState(0);
 
   // Update activeTemplateId and activeSharing when templates load
   useEffect(() => {
@@ -230,10 +232,17 @@ export default function BedLayoutBuilder({ hostelId, onSaveComplete }: { hostelI
       return;
     }
 
+    if (!editingDoor) {
+      setDoorValidationPulse((current) => current + 1);
+      toast.error('Select a door before saving');
+      return;
+    }
+
     try {
       setIsSaving(true);
+      const isDraftTemplate = activeTemplateId === DRAFT_TEMPLATE_ID;
       const newTemplate: Template = {
-        id: activeTemplateId || '',
+        id: isDraftTemplate ? '' : (activeTemplateId || ''),
         sharing: activeSharing,
         positions: editingPositions,
         door: editingDoor,
@@ -264,7 +273,7 @@ export default function BedLayoutBuilder({ hostelId, onSaveComplete }: { hostelI
   };
 
   const handleDeleteTemplate = async () => {
-    if (!activeTemplateId) return;
+    if (!activeTemplateId || activeTemplateId === DRAFT_TEMPLATE_ID) return;
     
     const templateToDelete = allTemplates.find(t => t.id === activeTemplateId);
     if (!templateToDelete) return;
@@ -304,31 +313,15 @@ export default function BedLayoutBuilder({ hostelId, onSaveComplete }: { hostelI
       return;
     }
 
-    try {
-      setIsSaving(true);
-      // Find next available color
-      const existingColors = allTemplates.filter(t => t.sharing === sharing).map(t => t.color);
-      const nextColor = LAYOUT_COLORS.find(c => !existingColors.includes(c.name))?.name || 'Blue';
-      
-      const newTemplate: Template = {
-        id: '',
-        sharing: sharing,
-        positions: getDefaultPositions(sharing),
-        door: null,
-        color: nextColor
-      };
-      
-      const savedTemplate = await saveBedLayoutTemplate(hostelId, newTemplate);
-      const updated = [...allTemplates, savedTemplate];
-      setAllTemplates(updated);
-      setActiveTemplateId(savedTemplate.id);
-      setActiveSharing(sharing);
-    } catch (error) {
-      console.error('Failed to add new layout:', error);
-      toast.error('Failed to add new layout');
-    } finally {
-      setIsSaving(false);
-    }
+    // Find next available color
+    const existingColors = allTemplates.filter(t => t.sharing === sharing).map(t => t.color);
+    const nextColor = LAYOUT_COLORS.find(c => !existingColors.includes(c.name))?.name || 'Blue';
+
+    setActiveTemplateId(DRAFT_TEMPLATE_ID);
+    setActiveSharing(sharing);
+    setEditingPositions(getDefaultPositions(sharing));
+    setEditingDoor(null);
+    setEditingColor(nextColor);
   };
 
   const handleAddCustomLayoutClick = () => {
@@ -485,16 +478,21 @@ export default function BedLayoutBuilder({ hostelId, onSaveComplete }: { hostelI
             {/* Doors */}
             {['N', 'S', 'E', 'W'].map(pos => {
                const isSelected = editingDoor === pos;
+               const shouldBlink = !editingDoor && doorValidationPulse > 0;
                let classes = "absolute transition-all z-20 cursor-pointer border-2 ";
                if (pos === 'N') classes += "top-0 left-1/2 -translate-x-1/2 w-16 h-3 rounded-b-lg border-t-0 ";
                if (pos === 'S') classes += "bottom-0 left-1/2 -translate-x-1/2 w-16 h-3 rounded-t-lg border-b-0 ";
                if (pos === 'E') classes += "right-0 top-1/2 -translate-y-1/2 w-3 h-16 rounded-l-lg border-r-0 ";
                if (pos === 'W') classes += "left-0 top-1/2 -translate-y-1/2 w-3 h-16 rounded-r-lg border-l-0 ";
                
-               classes += isSelected ? "bg-amber-700 border-amber-800 shadow-[0_0_8px_rgba(180,83,9,0.4)]" : "bg-gray-100 border-gray-300 hover:bg-gray-200";
+               classes += isSelected
+                 ? "bg-amber-700 border-amber-800 shadow-[0_0_8px_rgba(180,83,9,0.4)]"
+                 : shouldBlink
+                   ? "bg-red-100 border-red-400 door-blink"
+                   : "bg-gray-100 border-gray-300 hover:bg-gray-200";
                
                return <div 
-                 key={pos} 
+                 key={shouldBlink ? `${pos}-${doorValidationPulse}` : pos} 
                  onClick={() => setEditingDoor(editingDoor === pos ? null : pos as any)} 
                  className={classes} 
                  title={`Set ${pos} Door`} 

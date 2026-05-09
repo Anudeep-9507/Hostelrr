@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowRight, ArrowLeft, Check, Building2, CalendarDays, User2, LogOut } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Check, CalendarDays, User2, LogOut, Loader2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { supabase } from '../supabaseClient';
 
@@ -20,7 +20,9 @@ const INDIAN_STATES = [
 export default function Onboarding() {
   const { completeOnboarding } = useApp();
   const [step, setStep] = useState(1);
-  const totalSteps = 5;
+  const [isFinishing, setIsFinishing] = useState(false);
+  const totalSteps = 4; // Exclude welcome screen from count
+
 
   // Step 2
   const [hostelName, setHostelName] = useState('');
@@ -45,6 +47,9 @@ export default function Onboarding() {
   // Step 5
   const [rentPerSharing, setRentPerSharing] = useState<Record<number, string>>({});
   const [securityDeposit, setSecurityDeposit] = useState<string>('');
+  const [customSharing, setCustomSharing] = useState('');
+  const [isCustomSharingActive, setIsCustomSharingActive] = useState(false);
+
 
   // Step 6
   const [rentDueType, setRentDueType] = useState<'1st_of_month' | 'joining_date' | ''>('');
@@ -88,16 +93,21 @@ export default function Onboarding() {
   };
 
   const handleFinish = async () => {
+    setIsFinishing(true);
     const totalRooms = getTotalRoomsFromFloors() || parseInt(numRooms || '0');
+
     const bpR = Math.round(parseInt(totalBeds || '0') / Math.max(totalRooms, 1));
     // Use step-4 sharing configs if filled, otherwise derive from floor data
-    const sharingConfigs = selectedSharing.length > 0
-      ? selectedSharing.map(sharing => ({
+    const effectiveSelectedSharing = [...selectedSharing, ...(isCustomSharingActive && customSharing ? [parseInt(customSharing)] : [])].sort((a, b) => a - b);
+    
+    const sharingConfigs = effectiveSelectedSharing.length > 0
+      ? effectiveSelectedSharing.map(sharing => ({
           sharing,
           roomCount: parseInt(roomsPerSharing[sharing] || '0'),
           rent: rentPerSharing[sharing] || '0'
         }))
       : [{ sharing: Math.max(bpR, 1), roomCount: totalRooms, rent: '0' }];
+
 
     try {
       await completeOnboarding({
@@ -113,6 +123,8 @@ export default function Onboarding() {
       });
     } catch (e: any) {
       alert("Failed to create hostel: " + (e.message || JSON.stringify(e)));
+    } finally {
+      setIsFinishing(false);
     }
   };
 
@@ -123,18 +135,19 @@ export default function Onboarding() {
   };
 
   const renderProgress = () => {
-    if (step > totalSteps) return null;
+    if (step === 1 || step > totalSteps + 1) return null;
+    const currentDisplayStep = step - 1;
     return (
       <div className="w-full max-w-md mx-auto mb-8">
         <div className="flex items-center justify-between text-sm font-semibold text-gray-500 mb-3">
-          <span>Step {step} of {totalSteps}</span>
-          <span>{Math.round((step / totalSteps) * 100)}%</span>
+          <span>Step {currentDisplayStep} of {totalSteps}</span>
+          <span>{Math.round((currentDisplayStep / totalSteps) * 100)}%</span>
         </div>
         <div className="h-2 bg-gray-100 rounded-full overflow-hidden flex">
           <motion.div
             className="h-full bg-blue-600 rounded-full"
-            initial={{ width: `${((step - 1) / totalSteps) * 100}%` }}
-            animate={{ width: `${(step / totalSteps) * 100}%` }}
+            initial={{ width: `${((currentDisplayStep - 1) / totalSteps) * 100}%` }}
+            animate={{ width: `${(currentDisplayStep / totalSteps) * 100}%` }}
             transition={{ ease: "easeInOut", duration: 0.3 }}
           />
         </div>
@@ -143,7 +156,7 @@ export default function Onboarding() {
   };
 
   const nextStep = () => {
-    if (step < totalSteps + 1) setStep(step + 1);
+    if (step < totalSteps + 2) setStep(step + 1);
   };
 
   const prevStep = () => {
@@ -153,7 +166,22 @@ export default function Onboarding() {
   const buttonClass = "w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 text-base shadow-sm";
   const inputClass = "w-full border border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400 bg-gray-50 hover:bg-gray-100/50 focus:bg-white";
   const labelClass = "text-sm font-bold text-gray-800 block mb-1.5";
-  const isStep2Valid = Boolean(hostelName.trim()) && phone.length === 10;
+  const isStep2Valid = Boolean(hostelName.trim()) && 
+    Boolean(ownerName.trim()) && 
+    phone.length === 10 && 
+    Boolean(city.trim()) && 
+    Boolean(state) && 
+    /^\d{6}$/.test(pincode);
+
+  const isStep4Valid = (selectedSharing.length > 0 || isCustomSharingActive) && 
+    [...selectedSharing, ...(isCustomSharingActive && customSharing ? [parseInt(customSharing)] : [])].every(num => 
+      parseInt(roomsPerSharing[num] || '0') > 0 && 
+      parseInt(rentPerSharing[num] || '0') >= 0
+    ) && 
+    (!isCustomSharingActive || (parseInt(customSharing) > 10)) &&
+    securityDeposit !== '';
+
+
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] overflow-y-auto flex flex-col items-center justify-start py-8 px-4 sm:px-6 font-sans relative">
@@ -179,8 +207,12 @@ export default function Onboarding() {
                 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
                 className="text-center space-y-6 py-4"
               >
-                <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto text-blue-600">
-                  <Building2 className="w-8 h-8" />
+                <div className="w-20 h-20 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto text-blue-600 overflow-hidden shadow-sm">
+                  <img 
+                    src="https://res.cloudinary.com/dfkfysygf/image/upload/v1778354944/20260510_005330_xrv4xj.jpg" 
+                    alt="Hostelrr Logo" 
+                    className="w-full h-full object-cover"
+                  />
                 </div>
                 <div>
                   <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight mb-2">Welcome to Hostelrr</h1>
@@ -264,14 +296,15 @@ export default function Onboarding() {
                   </div>
                   <div>
                     <label className={labelClass}>PIN Code</label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={pincode}
-                      onChange={e => setPincode(e.target.value)}
-                      placeholder="e.g. 500081"
-                      className={inputClass}
-                    />
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={pincode}
+                        onChange={e => setPincode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        placeholder="e.g. 500081"
+                        maxLength={6}
+                        className={inputClass}
+                      />
                   </div>
                 </div>
 
@@ -367,7 +400,7 @@ export default function Onboarding() {
                       </div>
 
                       <div>
-                        <label className={labelClass}>Total Beds</label>
+                        <label className={labelClass}>Total Beds in Hostel</label>
                         <input
                           type="number"
                           min="1"
@@ -435,22 +468,66 @@ export default function Onboarding() {
                       </button>
                     );
                   })}
+                  <button
+                    onClick={() => setIsCustomSharingActive(!isCustomSharingActive)}
+                    className={cn(
+                      "flex items-center gap-2 p-3 border-2 rounded-xl text-left transition-all",
+                      isCustomSharingActive
+                        ? "border-blue-600 bg-blue-50"
+                        : "border-gray-100 bg-white hover:border-gray-200"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0",
+                      isCustomSharingActive ? "border-blue-600 bg-blue-600 text-white" : "border-gray-300"
+                    )}>
+                      {isCustomSharingActive && <Check className="w-3 h-3" />}
+                    </div>
+                    <span className={cn("font-bold text-sm", isCustomSharingActive ? "text-blue-900" : "text-gray-700")}>
+                      10+ Sharing
+                    </span>
+                  </button>
                 </div>
 
-                {selectedSharing.length > 0 && (
+                {isCustomSharingActive && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="mb-4 overflow-hidden"
+                  >
+                    <label className="text-sm font-semibold text-gray-600 block mb-2">Enter custom sharing number (e.g. 12)</label>
+                    <input
+                      type="number"
+                      min="11"
+                      value={customSharing}
+                      onChange={e => setCustomSharing(e.target.value)}
+                      placeholder="e.g. 12"
+                      className={inputClass}
+                      autoFocus
+                    />
+                  </motion.div>
+                )}
+
+                {(selectedSharing.length > 0 || (isCustomSharingActive && customSharing)) && (
                   <>
                     <div className="space-y-4 bg-gray-50 p-5 rounded-2xl border border-gray-100">
-                      <label className="text-sm font-bold tracking-wide text-gray-800 uppercase block mb-1">Rooms & Rent per Sharing Type</label>
-                      {selectedSharing.sort().map(num => (
+                      <div>
+                        <label className="text-sm font-bold tracking-wide text-gray-800 uppercase block mb-1">Rooms & Rent per Sharing Type</label>
+                        <p className="text-xs text-gray-500 mb-4">Define how many rooms you have for each sharing type and their monthly rent.</p>
+                      </div>
+
+                      {[...selectedSharing, ...(isCustomSharingActive && customSharing ? [parseInt(customSharing)] : [])].sort((a, b) => a - b).map(num => (
                         <div key={num} className="flex flex-col sm:flex-row sm:items-center gap-4">
+
                           <div className="w-24 font-bold text-gray-700">{num} Sharing</div>
                           <div className="flex gap-2 flex-1">
                             <div className="relative flex-1">
                               <input
                                 type="number"
                                 min="0"
-                                placeholder="# of rooms"
+                                placeholder="no.of rooms"
                                 value={roomsPerSharing[num] || ''}
+
                                 onChange={(e) => setRoomsPerSharing(prev => ({ ...prev, [num]: e.target.value }))}
                                 className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 bg-white font-semibold"
                               />
@@ -473,6 +550,7 @@ export default function Onboarding() {
                     </div>
                     <div className="space-y-4 bg-gray-50 p-5 rounded-2xl border border-gray-100 mt-4">
                       <label className="text-sm font-bold tracking-wide text-gray-800 uppercase block mb-1">Security Deposit</label>
+                      <p className="text-[11px] font-medium text-gray-400 -mt-1 mb-2">If deposit is not charged, mention '0'</p>
                       <div className="relative">
                         <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">₹</div>
                         <input
@@ -492,7 +570,7 @@ export default function Onboarding() {
                   <button onClick={prevStep} className="p-3 bg-gray-50 text-gray-600 hover:bg-gray-100 rounded-xl transition-colors shrink-0">
                     <ArrowLeft className="w-5 h-5" />
                   </button>
-                  <button onClick={nextStep} disabled={selectedSharing.length === 0} className={cn(buttonClass, selectedSharing.length === 0 && "opacity-50 cursor-not-allowed")}>
+                  <button onClick={nextStep} disabled={!isStep4Valid} className={cn(buttonClass, !isStep4Valid && "opacity-50 cursor-not-allowed")}>
                     Next
                   </button>
                 </div>
@@ -590,8 +668,12 @@ export default function Onboarding() {
                   <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight mb-2">Your hostel is ready 🎉</h1>
                   <p className="text-base text-gray-500 font-medium">Start managing your hostel now.</p>
                 </div>
-                <button onClick={handleFinish} className={buttonClass}>
-                  Go to Dashboard <ArrowRight className="w-5 h-5" />
+                <button onClick={handleFinish} disabled={isFinishing} className={buttonClass}>
+                  {isFinishing ? (
+                    <>Processing... <Loader2 className="w-5 h-5 animate-spin" /></>
+                  ) : (
+                    <>Go to Dashboard <ArrowRight className="w-5 h-5" /></>
+                  )}
                 </button>
               </motion.div>
             )}

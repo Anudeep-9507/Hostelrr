@@ -374,7 +374,7 @@ export async function fetchHostelData(userId: string) {
     if (days > 0) timeAgo = `${days} day${days > 1 ? 's' : ''} ago`;
     else if (hours > 0) timeAgo = `${hours} hour${hours > 1 ? 's' : ''} ago`;
 
-    let text = a.notes || a.action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    let text = a.notes || a.action.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
     const m = a.metadata || {};
     
     const getNames = (rId: string) => {
@@ -439,18 +439,112 @@ export async function fetchHostelData(userId: string) {
   return { hostel: mappedHostel, floors, residents: mappedResidents, pastResidents: mappedPastResidents, activities: mappedActivities, joinRequests: mappedJoinRequestsWithUrls };
 }
 
+async function getRoomsPerFloorSnapshot(hostelId: string) {
+  const { data: floorsData, error: floorsError } = await supabase
+    .from('floors')
+    .select('id, floor_number')
+    .eq('hostel_id', hostelId)
+    .order('floor_number', { ascending: true });
+
+  if (floorsError) throw floorsError;
+
+  const { data: roomsData, error: roomsError } = await supabase
+    .from('rooms')
+    .select('floor_id')
+    .eq('hostel_id', hostelId);
+
+  if (roomsError) throw roomsError;
+
+  const roomCountByFloorId: Record<string, number> = {};
+  for (const room of roomsData || []) {
+    const floorId = room.floor_id;
+    if (!floorId) continue;
+    roomCountByFloorId[floorId] = (roomCountByFloorId[floorId] || 0) + 1;
+  }
+
+  const roomsPerFloor: Record<number, number> = {};
+  for (const floor of floorsData || []) {
+    roomsPerFloor[floor.floor_number] = roomCountByFloorId[floor.id] || 0;
+  }
+
+  return {
+    numberOfFloors: (floorsData || []).length,
+    numberOfRooms: (roomsData || []).length,
+    roomsPerFloor,
+  };
+}
+
+async function persistOnboardingSnapshot(userId: string, hostelId: string, data: any) {
+  const snapshot = await getRoomsPerFloorSnapshot(hostelId);
+  const totalBeds = data.totalBeds ? parseInt(String(data.totalBeds), 10) : 0;
+  const securityDeposit = data.securityDeposit ? parseInt(String(data.securityDeposit), 10) : 0;
+
+  const fieldMappings = {
+    hostel_name: { source_field: 'hostelName', target_table: 'hostels', target_column: 'name' },
+    owner_name: { source_field: 'ownerName', target_table: 'users', target_column: 'name' },
+    phone: { source_field: 'phone', target_table: 'hostels/users', target_column: 'phone' },
+    city: { source_field: 'city', target_table: 'hostels', target_column: 'city' },
+    state: { source_field: 'state', target_table: 'hostels', target_column: 'state' },
+    country: { source_field: 'country', target_table: 'hostels', target_column: 'country' },
+    pincode: { source_field: 'pincode', target_table: 'hostels', target_column: 'pincode' },
+    number_of_floors: { source_field: 'numFloors', target_table: 'hostels', target_column: null, note: 'Derived from floors rows for this hostel.' },
+    rooms_per_floor: { source_field: 'roomsPerFloor', target_table: 'floors/rooms', target_column: null, note: 'Derived by grouping rooms by floor_number.' },
+    number_of_rooms: { source_field: 'numRooms', target_table: 'rooms', target_column: 'room_number (count)' },
+    total_beds: { source_field: 'totalBeds', target_table: 'hostels', target_column: 'total_beds' },
+    sharing_configs: { source_field: 'sharingConfigs', target_table: 'onboarding', target_column: 'sharing_configs' },
+    rent_due_type: { source_field: 'rentDueType', target_table: 'hostels', target_column: 'rent_cycle_type' },
+    rent_due_date: { source_field: 'rentDueDate', target_table: 'hostels', target_column: 'rent_due_day' },
+    security_deposit: { source_field: 'securityDeposit', target_table: 'hostels', target_column: 'security_deposit' },
+  };
+
+  const { error: onboardingError } = await supabase
+    .from('onboarding')
+    .upsert(
+      {
+        user_id: userId,
+        hostel_id: hostelId,
+        payload: data,
+        hostel_name: data.hostelName || 'My Hostel',
+        owner_name: data.ownerName || null,
+        phone: data.phone || null,
+        city: data.city || 'City',
+        state: data.state || 'State',
+        country: data.country || 'India',
+        pincode: data.pincode || null,
+        number_of_floors: snapshot.numberOfFloors || (data.numFloors || 1),
+        number_of_rooms: snapshot.numberOfRooms || (data.numRooms || 0),
+        rooms_per_floor: snapshot.roomsPerFloor,
+        total_beds: totalBeds,
+        sharing_configs: data.sharingConfigs || [],
+        rent_due_type: data.rentDueType || '1st_of_month',
+        rent_due_date: data.rentDueDate || 1,
+        security_deposit: securityDeposit,
+        field_mappings: fieldMappings,
+      },
+      { onConflict: 'hostel_id' }
+    );
+
+  if (onboardingError) {
+    throw onboardingError;
+  }
+}
+
 export async function createHostelData(userId: string, data: any) {
   // Ensure user exists in public.users to prevent FK violations
   const { data: userData } = await supabase.auth.getUser();
   if (userData?.user) {
     const { error: userError } = await supabase
       .from('users')
-      .update({
+      .upsert({
+        id: userId,
+        email: userData.user.email || '',
         name: data.ownerName || userData.user.user_metadata?.name || 'Hostel Owner',
         phone: data.phone || null,
-      })
-      .eq('id', userId);
-    if (userError) console.error('Failed to update user:', userError);
+      }, { onConflict: 'id' });
+    if (userError) {
+      console.error('Failed to upsert user:', userError);
+      throw userError; // Critical: user must exist for hostel FK
+    }
   }
 
   // Check if hostel already exists
@@ -483,6 +577,13 @@ export async function createHostelData(userId: string, data: any) {
       
     if (updateError) {
       throw updateError;
+    }
+
+    try {
+      await persistOnboardingSnapshot(userId, existingHostels[0].id, data);
+    } catch (snapshotError) {
+      // Onboarding snapshot is storage-only; never block primary onboarding flow.
+      console.warn('Failed to persist onboarding snapshot:', snapshotError);
     }
     
     // Skip recreating floors/rooms to prevent duplicates
@@ -535,7 +636,7 @@ export async function createHostelData(userId: string, data: any) {
       const roomNumStr = `${f}${String(r).padStart(2, '0')}`;
       let baseRentForRoom: number | null = null;
       
-      const { data: roomObj } = await supabase
+      await supabase
         .from('rooms')
         .insert({
           hostel_id: hostel.id,
@@ -546,6 +647,13 @@ export async function createHostelData(userId: string, data: any) {
         .select()
         .single();
     }
+  }
+
+  try {
+    await persistOnboardingSnapshot(userId, hostel.id, data);
+  } catch (snapshotError) {
+    // Onboarding snapshot is storage-only; never block primary onboarding flow.
+    console.warn('Failed to persist onboarding snapshot:', snapshotError);
   }
 
   return hostel;
