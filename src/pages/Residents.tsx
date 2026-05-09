@@ -32,6 +32,7 @@ export default function Residents() {
   const [showConfirmBedModal, setShowConfirmBedModal] = useState(false);
   const [confirmRoomId, setConfirmRoomId] = useState<string | null>(null);
   const [confirmBedId, setConfirmBedId] = useState<string | null>(null);
+  const [confirmJoinDate, setConfirmJoinDate] = useState<string>(getTodayIST());
   const [depositPaymentMethod, setDepositPaymentMethod] = useState<'UPI' | 'Cash'>('UPI');
   const [depositPaymentDate, setDepositPaymentDate] = useState<string>(getTodayIST());
 
@@ -673,6 +674,7 @@ export default function Residents() {
                     onClick={() => {
                       setConfirmRoomId(selectedResident.roomId || null);
                       setConfirmBedId(selectedResident.bedId || null);
+                      setConfirmJoinDate(selectedResident.joinDate || getTodayIST());
                       setShowConfirmBedModal(true);
                     }}
                     className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
@@ -827,6 +829,16 @@ export default function Residents() {
                               </select>
                             </div>
 
+                            <div>
+                              <label className="text-xs text-gray-500">Joining Date</label>
+                              <input 
+                                type="date" 
+                                value={confirmJoinDate} 
+                                onChange={(e) => setConfirmJoinDate(e.target.value)} 
+                                className="w-full mt-1 p-3 border rounded-xl"
+                              />
+                            </div>
+
                             <div className="flex items-center gap-2 pt-2">
                               <button
                                 onClick={async () => {
@@ -842,7 +854,7 @@ export default function Residents() {
                                     isDepositPaid: (selectedResident as any).isDepositPaid || false,
                                     roomId: confirmRoomId,
                                     bedId: confirmBedId,
-                                    joinDate: (selectedResident as any).joinDate || new Date().toISOString(),
+                                    joinDate: confirmJoinDate || (selectedResident as any).joinDate || getTodayIST(),
                                     oldResidentId: selectedResident.id
                                   };
                                   addResident(payload, false);

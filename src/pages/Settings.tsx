@@ -8,9 +8,12 @@ import { supabase } from '../supabaseClient';
 export default function Settings() {
   const { hostelProfile, updateHostelProfile } = useApp();
   const [isSaving, setIsSaving] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isCurrentPasswordVerified, setIsCurrentPasswordVerified] = useState(false);
+  const [isVerifyingPassword, setIsVerifyingPassword] = useState(false);
 
   // Load from local storage for other non-profile data
   const onboardingRaw = localStorage.getItem('hostelrr_onboarding_data');
@@ -56,9 +59,42 @@ export default function Settings() {
     }, 800);
   };
 
+  const handleVerifyCurrentPassword = async (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    if (!currentPassword) {
+      toast.error('Please enter your current password');
+      return;
+    }
+    
+    setIsVerifyingPassword(true);
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user?.email) throw new Error('Could not get user email');
+
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+      });
+
+      if (signInError) throw new Error('Current password is incorrect');
+      
+      setIsCurrentPasswordVerified(true);
+      toast.success('Password verified. You can now enter a new password.');
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'Failed to verify password');
+    } finally {
+      setIsVerifyingPassword(false);
+    }
+  };
+
   const handlePasswordChange = async () => {
+    if (!isCurrentPasswordVerified) {
+      toast.error('Please verify current password first');
+      return;
+    }
     if (!newPassword || !confirmPassword) {
-      toast.error('Please fill in both password fields');
+      toast.error('Please fill in new password fields');
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -74,9 +110,12 @@ export default function Settings() {
     try {
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
+      
       toast.success('Password updated successfully');
+      setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
+      setIsCurrentPasswordVerified(false);
     } catch (err: any) {
       console.error(err);
       toast.error(err.message || 'Failed to update password');
@@ -331,31 +370,61 @@ export default function Settings() {
           <div className="p-6 space-y-6">
             <div className="grid grid-cols-1 gap-6 max-w-md">
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-700">New Password</label>
-                <input 
-                  type="password" 
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="••••••••" 
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" 
-                />
+                <label className="text-sm font-semibold text-gray-700">Current Password</label>
+                <div className="flex gap-2">
+                  <input 
+                    type="password" 
+                    value={currentPassword}
+                    onChange={(e) => {
+                      setCurrentPassword(e.target.value);
+                      setIsCurrentPasswordVerified(false);
+                    }}
+                    disabled={isCurrentPasswordVerified}
+                    placeholder="••••••••" 
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none disabled:opacity-50" 
+                  />
+                  <button
+                    type="button"
+                    onClick={handleVerifyCurrentPassword}
+                    disabled={isVerifyingPassword || isCurrentPasswordVerified || !currentPassword}
+                    className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2.5 rounded-xl font-semibold transition-colors disabled:opacity-50 flex items-center whitespace-nowrap"
+                  >
+                    {isVerifyingPassword ? <Loader2 className="w-4 h-4 animate-spin" /> : (isCurrentPasswordVerified ? <Check className="w-4 h-4 text-green-600" /> : 'Verify')}
+                  </button>
+                </div>
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-gray-700">Confirm New Password</label>
-                <input 
-                  type="password" 
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="••••••••" 
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" 
-                />
-              </div>
+              
+              {isCurrentPasswordVerified && (
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-6">
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-gray-700">New Password</label>
+                    <input 
+                      type="password" 
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="••••••••" 
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-gray-700">Confirm New Password</label>
+                    <input 
+                      type="password" 
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="••••••••" 
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" 
+                    />
+                  </div>
+                </motion.div>
+              )}
             </div>
             
             <div className="pt-2 flex flex-wrap gap-4 items-center border-t border-gray-100 mt-6 pt-6">
               <button 
+                type="button"
                 onClick={handlePasswordChange} 
-                disabled={isChangingPassword}
+                disabled={isChangingPassword || !isCurrentPasswordVerified}
                 className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-6 py-2.5 rounded-xl font-semibold transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isChangingPassword ? <Loader2 className="w-4 h-4 animate-spin" /> : null}

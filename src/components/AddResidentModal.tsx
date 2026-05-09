@@ -15,7 +15,7 @@ export default function AddResidentModal({
   reAddData?: any 
 }) {
   const { addResident, approveJoinRequest, floors, sharingRentMap, securityDeposit, hostelProfile } = useApp();
-  const [showJoiningInfo, setShowJoiningInfo] = React.useState(false);
+  const [showJoiningInfo, setShowJoiningInfo] = React.useState(true);
 
   const [joiningDate, setJoiningDate] = React.useState<string>(getTodayIST());
 
@@ -310,6 +310,90 @@ export default function AddResidentModal({
               </div>
             )}
 
+            {!isSpecificBed && (
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-gray-900 block">Floor</label>
+                  <div className="relative">
+                    <select 
+                      value={selectedFloorId}
+                      onChange={(e) => {
+                        const newFloorId = e.target.value;
+                        setSelectedFloorId(newFloorId);
+                        // Update room to first available in new floor
+                        const floor = floors.find(f => f.id === newFloorId);
+                        const firstRoom = floor?.rooms.find(r => r.beds.some(b => b.status === 'vacant'));
+                        if (firstRoom) {
+                          setSelectedRoomId(firstRoom.id);
+                          const firstBed = firstRoom.beds.find(b => b.status === 'vacant');
+                          setSelectedBedId(firstBed?.id || '');
+                        }
+                      }}
+                      className="w-full appearance-none border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 pr-10 text-sm outline-none transition-all bg-white cursor-pointer"
+                    >
+                      {availableFloors.map(floor => (
+                        <option key={floor.id} value={floor.id}>{floor.name}</option>
+                      ))}
+                      {availableFloors.length === 0 && <option value="">No vacancy</option>}
+                    </select>
+                    <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-500">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-gray-900 block">Room</label>
+                  <div className="relative">
+                    <select 
+                      value={selectedRoomId}
+                      onChange={(e) => {
+                        const newRoomId = e.target.value;
+                        setSelectedRoomId(newRoomId);
+                        // Update bed to first available in new room
+                        for (const f of floors) {
+                          const r = f.rooms.find(room => room.id === newRoomId);
+                          if (r) {
+                            const firstBed = r.beds.find(b => b.status === 'vacant');
+                            setSelectedBedId(firstBed?.id || '');
+                            break;
+                          }
+                        }
+                      }}
+                      className="w-full appearance-none border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 pr-10 text-sm outline-none transition-all bg-white cursor-pointer"
+                    >
+                      {availableRooms.map(room => (
+                        <option key={room.id} value={room.id}>{room.number}</option>
+                      ))}
+                      {availableRooms.length === 0 && <option value="">Select Floor first</option>}
+                    </select>
+                    <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-500">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-gray-900 block">Bed</label>
+                  <div className="relative">
+                    <select 
+                      value={selectedBedId}
+                      onChange={(e) => setSelectedBedId(e.target.value)}
+                      className="w-full appearance-none border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 pr-10 text-sm outline-none transition-all bg-white cursor-pointer"
+                    >
+                      {availableBeds.map(bed => (
+                        <option key={bed.id} value={bed.id}>{bed.name}</option>
+                      ))}
+                      {availableBeds.length === 0 && <option value="">Select Room first</option>}
+                    </select>
+                    <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-500">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-gray-900 block">Name <span className="text-red-500">*</span></label>
               <input 
@@ -423,7 +507,7 @@ export default function AddResidentModal({
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-900 block">Emergency Contact No. <span className="text-red-500">*</span></label>
+                <label className="text-sm font-medium text-gray-900 block">Emergency Contact No.</label>
                 <div className="flex">
                   <span className="inline-flex items-center px-4 rounded-l-xl border border-r-0 border-gray-200 bg-white text-gray-500 text-sm font-medium">
                     +91
@@ -431,7 +515,6 @@ export default function AddResidentModal({
                   <input 
                     type="tel"
                     name="emergencyPhone"
-                    required
                     inputMode="numeric"
                     pattern="\d{10}"
                     minLength={10}
@@ -521,89 +604,7 @@ export default function AddResidentModal({
                 </label>
               </div>
             </div>
-          </div>          {!isSpecificBed && (
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-900 block">Floor</label>
-                <div className="relative">
-                  <select 
-                    value={selectedFloorId}
-                    onChange={(e) => {
-                      const newFloorId = e.target.value;
-                      setSelectedFloorId(newFloorId);
-                      // Update room to first available in new floor
-                      const floor = floors.find(f => f.id === newFloorId);
-                      const firstRoom = floor?.rooms.find(r => r.beds.some(b => b.status === 'vacant'));
-                      if (firstRoom) {
-                        setSelectedRoomId(firstRoom.id);
-                        const firstBed = firstRoom.beds.find(b => b.status === 'vacant');
-                        setSelectedBedId(firstBed?.id || '');
-                      }
-                    }}
-                    className="w-full appearance-none border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 pr-10 text-sm outline-none transition-all bg-white cursor-pointer"
-                  >
-                    {availableFloors.map(floor => (
-                      <option key={floor.id} value={floor.id}>{floor.name}</option>
-                    ))}
-                    {availableFloors.length === 0 && <option value="">No vacancy</option>}
-                  </select>
-                  <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-500">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-900 block">Room</label>
-                <div className="relative">
-                  <select 
-                    value={selectedRoomId}
-                    onChange={(e) => {
-                      const newRoomId = e.target.value;
-                      setSelectedRoomId(newRoomId);
-                      // Update bed to first available in new room
-                      for (const f of floors) {
-                        const r = f.rooms.find(room => room.id === newRoomId);
-                        if (r) {
-                          const firstBed = r.beds.find(b => b.status === 'vacant');
-                          setSelectedBedId(firstBed?.id || '');
-                          break;
-                        }
-                      }
-                    }}
-                    className="w-full appearance-none border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 pr-10 text-sm outline-none transition-all bg-white cursor-pointer"
-                  >
-                    {availableRooms.map(room => (
-                      <option key={room.id} value={room.id}>{room.number}</option>
-                    ))}
-                    {availableRooms.length === 0 && <option value="">Select Floor first</option>}
-                  </select>
-                  <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-500">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-900 block">Bed</label>
-                <div className="relative">
-                  <select 
-                    value={selectedBedId}
-                    onChange={(e) => setSelectedBedId(e.target.value)}
-                    className="w-full appearance-none border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 pr-10 text-sm outline-none transition-all bg-white cursor-pointer"
-                  >
-                    {availableBeds.map(bed => (
-                      <option key={bed.id} value={bed.id}>{bed.name}</option>
-                    ))}
-                    {availableBeds.length === 0 && <option value="">Select Room first</option>}
-                  </select>
-                  <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-500">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+          </div>
           </div>
           
           <div className="p-6 pt-4 border-t border-gray-100 shrink-0 bg-white">

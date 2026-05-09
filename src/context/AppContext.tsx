@@ -133,6 +133,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [authLoading, setAuthLoading] = React.useState(true);
 
   React.useEffect(() => {
+    let currentUserId: string | null = null;
     import('../supabaseClient').then(({ supabase }) => {
       const loadData = async (userId: string) => {
         setIsDataLoading(true);
@@ -159,11 +160,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       };
 
-      const verifySessionAndLoad = async (currentSession: any) => {
+      const verifySessionAndLoad = async (currentSession: any, skipLoadIfSameUser = false) => {
         if (!currentSession?.user) {
+          currentUserId = null;
           setSession(null);
           setIsDataLoading(false);
           setAuthLoading(false);
+          return;
+        }
+
+        if (skipLoadIfSameUser && currentUserId === currentSession.user.id) {
+          setSession(currentSession);
           return;
         }
 
@@ -177,12 +184,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             } catch (e) {
               console.warn("Sign out failed:", e);
             }
+            currentUserId = null;
             setSession(null);
             setIsDataLoading(false);
             setAuthLoading(false);
             return;
           }
 
+          currentUserId = user.id;
           setSession(currentSession);
           setAuthLoading(false);
           loadData(user.id);
@@ -195,6 +204,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           } catch (e) {
             console.warn("Sign out failed:", e);
           }
+          currentUserId = null;
           setSession(null);
           setIsDataLoading(false);
           setAuthLoading(false);
@@ -202,12 +212,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       };
 
       supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
-        verifySessionAndLoad(initialSession);
+        verifySessionAndLoad(initialSession, false);
       });
 
       const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, currentSession) => {
         if (_event === 'INITIAL_SESSION') return; // Handled by getSession above
-        verifySessionAndLoad(currentSession);
+        const skipLoadIfSameUser = ['SIGNED_IN', 'USER_UPDATED', 'TOKEN_REFRESHED'].includes(_event);
+        verifySessionAndLoad(currentSession, skipLoadIfSameUser);
       });
 
       return () => {

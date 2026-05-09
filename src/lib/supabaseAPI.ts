@@ -757,6 +757,17 @@ export async function moveBedsDb(targetRoomId: string, bedIds: string[]) {
   const { data: existingBeds } = await supabase.from('beds').select('label').eq('room_id', targetRoomId);
   const existingCount = existingBeds ? existingBeds.length : 0;
 
+  // Clear layout_id for the target room because bed count changed
+  await supabase.from('rooms').update({ layout_id: null }).eq('id', targetRoomId);
+  
+  // Clear layout_id for source rooms because their bed counts also changed
+  const sourceRoomIds = Array.from(new Set((movingBeds || []).map((b: any) => b.room_id)));
+  for (const sId of sourceRoomIds) {
+    if (sId) {
+      await supabase.from('rooms').update({ layout_id: null }).eq('id', sId);
+    }
+  }
+
   for (let i = 0; i < bedIds.length; i++) {
     const newLabel = String.fromCharCode(65 + existingCount + i);
     await supabase.from('beds').update({

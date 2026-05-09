@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from '../context/AppContext';
 import { RotateCcw, Save, LayoutTemplate, CheckCircle, Plus, X, Minus, Move, Trash2, Loader } from 'lucide-react';
 import { toast } from 'sonner';
@@ -141,6 +141,7 @@ export default function BedLayoutBuilder({ hostelId, onSaveComplete }: { hostelI
 
   const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
   const [activeSharing, setActiveSharing] = useState<number>(() => availableTabs[0]);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Update activeTemplateId and activeSharing when templates load
   useEffect(() => {
@@ -267,8 +268,6 @@ export default function BedLayoutBuilder({ hostelId, onSaveComplete }: { hostelI
     
     const templateToDelete = allTemplates.find(t => t.id === activeTemplateId);
     if (!templateToDelete) return;
-
-    if (!window.confirm(`Are you sure you want to delete this ${templateToDelete.sharing}-sharing layout version?`)) return;
 
     try {
       setIsSaving(true);
@@ -647,8 +646,8 @@ export default function BedLayoutBuilder({ hostelId, onSaveComplete }: { hostelI
               </button>
 
               <button
-                onClick={handleDeleteTemplate}
-                disabled={!activeTemplateId}
+                onClick={() => setShowDeleteConfirm(true)}
+                disabled={!activeTemplateId || isSaving}
                 className="w-full py-3 px-4 bg-white hover:bg-red-50 text-red-600 disabled:opacity-30 disabled:hover:bg-white disabled:cursor-not-allowed rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-colors border border-red-100 hover:border-red-200"
               >
                 <Trash2 className="w-4 h-4" />
@@ -678,6 +677,51 @@ export default function BedLayoutBuilder({ hostelId, onSaveComplete }: { hostelI
           </div>
         </div>
       </div>
+
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowDeleteConfirm(false)}
+              className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-sm relative z-10 overflow-hidden p-6 text-center"
+            >
+              <div className="w-16 h-16 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Trash2 className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Delete Layout?</h3>
+              <p className="text-gray-500 text-sm mb-6 leading-relaxed">
+                Are you sure you want to delete this <span className="font-bold text-gray-900">{activeSharing}-sharing</span> layout version? This action cannot be undone.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="flex-1 py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-semibold transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setShowDeleteConfirm(false);
+                    handleDeleteTemplate();
+                  }}
+                  className="flex-1 py-3 px-4 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
