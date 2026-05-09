@@ -381,20 +381,30 @@ export default function BedLayoutBuilder({ hostelId, onSaveComplete }: { hostelI
                         onClick={() => setActiveTemplateId(template.id)}
                         className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap border-2 ${
                           isActive 
-                            ? `${colorConfig.class} shadow-sm scale-105` 
+                            ? `${colorConfig.class.replace('border-' + colorConfig.name.toLowerCase() + '-200', 'border-' + colorConfig.name.toLowerCase() + '-600')} shadow-md scale-105 ring-2 ring-${colorConfig.name.toLowerCase()}-500/10` 
                             : 'bg-white text-gray-500 border-gray-100 hover:border-gray-200'
                         }`}
                       >
-                        <div className={`w-2 h-2 rounded-full ${colorConfig.dot}`} />
+                        {isActive ? (
+                          <CheckCircle className="w-3 h-3 text-current" />
+                        ) : (
+                          <div className={`w-2 h-2 rounded-full ${colorConfig.dot}`} />
+                        )}
                         {sharing} Sharing {templates.length > 1 ? `(v${idx + 1})` : ''}
                       </button>
+
                     )
                   })
                 ) : (
                   <button
                     onClick={() => handleAddNewLayout(sharing)}
-                    className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-colors whitespace-nowrap bg-gray-50 text-gray-600 hover:bg-gray-100 border border-transparent`}
+                    className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all whitespace-nowrap border-2 ${
+                      activeSharing === sharing && activeTemplateId === DRAFT_TEMPLATE_ID
+                        ? 'bg-blue-50 text-blue-600 border-blue-600 shadow-md scale-105'
+                        : 'bg-gray-50 text-gray-600 border-transparent hover:bg-gray-100 hover:border-gray-200'
+                    }`}
                   >
+                    {activeSharing === sharing && activeTemplateId === DRAFT_TEMPLATE_ID && <CheckCircle className="w-3 h-3" />}
                     {sharing} Sharing
                   </button>
                 )}

@@ -513,7 +513,8 @@ export default function Onboarding() {
                     <div className="space-y-4 bg-gray-50 p-5 rounded-2xl border border-gray-100">
                       <div>
                         <label className="text-sm font-bold tracking-wide text-gray-800 uppercase block mb-1">Rooms & Rent per Sharing Type</label>
-                        <p className="text-xs text-gray-500 mb-4">Define how many rooms you have for each sharing type and their monthly rent.</p>
+                        <p className="text-sm text-gray-500 mb-4">Define how many rooms you have for each sharing type and their monthly rent.</p>
+
                       </div>
 
                       {[...selectedSharing, ...(isCustomSharingActive && customSharing ? [parseInt(customSharing)] : [])].sort((a, b) => a - b).map(num => (
@@ -531,7 +532,7 @@ export default function Onboarding() {
                                 onChange={(e) => setRoomsPerSharing(prev => ({ ...prev, [num]: e.target.value }))}
                                 className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 bg-white font-semibold"
                               />
-                              <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-semibold uppercase">Rooms</div>
+
                             </div>
                             <div className="relative flex-1">
                               <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">₹</div>
@@ -550,7 +551,8 @@ export default function Onboarding() {
                     </div>
                     <div className="space-y-4 bg-gray-50 p-5 rounded-2xl border border-gray-100 mt-4">
                       <label className="text-sm font-bold tracking-wide text-gray-800 uppercase block mb-1">Security Deposit</label>
-                      <p className="text-[11px] font-medium text-gray-400 -mt-1 mb-2">If deposit is not charged, mention '0'</p>
+                      <p className="text-sm text-gray-500 mb-2">If deposit is not charged, mention '0'</p>
+
                       <div className="relative">
                         <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">₹</div>
                         <input

@@ -143,6 +143,12 @@ export default function Dashboard({ setActiveTab }: { setActiveTab?: (tab: strin
     setActiveTab?.('payments');
   };
 
+  const newResidentsThisMonth = residents.filter(r => {
+    if (!r.joinDate) return false;
+    const d = new Date(r.joinDate);
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  }).length;
+
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
       <div className="mb-8">
@@ -153,7 +159,7 @@ export default function Dashboard({ setActiveTab }: { setActiveTab?: (tab: strin
       {/* KPI Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <KpiCard title="Total Beds" value={totalBeds} icon={BedDouble} className="bg-white text-gray-600" cardBg="bg-gray-50 border-gray-200" onClick={() => handleNavigateBuilding('all')} trendColor="text-gray-500" />
-        <KpiCard title="Occupied Beds" value={occupiedBeds} icon={Users} trend="+3 this month" className="bg-white text-green-600" cardBg="bg-green-50 border-green-200" onClick={() => handleNavigateBuilding('occupied')} trendColor="text-green-600" />
+        <KpiCard title="Occupied Beds" value={occupiedBeds} icon={Users} trend={newResidentsThisMonth > 0 ? `+${newResidentsThisMonth} this month` : "No new joins this month"} className="bg-white text-green-600" cardBg="bg-green-50 border-green-200" onClick={() => handleNavigateBuilding('occupied')} trendColor="text-green-600" />
         <KpiCard title="Vacant Beds" value={vacantBeds} icon={PieChart} className="bg-white text-red-600" cardBg="bg-red-50 border-red-200" onClick={() => handleNavigateBuilding('vacant')} trendColor="text-red-600" />
         <KpiCard title="Pending Payments" value={`₹${totalDueAmount.toLocaleString('en-IN')}`} icon={AlertCircle} className="bg-white text-orange-600" cardBg="bg-orange-50 border-orange-200" onClick={() => handleNavigatePayments('Unpaid')} trendColor="text-orange-600" />
         <KpiCard
