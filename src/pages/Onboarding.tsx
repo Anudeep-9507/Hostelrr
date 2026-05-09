@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowRight, ArrowLeft, Check, Building2, CalendarDays, User2 } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Check, Building2, CalendarDays, User2, LogOut } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { supabase } from '../supabaseClient';
 
 const INDIAN_STATES = [
   'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
@@ -115,6 +116,12 @@ export default function Onboarding() {
     }
   };
 
+  const handleBackToSignIn = async () => {
+    await supabase.auth.signOut();
+    window.history.pushState({}, '', '/signin');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  };
+
   const renderProgress = () => {
     if (step > totalSteps) return null;
     return (
@@ -150,7 +157,16 @@ export default function Onboarding() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] overflow-y-auto flex flex-col items-center justify-start py-8 px-4 sm:px-6 font-sans relative">
-      <div className="w-full max-w-lg">
+      <div className="w-full max-w-lg relative">
+        <div className="mb-6">
+          <button 
+            onClick={handleBackToSignIn}
+            className="flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+            Back to Home
+          </button>
+        </div>
         {renderProgress()}
 
         <div className="bg-white rounded-2xl sm:border sm:border-gray-100 sm:shadow-lg p-5 sm:p-8 flex flex-col justify-center relative overflow-hidden">
