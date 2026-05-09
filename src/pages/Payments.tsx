@@ -605,7 +605,7 @@ export default function Payments({ setActiveTab }: { setActiveTab?: (tab: string
                               ) : (
                                 <>
                                   <button onClick={(e) => { e.stopPropagation(); handleSendReminder(r); }} className="bg-[#25D366] hover:bg-[#22c35e] text-white px-4 py-1.5 rounded-full text-[13px] font-semibold transition-all flex items-center gap-1.5 shadow-sm"><WhatsAppIcon className="w-3.5 h-3.5" /> Remind</button>
-                                  <button onClick={(e) => { e.stopPropagation(); setResidentToMarkPaid(r); setPaymentDate(getTodayIST()); }} className="text-[#059669] bg-white border border-[#A7F3D0]/60 px-4 py-1.5 rounded-full text-[13px] font-semibold hover:bg-[#ECFDF5] transition-all flex items-center gap-1.5 shadow-sm"><Check className="w-3.5 h-3.5" /> Mark Paid</button>
+                                  <button onClick={(e) => { e.stopPropagation(); setResidentToMarkPaid(r); setPaymentDate(getTodayIST()); }} className="text-[#059669] bg-white border border-[#A7F3D0]/60 px-3 py-1.5 rounded-full text-[12px] font-semibold hover:bg-[#ECFDF5] transition-all flex items-center gap-1.5 shadow-sm"><CheckCircle2 className="w-3.5 h-3.5" /> Mark Paid</button>
                                 </>
                               )}
                             </div>
@@ -859,8 +859,13 @@ export default function Payments({ setActiveTab }: { setActiveTab?: (tab: string
                 </div>
                 <h3 className="text-xl font-bold text-gray-900 mb-2">Mark as Paid?</h3>
                 <p className="text-gray-500 text-[15px] leading-relaxed mb-6">
-                  Are you sure you want to mark <strong>{residentToMarkPaid.name}</strong> as paid for <strong>₹{(residentToMarkPaid.dueAmount > 0 ? residentToMarkPaid.dueAmount : 7500).toLocaleString('en-IN')}</strong>? This will update their payment status to 'Paid' for the current cycle.
+                  Update payment status for <strong>{residentToMarkPaid.name}</strong> for the current cycle.
                 </p>
+
+                <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 mb-6 flex flex-col items-center justify-center">
+                  <span className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Amount to Collect</span>
+                  <span className="text-3xl font-black text-blue-700">₹{(residentToMarkPaid.dueAmount > 0 ? residentToMarkPaid.dueAmount : 7500).toLocaleString('en-IN')}</span>
+                </div>
                 <div className="space-y-6">
                   <div>
                     <label className="text-sm font-medium text-gray-900 block mb-4">Paid Using</label>

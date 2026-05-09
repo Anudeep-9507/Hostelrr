@@ -17,7 +17,7 @@ export const WhatsAppIcon = ({ className }: { className?: string }) => (
 );
 
 export default function Residents() {
-  const { residents, pastResidents, floors, hostelProfile, globalSelectedResidentId, setGlobalSelectedResidentId, vacateResident, addResident, editResident, isDemoMode } = useApp();
+  const { residents, pastResidents, floors, hostelProfile, globalSelectedResidentId, setGlobalSelectedResidentId, vacateResident, addResident, editResident, markAsPaid, markReminderSent, isDemoMode } = useApp();
   const [viewMode, setViewMode] = useState<ViewMode>('all');
   const [currentSort, setCurrentSort] = useState('recent');
   const [showHistory, setShowHistory] = useState(false);
@@ -35,6 +35,51 @@ export default function Residents() {
   const [confirmJoinDate, setConfirmJoinDate] = useState<string>(getTodayIST());
   const [depositPaymentMethod, setDepositPaymentMethod] = useState<'UPI' | 'Cash'>('UPI');
   const [depositPaymentDate, setDepositPaymentDate] = useState<string>(getTodayIST());
+
+  const [residentToMarkPaid, setResidentToMarkPaid] = useState<Resident | null>(null);
+  const [paidUsing, setPaidUsing] = useState<'UPI' | 'Cash'>('UPI');
+  const [isPartialPayment, setIsPartialPayment] = useState<boolean>(false);
+  const [partialAmount, setPartialAmount] = useState<string>('');
+  const [paymentDate, setPaymentDate] = useState<string>(getTodayIST());
+  const [isSendingReminder, setIsSendingReminder] = useState(false);
+
+  const getDayAndMonth = (dateString: string) => {
+    return formatDate(dateString);
+  };
+
+  const handleSendReminder = (resident: Resident) => {
+    if (!resident.phone) {
+      toast.error('Resident phone number not available');
+      return;
+    }
+    
+    const phoneDigits = (resident.phone || '').replace(/\D/g, '');
+    if (phoneDigits.length < 10) {
+      toast.error('Invalid phone number');
+      return;
+    }
+
+    const hostelName = hostelProfile?.hostelName || "My Hostel";
+    const { roomName: roomNum } = getNamesFromIds(floors, resident.roomId, resident.bedId);
+    const rentAmount = resident.dueAmount > 0 ? resident.dueAmount : 7500;
+    const dueDateDisplay = resident.dueDate ? getDayAndMonth(resident.dueDate) : 'Today';
+
+    const message = `Hello ${resident.name}, your hostel rent of *₹${rentAmount}* for Room ${roomNum} is currently pending.\n\nDue Date: *${dueDateDisplay}*\n\nPlease make the payment soon and reply *PAID* once done.\n\nThank you\uD83D\uDE01\n${hostelName}\nPowered by Hostelrr`;
+
+    markReminderSent(resident.id);
+    
+    const waPhone = phoneDigits.startsWith('91') && phoneDigits.length === 12 ? phoneDigits : (phoneDigits.length === 10 ? `91${phoneDigits}` : phoneDigits);
+    const waUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(message)}`;
+    
+    window.open(waUrl, '_blank');
+    toast.success(`Opening WhatsApp for ${resident.name}`);
+  };
+
+  React.useEffect(() => {
+    if (residentToMarkPaid) {
+      setPaymentDate(getTodayIST());
+    }
+  }, [residentToMarkPaid]);
 
   React.useEffect(() => {
     if (residentToMarkDepositPaid) {
@@ -688,17 +733,68 @@ export default function Residents() {
               {('paymentStatus' in selectedResident) && (
                 <div className="space-y-3">
                   <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Status</h4>
+                  
+                  {/* Dues Card */}
                   <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex items-center justify-between">
                      <div className="flex items-center gap-2">
                        <IndianRupee className="w-5 h-5 text-gray-400" />
                        <span className="font-medium text-sm text-gray-700">Dues</span>
                      </div>
-                     {selectedResident.paymentStatus === 'due' ? (
-                        <span className="text-sm font-bold text-red-600">₹{selectedResident.dueAmount}</span>
-                      ) : (
+                     {selectedResident.paymentStatus === 'paid' ? (
                         <span className="text-sm font-bold text-green-600">Paid (₹{selectedResident.dueAmount > 0 ? selectedResident.dueAmount : 7500})</span>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-red-600">₹{selectedResident.dueAmount}</span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleSendReminder(selectedResident as Resident)}
+                              className="bg-[#25D366] hover:bg-[#22c35e] text-white px-3 py-1.5 rounded-full text-[12px] font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                            >
+                              <WhatsAppIcon className="w-3.5 h-3.5" /> Remind
+                            </button>
+                            <button
+                              onClick={() => {
+                                setResidentToMarkPaid(selectedResident as Resident);
+                                setPaidUsing('UPI');
+                                setIsPartialPayment(false);
+                                setPartialAmount('');
+                                setPaymentDate(getTodayIST());
+                              }}
+                              className="text-[#059669] bg-white border border-[#A7F3D0]/60 px-3 py-1.5 rounded-full text-[12px] font-semibold hover:bg-[#ECFDF5] transition-all flex items-center gap-1.5 shadow-sm"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" /> Mark Paid
+                            </button>
+                          </div>
+                        </div>
                       )}
                   </div>
+
+                  {/* Security Deposit Card */}
+                  {('securityDeposit' in selectedResident && selectedResident.securityDeposit) && (
+                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <IndianRupee className="w-5 h-5 text-gray-400" />
+                        <span className="font-medium text-sm text-gray-700">Security Deposit</span>
+                      </div>
+                      {'isDepositPaid' in selectedResident && selectedResident.isDepositPaid ? (
+                        <span className="text-sm font-bold text-green-600">Paid (₹{selectedResident.securityDeposit.toLocaleString('en-IN')})</span>
+                      ) : (
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-bold text-red-600">₹{selectedResident.securityDeposit.toLocaleString('en-IN')}</span>
+                          <button
+                            onClick={() => {
+                              setResidentToMarkDepositPaid(selectedResident as Resident);
+                              setDepositPaymentMethod('UPI');
+                              setDepositPaymentDate(getTodayIST());
+                            }}
+                            className="text-[#059669] bg-white border border-[#A7F3D0]/60 px-3 py-1.5 rounded-full text-[12px] font-semibold hover:bg-[#ECFDF5] transition-all flex items-center gap-1.5 shadow-sm"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Mark Paid
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -766,27 +862,6 @@ export default function Residents() {
                         <span className="text-sm font-semibold text-gray-900">₹{selectedResident.dueAmount > 0 ? selectedResident.dueAmount : 7500}</span>
                       </div>
                     )}
-                    {('securityDeposit' in selectedResident && selectedResident.securityDeposit) ? (
-                      <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 col-span-2">
-                        <span className="flex items-center justify-between gap-2 text-xs text-gray-500 font-medium mb-1.5">
-                          <span className="flex items-center gap-2"><IndianRupee className="w-4 h-4" /> Security Deposit (One-time)</span>
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${'isDepositPaid' in selectedResident && selectedResident.isDepositPaid ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                            {'isDepositPaid' in selectedResident && selectedResident.isDepositPaid ? 'Paid' : 'Unpaid'}
-                          </span>
-                        </span>
-                        <div className="flex items-center justify-between mt-1">
-                          <span className="text-sm font-semibold text-gray-900">₹{selectedResident.securityDeposit}</span>
-                          {('isDepositPaid' in selectedResident && !selectedResident.isDepositPaid) && 'dueAmount' in selectedResident && (
-                            <button
-                              onClick={() => { setResidentToMarkDepositPaid(selectedResident as Resident); setDepositPaymentMethod('UPI'); setDepositPaymentDate(getTodayIST()); }}
-                              className="px-3 py-1 bg-green-50 text-green-700 hover:bg-green-100 rounded-lg text-xs font-bold transition-colors uppercase tracking-wider"
-                            >
-                              Mark Paid
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ) : null}
                   </div>
 
                   {/* Confirm Bed Modal */}
@@ -1336,8 +1411,13 @@ export default function Residents() {
                 </div>
                 <h3 className="text-xl font-bold text-gray-900 mb-2">Mark Deposit as Paid?</h3>
                 <p className="text-gray-500 text-[15px] leading-relaxed mb-6">
-                  Are you sure you want to mark the security deposit for <strong>{residentToMarkDepositPaid.name}</strong> as paid (<strong>₹{residentToMarkDepositPaid.securityDeposit?.toLocaleString('en-IN')}</strong>)? This will update their profile and add a payment record.
+                  Update security deposit status for <strong>{residentToMarkDepositPaid.name}</strong>.
                 </p>
+
+                <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 mb-6 flex flex-col items-center justify-center">
+                  <span className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Deposit Amount</span>
+                  <span className="text-3xl font-black text-blue-700">₹{residentToMarkDepositPaid.securityDeposit?.toLocaleString('en-IN')}</span>
+                </div>
                 <div className="space-y-6">
                   <div>
                     <label className="text-sm font-medium text-gray-900 block mb-4">Paid Using</label>
@@ -1386,11 +1466,198 @@ export default function Residents() {
                 </button>
                 <button 
                   onClick={() => {
-                    editResident(residentToMarkDepositPaid.id, { ...residentToMarkDepositPaid, isDepositPaid: true, depositPaidDate: depositPaymentDate });
-                    toast.success(`Security deposit marked as paid`);
-                    setResidentToMarkDepositPaid(null);
+                    if (residentToMarkDepositPaid) {
+                      editResident(residentToMarkDepositPaid.id, { isDepositPaid: true, depositPaidDate: depositPaymentDate });
+                      toast.success(`Security deposit marked as paid`);
+                      setResidentToMarkDepositPaid(null);
+                    }
                   }}
                   className="px-5 py-2.5 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-xl transition-colors shadow-sm flex items-center gap-2"
+                >
+                  Confirm Paid
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {residentToMarkPaid && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm"
+          >
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col relative z-10"
+            >
+              <button 
+                onClick={() => setResidentToMarkPaid(null)}
+                className="absolute top-4 right-4 p-2 bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-900 rounded-full transition-colors z-50"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              
+              <div className="p-6 pb-0">
+                <div className="w-12 h-12 rounded-full bg-green-50 text-green-600 flex items-center justify-center mb-4">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Mark as Paid?</h3>
+                <p className="text-gray-500 text-[15px] leading-relaxed mb-6">
+                  Update payment status for <strong>{residentToMarkPaid.name}</strong> for the current cycle.
+                </p>
+
+                <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 mb-6 flex flex-col items-center justify-center">
+                  <span className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Amount to Collect</span>
+                  <span className="text-3xl font-black text-blue-700">₹{(residentToMarkPaid.dueAmount > 0 ? residentToMarkPaid.dueAmount : 7500).toLocaleString('en-IN')}</span>
+                </div>
+                <div className="space-y-6">
+                  <div>
+                    <label className="text-sm font-medium text-gray-900 block mb-4">Paid Using</label>
+                    <div className="flex gap-4">
+                      <button
+                        onClick={() => setPaidUsing('UPI')}
+                        className={cn(
+                          "flex-1 flex flex-col items-center gap-3 p-5 rounded-2xl border-2 transition-all",
+                          paidUsing === 'UPI' 
+                            ? "border-green-600 bg-green-50 text-green-700 shadow-sm" 
+                            : "border-gray-100 bg-gray-50/50 text-gray-500 hover:border-gray-200 hover:bg-gray-100"
+                        )}
+                      >
+                        <Smartphone className={cn("w-6 h-6", paidUsing === 'UPI' ? "text-green-600" : "text-gray-400")} />
+                        <span className="font-bold text-sm">UPI</span>
+                      </button>
+                      <button
+                        onClick={() => setPaidUsing('Cash')}
+                        className={cn(
+                          "flex-1 flex flex-col items-center gap-3 p-5 rounded-2xl border-2 transition-all",
+                          paidUsing === 'Cash' 
+                            ? "border-green-600 bg-green-50 text-green-700 shadow-sm" 
+                            : "border-gray-100 bg-gray-50/50 text-gray-500 hover:border-gray-200 hover:bg-gray-100"
+                        )}
+                      >
+                        <Banknote className={cn("w-6 h-6", paidUsing === 'Cash' ? "text-green-600" : "text-gray-400")} />
+                        <span className="font-bold text-sm">Cash</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-6 pt-1">
+                    <label className="text-sm font-medium text-gray-900">Partial Payment</label>
+                    <div className="flex gap-6">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="partialPayment"
+                          checked={isPartialPayment === true}
+                          onChange={() => setIsPartialPayment(true)}
+                          className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">Yes</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="partialPayment"
+                          checked={isPartialPayment === false}
+                          onChange={() => setIsPartialPayment(false)}
+                          className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">No</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <AnimatePresence>
+                    {isPartialPayment && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                        animate={{ opacity: 1, height: 'auto', marginTop: 16 }}
+                        exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                        className="space-y-4 overflow-hidden"
+                      >
+                        <div className="flex gap-4">
+                          <div className="flex-1 space-y-2">
+                            <label className="text-sm font-medium text-gray-900 block">Pay Amount</label>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">₹</span>
+                              <input 
+                                type="number" 
+                                value={partialAmount}
+                                onChange={(e) => setPartialAmount(e.target.value)}
+                                placeholder="Enter amount"
+                                className="w-full pl-8 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all font-medium text-gray-900"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex-1 space-y-2">
+                            <label className="text-sm font-medium text-gray-900 block">Date</label>
+                            <input 
+                              type="date" 
+                              value={paymentDate}
+                              onChange={(e) => setPaymentDate(e.target.value)}
+                              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all font-medium text-gray-900"
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className={cn(
+                          "p-3 rounded-xl border flex items-center justify-between",
+                          Number(partialAmount) > (residentToMarkPaid.dueAmount > 0 ? residentToMarkPaid.dueAmount : 7500)
+                            ? "bg-red-50 border-red-100"
+                            : "bg-blue-50 border-blue-100"
+                        )}>
+                          <span className={cn(
+                            "text-sm font-medium",
+                            Number(partialAmount) > (residentToMarkPaid.dueAmount > 0 ? residentToMarkPaid.dueAmount : 7500) ? "text-red-800" : "text-blue-800"
+                          )}>
+                            {Number(partialAmount) > (residentToMarkPaid.dueAmount > 0 ? residentToMarkPaid.dueAmount : 7500) ? "Status:" : "Remaining Amount:"}
+                          </span>
+                          <span className={cn(
+                            "text-sm font-bold",
+                            Number(partialAmount) > (residentToMarkPaid.dueAmount > 0 ? residentToMarkPaid.dueAmount : 7500) ? "text-red-900" : "text-blue-900"
+                          )}>
+                            {Number(partialAmount) > (residentToMarkPaid.dueAmount > 0 ? residentToMarkPaid.dueAmount : 7500) 
+                              ? `Overpaid by ₹${(Number(partialAmount) - (residentToMarkPaid.dueAmount > 0 ? residentToMarkPaid.dueAmount : 7500)).toLocaleString('en-IN')}`
+                              : `₹${((residentToMarkPaid.dueAmount > 0 ? residentToMarkPaid.dueAmount : 7500) - Number(partialAmount)).toLocaleString('en-IN')}`
+                            }
+                          </span>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                </div>
+              </div>
+
+              <div className="p-6 flex items-center justify-end gap-3 mt-4 border-t border-gray-100 bg-gray-50">
+                <button 
+                  onClick={() => {
+                    setResidentToMarkPaid(null);
+                    setPaidUsing('UPI');
+                    setIsPartialPayment(false);
+                    setPartialAmount('');
+                    setPaymentDate(getTodayIST());
+                  }}
+                  className="px-5 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={() => {
+                    if (residentToMarkPaid) {
+                      const amountToPay = isPartialPayment && partialAmount ? Number(partialAmount) : undefined;
+                      markAsPaid(residentToMarkPaid.id, paidUsing, amountToPay, isPartialPayment ? paymentDate : undefined);
+                      toast.success('Rent marked as paid');
+                      setResidentToMarkPaid(null);
+                    }
+                  }}
+                  className="px-6 py-2.5 text-[15px] font-bold text-white bg-green-600 hover:bg-green-700 rounded-xl transition-colors shadow-sm flex items-center gap-2"
                 >
                   Confirm Paid
                 </button>
