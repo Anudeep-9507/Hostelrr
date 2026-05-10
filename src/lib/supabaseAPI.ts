@@ -277,7 +277,21 @@ export async function fetchHostelData(userId: string) {
       monthlyRent: r.monthly_rent || 0,
       paymentStatus,
       dueAmount,
-      dueDate: pendingCycles.length > 0 ? pendingCycles.sort((a: any, b: any) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())[0].due_date : '',
+      dueDate: pendingCycles.length > 0 
+        ? pendingCycles.sort((a: any, b: any) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())[0].due_date 
+        : (() => {
+            // Find the most recent cycle start to project the next one
+            const sortedAll = (resCycles || []).sort((a: any, b: any) => new Date(b.cycle_start).getTime() - new Date(a.cycle_start).getTime());
+            if (sortedAll.length > 0 && sortedAll[0].cycle_start) {
+              const last = new Date(sortedAll[0].cycle_start);
+              if (!isNaN(last.getTime())) {
+                last.setMonth(last.getMonth() + 1);
+                return last.toISOString().split('T')[0];
+              }
+            }
+            // Fallback to join date or today
+            return r.join_date || new Date().toISOString().split('T')[0];
+          })(),
       documentsComplete: Boolean(r.aadhar_document_path && r.hostel_form_path),
       photoUrl,
       photoPath: r.photo_path || undefined,

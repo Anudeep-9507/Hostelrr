@@ -591,7 +591,11 @@ export default function Payments() {
                   filteredResidents.map((r) => {
                     const { roomName: roomNum, bedName: bedLetter } = getNamesFromIds(floors, r.roomId, r.bedId);
                     const bedStatus = getBedStatusForResident(r.roomId, r.bedId);
-                    const displayDate = r.paymentStatus === 'paid' ? `Due: ${r.dueDate ? formatDate(r.dueDate) : 'Next Cycle'}` : (r.paymentStatus === 'late' ? `Due: ${r.dueDate ? formatDate(r.dueDate) : 'Overdue'}` : `Due: ${r.dueDate ? formatDate(r.dueDate) : formatDate(getTodayIST())}`);
+                    const displayDate = r.paymentStatus === 'paid' 
+                      ? `Next Due: ${formatDate(r.dueDate) || formatDate(r.joinDate) || 'Today'}` 
+                      : (r.paymentStatus === 'late' 
+                        ? `Due: ${formatDate(r.dueDate) || 'Overdue'}` 
+                        : `Due: ${formatDate(r.dueDate) || formatDate(getTodayIST())}`);
                     const rentAmount = r.dueAmount > 0 ? r.dueAmount : (r.monthlyRent || 7500);
 
                     return (
@@ -613,7 +617,7 @@ export default function Payments() {
                           </div>
                           <div className="flex items-center gap-4 sm:gap-6 justify-between sm:justify-end w-full sm:w-auto mt-3 sm:mt-0">
                             <div className="w-[70px] shrink-0 flex justify-end">{getStatusPill(r)}</div>
-                            <div className="text-right min-w-[90px] shrink-0">
+                            <div className="text-right min-w-[110px] shrink-0">
                               <div className="font-bold text-gray-900 text-[15px]">₹{rentAmount.toLocaleString('en-IN')}</div>
                               <div className="text-xs text-gray-400 whitespace-nowrap">{displayDate}</div>
                             </div>
