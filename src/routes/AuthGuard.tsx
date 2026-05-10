@@ -1,16 +1,33 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { ROUTES } from './routes';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Database } from 'lucide-react';
+import EmptyState from '../components/EmptyState';
 
 export default function AuthGuard() {
-  const { session, authLoading, isDataLoading, isOnboardingComplete } = useApp();
+  const { session, authLoading, isDataLoading, isOnboardingComplete, dataFetchError, retryDataFetch } = useApp();
   const location = useLocation();
+
+  if (dataFetchError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
+        <EmptyState 
+          icon={Database}
+          title="Connection Error"
+          subtitle="Failed to connect to the database. Please check your internet connection and try again."
+          action={{
+            label: "Retry Connection",
+            onClick: retryDataFetch
+          }}
+        />
+      </div>
+    );
+  }
 
   // Show loading spinner while auth/data is being determined
   if (authLoading || isDataLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
       </div>
     );

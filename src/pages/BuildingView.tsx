@@ -7,9 +7,11 @@ import DefaultAvatar from '../components/DefaultAvatar';
 import { cn, formatDate, getNamesFromIds } from '../lib/utils';
 import { X, UserPlus, LogOut, Phone, IndianRupee, FileText, Plus, User, LayoutTemplate, Trash2, BedDouble, Search, ChevronDown, Copy, Eye } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
+import EmptyState from '../components/EmptyState';
 import { toast } from 'sonner';
 import BedLayoutBuilder, { LAYOUT_COLORS, Template } from '../components/BedLayoutBuilder';
 import { getBedLayoutTemplates } from '../lib/supabaseAPI';
+import useAsyncAction from '../hooks/useAsyncAction';
 
 function getStatusColor(status: Bed['status']) {
   switch (status) {
@@ -135,14 +137,14 @@ export default function BuildingView() {
     localStorage.setItem('hostelrr_show_bed_layout', JSON.stringify(showBedLayout));
   }, [showBedLayout]);
 
-  const handleSaveRoom = () => {
+  const { execute: executeSaveRoom, isLoading: isSavingRoom } = useAsyncAction(async () => {
     const bedsCount = isCustomSharing ? parseInt(customSharingValue) : parseInt(newRoomBeds);
     
     if (isSetupMode && setupRoomId && addRoomFloorId) {
-      updateRoomSetup(addRoomFloorId, setupRoomId, bedsCount, parseInt(newRoomRent || '0'), newRoomNumber, selectedLayoutId);
+      await updateRoomSetup(addRoomFloorId, setupRoomId, bedsCount, parseInt(newRoomRent || '0'), newRoomNumber, selectedLayoutId);
       toast.success(`Room ${newRoomNumber} set up successfully`);
     } else if (addRoomFloorId) {
-      addRoom(addRoomFloorId, {
+      await addRoom(addRoomFloorId, {
         number: newRoomNumber,
         numBeds: bedsCount,
         baseRent: newRoomRent,
@@ -159,7 +161,7 @@ export default function BuildingView() {
     setSetupRoomId(null);
     setIsCustomSharing(false);
     setCustomSharingValue('');
-  };
+  });
 
   const openSetupRoomModal = (floorId: string, room: Room) => {
     setAddRoomFloorId(floorId);
@@ -185,7 +187,7 @@ export default function BuildingView() {
     return null;
   }, [floors, selectedRoom]);
 
-  const handleSaveEditRoomBeds = () => {
+  const { execute: executeSaveEditRoomBeds, isLoading: isSavingEditRoomBeds } = useAsyncAction(async () => {
     if (!currentRoom || !currentRoomFloorId) return;
     
     const numBeds = isEditCustomSharing ? parseInt(editCustomSharingValue) : parseInt(editRoomBedsNum);
@@ -208,21 +210,21 @@ export default function BuildingView() {
       }
     }
 
-    updateRoomSetup(currentRoomFloorId, currentRoom.id, numBeds, parseInt(editRoomRent || '0'), editRoomNumber, selectedLayoutId);
+    await updateRoomSetup(currentRoomFloorId, currentRoom.id, numBeds, parseInt(editRoomRent || '0'), editRoomNumber, selectedLayoutId);
     toast.success(`Room updated successfully`);
     setIsEditRoomModalOpen(false);
-  };
+  });
 
-  const handleMoveBeds = () => {
+  const { execute: executeMoveBeds, isLoading: isMovingBeds } = useAsyncAction(async () => {
     if (!currentRoom || !moveTargetRoomId || selectedBedsToMove.length === 0) return;
     
-    moveBeds(currentRoom.id, moveTargetRoomId, selectedBedsToMove);
+    await moveBeds(currentRoom.id, moveTargetRoomId, selectedBedsToMove);
     toast.success(`Moved ${selectedBedsToMove.length} bed(s) to selected room successfully`);
     setIsEditRoomModalOpen(false);
     setRoomSearchQuery('');
-  };
+  });
 
-  const handleCopyLayout = (sourceFloorId: string) => {
+  const { execute: executeCopyLayout, isLoading: isCopyingLayout } = useAsyncAction(async (sourceFloorId: string) => {
     if (!targetFloorForCopy) return;
     
     // Check if target floor has residents
@@ -234,11 +236,38 @@ export default function BuildingView() {
       return;
     }
     
-    copyFloorLayout(sourceFloorId, targetFloorForCopy);
+    await copyFloorLayout(sourceFloorId, targetFloorForCopy);
     toast.success(`Layout copied from ${floors.find(f => f.id === sourceFloorId)?.name} successfully`);
     setIsCopyLayoutModalOpen(false);
     setTargetFloorForCopy(null);
-  };
+  });
+
+  const { execute: executeDeleteRoom, isLoading: isDeletingRoom } = useAsyncAction(async () => {
+    if (currentRoomFloorId && currentRoom) {
+      await deleteRoom(currentRoomFloorId, currentRoom.id);
+      toast.success(`Room ${currentRoom.number} deleted successfully`);
+      setIsEditRoomModalOpen(false);
+      setSelectedRoom(null);
+      setShowDeleteConfirmation(false);
+    }
+  });
+
+  const { execute: executeDeleteSetupRoom, isLoading: isDeletingSetupRoom } = useAsyncAction(async () => {
+    if (addRoomFloorId && setupRoomId) {
+      await deleteRoom(addRoomFloorId, setupRoomId);
+      toast.success(`Room ${newRoomNumber} deleted successfully`);
+      setShowDeleteRoomConfirmation(false);
+      setIsAddRoomModalOpen(false);
+      setSetupRoomId(null);
+    }
+  });
+
+  const { execute: executeVacateResident, isLoading: isVacatingResident } = useAsyncAction(async () => {
+    if (residentToVacate) {
+      await vacateResident(residentToVacate.id);
+      setResidentToVacate(null);
+    }
+  });
 
   React.useEffect(() => {
     if (globalSelectedRoomId) {
@@ -393,6 +422,19 @@ export default function BuildingView() {
           <div className="space-y-6">
             {(() => {
               const floorsToRender = floors.filter(floor => selectedFloorFilter === 'all' || floor.id === selectedFloorFilter);
+              
+              if (floorsToRender.length === 0) {
+                return (
+                  <div className="py-12 flex justify-center">
+                    <EmptyState 
+                      icon={LayoutTemplate}
+                      title="No floors found"
+                      subtitle="There are no floors matching your current view."
+                    />
+                  </div>
+                );
+              }
+
               const renderedFloors = floorsToRender.map((floor) => {
                 const filteredRooms = filterStatus === 'all'
                   ? floor.rooms
@@ -405,6 +447,7 @@ export default function BuildingView() {
 
                 return (
                   <div key={floor.id} className="bg-white rounded-3xl p-5 md:p-6 border border-gray-200 shadow-sm">
+
                   <div className="mb-4 flex justify-between items-center border-b border-gray-100 pb-3">
                     <div className="flex items-center gap-4">
                       <h2 className="text-xl font-bold text-gray-900">{floor.name}</h2>
@@ -1063,13 +1106,11 @@ export default function BuildingView() {
                   Cancel
                 </button>
                 <button 
-                  onClick={() => {
-                    vacateResident(residentToVacate.id);
-                    setResidentToVacate(null);
-                  }}
-                  className="px-5 py-2.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors shadow-sm flex items-center gap-2"
+                  onClick={executeVacateResident}
+                  disabled={isVacatingResident}
+                  className="px-5 py-2.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
                 >
-                  Confirm Vacate
+                  {isVacatingResident ? 'Vacating...' : 'Confirm Vacate'}
                 </button>
               </div>
             </motion.div>
@@ -1407,18 +1448,11 @@ export default function BuildingView() {
                       Cancel
                     </button>
                     <button 
-                      onClick={() => {
-                        if (currentRoomFloorId && currentRoom) {
-                          deleteRoom(currentRoomFloorId, currentRoom.id);
-                          toast.success(`Room ${currentRoom.number} deleted successfully`);
-                          setIsEditRoomModalOpen(false);
-                          setSelectedRoom(null);
-                          setShowDeleteConfirmation(false);
-                        }
-                      }}
-                      className="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors shadow-sm"
+                      onClick={executeDeleteRoom}
+                      disabled={isDeletingRoom}
+                      className="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors shadow-sm disabled:opacity-50"
                     >
-                      Yes, Delete
+                      {isDeletingRoom ? 'Deleting...' : 'Yes, Delete'}
                     </button>
                   </div>
                 ) : (
@@ -1438,18 +1472,19 @@ export default function BuildingView() {
                       </button>
                       {editModalTab === 'add' ? (
                         <button 
-                          onClick={handleSaveEditRoomBeds}
-                          className="px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-sm"
+                          onClick={executeSaveEditRoomBeds}
+                          disabled={isSavingEditRoomBeds}
+                          className="px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-sm disabled:opacity-50"
                         >
-                          Save Changes
+                          {isSavingEditRoomBeds ? 'Saving...' : 'Save Changes'}
                         </button>
                       ) : (
                         <button 
-                          onClick={handleMoveBeds}
-                          disabled={!moveTargetRoomId || selectedBedsToMove.length === 0}
+                          onClick={executeMoveBeds}
+                          disabled={!moveTargetRoomId || selectedBedsToMove.length === 0 || isMovingBeds}
                           className="px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed rounded-xl transition-colors shadow-sm"
                         >
-                          Move Beds
+                          {isMovingBeds ? 'Moving...' : 'Move Beds'}
                         </button>
                       )}
                     </div>
@@ -1500,18 +1535,11 @@ export default function BuildingView() {
                   Cancel
                 </button>
                 <button 
-                  onClick={() => {
-                    if (addRoomFloorId && setupRoomId) {
-                      deleteRoom(addRoomFloorId, setupRoomId);
-                      toast.success(`Room ${newRoomNumber} deleted successfully`);
-                      setShowDeleteRoomConfirmation(false);
-                      setIsAddRoomModalOpen(false);
-                      setSetupRoomId(null);
-                    }
-                  }}
-                  className="px-5 py-2.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors shadow-sm flex items-center gap-2"
+                  onClick={executeDeleteSetupRoom}
+                  disabled={isDeletingSetupRoom}
+                  className="px-5 py-2.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
                 >
-                  Confirm Delete
+                  {isDeletingSetupRoom ? 'Deleting...' : 'Confirm Delete'}
                 </button>
               </div>
             </motion.div>

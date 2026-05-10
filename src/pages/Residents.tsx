@@ -3,10 +3,12 @@ import { useApp } from '../context/AppContext';
 import DefaultAvatar from '../components/DefaultAvatar';
 import { Plus, Phone, X, History, ArrowLeft, Calendar, LogOut, UserPlus, IndianRupee, FileText, CheckCircle2, Edit, User, Smartphone, Banknote, Upload, Image as ImageIcon } from 'lucide-react';
 import { cn, formatDate, getNamesFromIds, getTodayIST, convertToIST, getCurrentTimeIST } from '../lib/utils';
+import EmptyState from '../components/EmptyState';
 import { Resident, PastResident, MockPastResidents } from '../data/mock';
 import { AnimatePresence, motion } from 'motion/react';
 import { toast } from 'sonner';
 import { uploadResidentDocuments } from '../lib/supabaseAPI';
+import useAsyncAction from '../hooks/useAsyncAction';
 
 type ViewMode = 'all' | 'floor' | 'room';
 
@@ -46,6 +48,24 @@ export default function Residents() {
   const getDayAndMonth = (dateString: string) => {
     return formatDate(dateString);
   };
+
+  const { execute: executeVacate, isLoading: isVacating } = useAsyncAction(async (id: string) => {
+    await vacateResident(id);
+    setResidentToVacate(null);
+    setSelectedResident(null);
+  });
+
+  const { execute: executeMarkPaid, isLoading: isMarkingPaid } = useAsyncAction(async (id: string, method: string, amount?: number, date?: string) => {
+    await markAsPaid(id, method as 'UPI' | 'Cash', amount, date);
+    toast.success('Rent marked as paid');
+    setResidentToMarkPaid(null);
+  });
+
+  const { execute: executeMarkDepositPaid, isLoading: isMarkingDepositPaid } = useAsyncAction(async (id: string, date: string) => {
+    await editResident(id, { isDepositPaid: true, depositPaidDate: date });
+    toast.success('Security deposit marked as paid');
+    setResidentToMarkDepositPaid(null);
+  });
 
   const handleSendReminder = (resident: Resident) => {
     if (!resident.phone) {
@@ -390,10 +410,11 @@ export default function Residents() {
     if (showHistory) {
       if (sortedPastResidents.length === 0) {
         return (
-          <div className="p-12 text-center text-gray-500 bg-white rounded-2xl border border-gray-200 border-dashed">
-            <History className="w-8 h-8 text-gray-400 mx-auto mb-3" />
-            No history found.
-          </div>
+          <EmptyState 
+            icon={History}
+            title="No history yet"
+            subtitle="Past residents will appear here once they vacate."
+          />
         );
       }
       return (
@@ -404,7 +425,17 @@ export default function Residents() {
     }
 
     if (sortedResidents.length === 0) {
-      return <div className="p-12 text-center text-gray-500 bg-white rounded-2xl border border-gray-200 border-dashed">No residents found.</div>;
+      return (
+        <EmptyState 
+          icon={Users}
+          title="No residents found"
+          subtitle="There are no residents matching your current filters."
+          action={{
+            label: "Add Resident",
+            onClick: () => window.dispatchEvent(new CustomEvent('open-add-resident-modal'))
+          }}
+        />
+      );
     }
 
     if (viewMode === 'all') {
@@ -1173,14 +1204,11 @@ export default function Residents() {
                   Cancel
                 </button>
                 <button 
-                  onClick={() => {
-                    vacateResident(residentToVacate.id);
-                    setResidentToVacate(null);
-                    setSelectedResident(null);
-                  }}
-                  className="px-5 py-2.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors shadow-sm flex items-center gap-2"
+                  onClick={() => executeVacate(residentToVacate.id)}
+                  disabled={isVacating}
+                  className="px-5 py-2.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
                 >
-                  Confirm Vacate
+                  {isVacating ? 'Vacating...' : 'Confirm Vacate'}
                 </button>
               </div>
             </motion.div>
@@ -1466,16 +1494,11 @@ export default function Residents() {
                   Cancel
                 </button>
                 <button 
-                  onClick={() => {
-                    if (residentToMarkDepositPaid) {
-                      editResident(residentToMarkDepositPaid.id, { isDepositPaid: true, depositPaidDate: depositPaymentDate });
-                      toast.success(`Security deposit marked as paid`);
-                      setResidentToMarkDepositPaid(null);
-                    }
-                  }}
-                  className="px-5 py-2.5 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-xl transition-colors shadow-sm flex items-center gap-2"
+                  onClick={() => executeMarkDepositPaid(residentToMarkDepositPaid.id, depositPaymentDate)}
+                  disabled={isMarkingDepositPaid}
+                  className="px-5 py-2.5 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-xl transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
                 >
-                  Confirm Paid
+                  {isMarkingDepositPaid ? 'Confirming...' : 'Confirm Paid'}
                 </button>
               </div>
             </motion.div>
@@ -1653,14 +1676,13 @@ export default function Residents() {
                   onClick={() => {
                     if (residentToMarkPaid) {
                       const amountToPay = isPartialPayment && partialAmount ? Number(partialAmount) : undefined;
-                      markAsPaid(residentToMarkPaid.id, paidUsing, amountToPay, isPartialPayment ? paymentDate : undefined);
-                      toast.success('Rent marked as paid');
-                      setResidentToMarkPaid(null);
+                      executeMarkPaid(residentToMarkPaid.id, paidUsing, amountToPay, isPartialPayment ? paymentDate : undefined);
                     }
                   }}
-                  className="px-6 py-2.5 text-[15px] font-bold text-white bg-green-600 hover:bg-green-700 rounded-xl transition-colors shadow-sm flex items-center gap-2"
+                  disabled={isMarkingPaid}
+                  className="px-6 py-2.5 text-[15px] font-bold text-white bg-green-600 hover:bg-green-700 rounded-xl transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
                 >
-                  Confirm Paid
+                  {isMarkingPaid ? 'Confirming...' : 'Confirm Paid'}
                 </button>
               </div>
             </motion.div>

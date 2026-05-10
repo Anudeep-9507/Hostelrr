@@ -56,6 +56,8 @@ interface AppContextType {
   updateHostelProfile: (profile: any) => void;
   syncStateWithDb: () => Promise<void>;
   isDataLoading: boolean;
+  dataFetchError: boolean;
+  retryDataFetch: () => void;
   authLoading: boolean;
   session: any | null;
 }
@@ -129,6 +131,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Track if we are fetching data
   const [isDataLoading, setIsDataLoading] = React.useState(true);
+  const [dataFetchError, setDataFetchError] = React.useState(false);
   const [session, setSession] = React.useState<any>(null);
   const [authLoading, setAuthLoading] = React.useState(true);
 
@@ -153,10 +156,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             setIsOnboardingComplete(false);
             localStorage.removeItem('hostelrr_onboarding');
           }
+          setDataFetchError(false);
         } catch (err) {
           console.error("Error loading data from Supabase:", err);
+          setDataFetchError(true);
+          toast.error("Failed to connect to database. Please check your connection.");
         } finally {
           setIsDataLoading(false);
+        }
+      };
+
+      const retryDataFetch = () => {
+        if (session?.user?.id) {
+          loadData(session.user.id);
         }
       };
 
@@ -703,6 +715,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       updateHostelProfile,
       syncStateWithDb,
       isDataLoading,
+      dataFetchError,
+      retryDataFetch: () => {
+        if (session?.user?.id) {
+          setIsDataLoading(true);
+          setDataFetchError(false);
+          import('../lib/supabaseAPI').then(({ fetchHostelData }) => {
+            fetchHostelData(session.user.id).then(result => {
+              if (result.hostel) {
+                setHostelProfile(result.hostel);
+                setFloors(result.floors);
+                setResidents(result.residents);
+                setActivities(result.activities || []);
+                setJoinRequests(result.joinRequests || []);
+                setIsOnboardingComplete(true);
+              }
+              setIsDataLoading(false);
+            }).catch(e => {
+              console.error(e);
+              setDataFetchError(true);
+              setIsDataLoading(false);
+              toast.error("Failed to connect to database");
+            });
+          });
+        }
+      },
       authLoading,
       session
     }}>

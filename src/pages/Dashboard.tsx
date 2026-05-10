@@ -6,6 +6,7 @@ import { BedDouble, Users, AlertCircle, IndianRupee, PieChart, CheckCircle, Cloc
 import { cn, formatDate, getNamesFromIds } from '../lib/utils';
 import { PieChart as RePieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { AnimatePresence, motion } from 'motion/react';
+import EmptyState from '../components/EmptyState';
 
 const WhatsAppIcon = ({ className }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="0" className={className}>
@@ -403,7 +404,13 @@ export default function Dashboard() {
             </div>
             <div className="divide-y divide-gray-100">
               {joinRequests.length === 0 ? (
-                <div className="p-6 text-center text-gray-500 text-sm">No new requests</div>
+                <div className="py-8 flex items-center justify-center">
+                  <EmptyState 
+                    icon={Users}
+                    title="No new requests"
+                    subtitle="Share your QR code to get more join requests."
+                  />
+                </div>
               ) : (
                 (() => {
                   const filtered = joinRequests.filter(req => req.name.toLowerCase().includes(requestSearch.toLowerCase()) || req.phone.includes(requestSearch));

@@ -8,6 +8,8 @@ import { cn, formatDate, getNamesFromIds, getTodayIST, formatTimeIST, convertToI
 import { Resident } from '../data/mock';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
+import EmptyState from '../components/EmptyState';
+import useAsyncAction from '../hooks/useAsyncAction';
 
 export const WhatsAppIcon = ({ className }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="0" className={className}>
@@ -30,6 +32,15 @@ export default function Payments() {
   const [partialAmount, setPartialAmount] = useState<string>('');
   const [paymentDate, setPaymentDate] = useState<string>(getTodayIST());
   const [bulkReminderFilter, setBulkReminderFilter] = useState<'All' | 'Pending' | 'Late' | 'Partial'>('All');
+
+  const { execute: executeMarkPaid, isLoading: isMarkingPaid } = useAsyncAction(async (id: string, method: 'UPI' | 'Cash', amount?: number, date?: string, name?: string, isPartial?: boolean) => {
+    await markAsPaid(id, method, amount, date);
+    toast.success(`${name} marked as ${isPartial && amount ? 'partially ' : ''}paid`);
+    setResidentToMarkPaid(null);
+    setPaidUsing('UPI'); // reset default
+    setIsPartialPayment(false); // reset default
+    setPartialAmount('');
+  });
 
   const getDayAndMonth = (dateString: string) => {
     return formatDate(dateString);
@@ -569,7 +580,13 @@ export default function Payments() {
               <div className="p-6 border-b border-gray-100 bg-white"><h3 className="text-xl font-bold text-gray-900">Resident Payments</h3></div>
               <div className="divide-y divide-gray-100 flex-1">
                 {filteredResidents.length === 0 ? (
-                  <div className="p-12 text-center text-gray-500">No records found for this filter.</div>
+                  <div className="py-8">
+                    <EmptyState 
+                      icon={Users}
+                      title="No records found"
+                      subtitle="There are no residents matching your current filter."
+                    />
+                  </div>
                 ) : (
                   filteredResidents.map((r) => {
                     const { roomName: roomNum, bedName: bedLetter } = getNamesFromIds(floors, r.roomId, r.bedId);
@@ -689,8 +706,12 @@ export default function Payments() {
                 <tbody className="divide-y divide-gray-100">
                   {allPaymentsTransactions.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center text-gray-500 font-medium">
-                        No transactions found for this period.
+                      <td colSpan={6} className="px-6 py-12">
+                        <EmptyState 
+                          icon={Clock}
+                          title="No transactions found"
+                          subtitle="No payment history matches the selected period."
+                        />
                       </td>
                     </tr>
                   ) : (
@@ -1002,17 +1023,12 @@ export default function Payments() {
                 <button 
                   onClick={() => {
                     const amountToPay = isPartialPayment && partialAmount ? Number(partialAmount) : undefined;
-                    markAsPaid(residentToMarkPaid.id, paidUsing, amountToPay, isPartialPayment ? paymentDate : undefined);
-                    setResidentToMarkPaid(null);
-                    setPaidUsing('UPI'); // reset default
-                    setIsPartialPayment(false); // reset default
-                    setPartialAmount('');
-                    setPaymentDate(getTodayIST());
-                    toast.success(`${residentToMarkPaid.name} marked as ${isPartialPayment && partialAmount ? 'partially ' : ''}paid`);
+                    executeMarkPaid(residentToMarkPaid.id, paidUsing, amountToPay, isPartialPayment ? paymentDate : undefined, residentToMarkPaid.name, isPartialPayment);
                   }}
-                  className="px-5 py-2.5 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-xl transition-colors shadow-sm flex items-center gap-2"
+                  disabled={isMarkingPaid}
+                  className="px-5 py-2.5 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-xl transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
                 >
-                  {isPartialPayment ? 'Confirm Partially Paid' : 'Confirm Paid'}
+                  {isMarkingPaid ? 'Confirming...' : (isPartialPayment ? 'Confirm Partially Paid' : 'Confirm Paid')}
                 </button>
               </div>
             </motion.div>

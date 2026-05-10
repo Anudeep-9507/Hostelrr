@@ -22,6 +22,7 @@ import AddResidentModal from '../components/AddResidentModal';
 import QRCodeModal from '../components/QRCodeModal';
 import DefaultAvatar from '../components/DefaultAvatar';
 import { supabase } from '../supabaseClient';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 export default function AppLayout() {
   const navigate = useNavigate();
@@ -371,8 +372,10 @@ export default function AppLayout() {
         </header>
 
         {/* Page Content — rendered by React Router */}
-        <div className="flex-1">
-          <Outlet />
+        <div className="flex-1 overflow-hidden">
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
         </div>
       </main>
       <AddResidentModal 
