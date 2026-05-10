@@ -18,18 +18,18 @@ export default function AuthGuard() {
 
   // Not authenticated → redirect to sign in
   if (!session) {
-    return <Navigate to={ROUTES.signin} replace />;
+    return <Navigate to={ROUTES.signin.path} replace />;
   }
 
   // Authenticated but onboarding not complete → redirect to onboarding
   // (unless already on onboarding page)
-  if (!isOnboardingComplete && location.pathname !== ROUTES.onboarding) {
-    return <Navigate to={ROUTES.onboarding} replace />;
+  if (!isOnboardingComplete && location.pathname !== ROUTES.onboarding.path) {
+    return <Navigate to={ROUTES.onboarding.path} replace />;
   }
 
   // Onboarding complete but user manually navigates to /onboarding → redirect to dashboard
-  if (isOnboardingComplete && location.pathname === ROUTES.onboarding) {
-    return <Navigate to={ROUTES.dashboard} replace />;
+  if (isOnboardingComplete && location.pathname === ROUTES.onboarding.path) {
+    return <Navigate to={ROUTES.dashboard.path} replace />;
   }
 
   return <Outlet />;

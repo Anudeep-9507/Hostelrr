@@ -146,7 +146,7 @@ export default function Settings() {
     setShowLogoutModal(false);
     toast.success('Logging out...');
     await supabase.auth.signOut();
-    navigate(ROUTES.signin, { replace: true });
+    navigate(ROUTES.signin.path, { replace: true });
   };
 
   const getPillColor = (color: string, isActive: boolean) => {

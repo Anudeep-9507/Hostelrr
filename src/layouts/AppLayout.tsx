@@ -1,11 +1,8 @@
 import React, { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { ROUTES, ROUTE_TO_TAB, TAB_TO_ROUTE } from '../routes/routes';
+import { ROUTES, ROUTE_TO_TAB, TAB_TO_ROUTE, SIDEBAR_NAV_ITEMS } from '../routes/routes';
 import { 
-  IndianRupee, 
-  Settings as SettingsIcon,
-  LayoutDashboard,
   Search,
   ChevronLeft,
   ChevronRight,
@@ -59,13 +56,10 @@ export default function AppLayout() {
     return () => window.removeEventListener('open-add-resident-modal', handleOpenAddModal);
   }, []);
 
-  const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'building', label: 'Rooms & Beds', icon: BedDouble },
-    { id: 'residents', label: 'Residents', icon: Users },
-    { id: 'payments', label: 'Payments', icon: IndianRupee },
-    { id: 'settings', label: 'Settings', icon: SettingsIcon },
-  ] as const;
+  const navItems = SIDEBAR_NAV_ITEMS.map(({ routeKey, tabId }) => {
+    const route = ROUTES[routeKey];
+    return { id: tabId, label: route.label, icon: route.icon };
+  });
 
   const handleGlobalSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setGlobalSearch(e.target.value);
@@ -101,14 +95,14 @@ export default function AppLayout() {
     setGlobalSearch('');
     setIsSearchOpen(false);
     setGlobalSelectedResidentId(residentId);
-    navigate(ROUTES.residents);
+    navigate(ROUTES.residents.path);
   };
 
   const handleSelectRoom = (roomId: string) => {
     setGlobalSearch('');
     setIsSearchOpen(false);
     setGlobalSelectedRoomId(roomId);
-    navigate(ROUTES.rooms);
+    navigate(ROUTES.rooms.path);
   };
 
   return (
@@ -169,7 +163,7 @@ export default function AppLayout() {
               <button
                 key={item.id}
                 onClick={() => {
-                  navigate(TAB_TO_ROUTE[item.id] || ROUTES.dashboard);
+                  navigate(TAB_TO_ROUTE[item.id] || ROUTES.dashboard.path);
                   setIsMobileMenuOpen(false);
                 }}
                 title={isSidebarCollapsed ? item.label : undefined}
@@ -246,7 +240,7 @@ export default function AppLayout() {
                   onClick={async () => {
                     toast.success('Logging out...');
                     await supabase.auth.signOut();
-                    navigate(ROUTES.signin, { replace: true });
+                    navigate(ROUTES.signin.path, { replace: true });
                   }}
                   className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 transition-colors font-semibold text-sm"
                 >
@@ -367,7 +361,7 @@ export default function AppLayout() {
               <span className="hidden sm:inline">Hostel QR</span>
             </button>
             <button 
-              onClick={() => navigate(ROUTES.settings)}
+              onClick={() => navigate(ROUTES.settings.path)}
               className="flex items-center gap-2 bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-700 px-3 py-2 rounded-xl text-sm font-semibold transition-colors"
             >
               <HelpCircle className="w-4 h-4" />

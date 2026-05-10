@@ -30,7 +30,7 @@ export default function SignIn() {
         toast.error(error.message);
       } else {
         toast.success('Successfully signed in!');
-        navigate(ROUTES.home, { replace: true });
+        navigate(ROUTES.home.path, { replace: true });
       }
     } catch (err: any) {
       console.error(err);
@@ -79,7 +79,7 @@ export default function SignIn() {
 
   const navigateToSignUp = (e: React.MouseEvent) => {
     e.preventDefault();
-    navigate(ROUTES.signup);
+    navigate(ROUTES.signup.path);
   };
 
   return (

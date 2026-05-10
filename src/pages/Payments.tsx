@@ -581,7 +581,7 @@ export default function Payments() {
                       <div key={r.id} className="flex flex-col border-b border-gray-100 last:border-0 hover:bg-gray-50/50 transition-colors">
                         <div onClick={() => setExpandedId(expandedId === r.id ? null : r.id)} className="p-5 flex flex-col sm:flex-row sm:items-center justify-between cursor-pointer gap-4">
                           <div className="flex items-center gap-4">
-                            <div onClick={(e) => { e.stopPropagation(); setGlobalSelectedResidentId(r.id); navigate(ROUTES.residents); }} className="w-12 h-12 bg-gray-50 border ring-1 ring-gray-200 shadow-sm rounded-full flex items-center justify-center text-gray-400 shrink-0 hover:ring-blue-300 overflow-hidden">
+                            <div onClick={(e) => { e.stopPropagation(); setGlobalSelectedResidentId(r.id); navigate(ROUTES.residents.path); }} className="w-12 h-12 bg-gray-50 border ring-1 ring-gray-200 shadow-sm rounded-full flex items-center justify-center text-gray-400 shrink-0 hover:ring-blue-300 overflow-hidden">
                               {r.photoUrl ? <img src={r.photoUrl} className="w-full h-full object-cover" /> : <DefaultAvatar className="w-full h-full" />}
                             </div>
                             <div>

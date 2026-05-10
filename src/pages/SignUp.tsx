@@ -47,7 +47,7 @@ export default function SignUp() {
 
   const navigateToSignIn = (e?: React.MouseEvent) => {
     if (e) e.preventDefault();
-    navigate(ROUTES.signin);
+    navigate(ROUTES.signin.path);
   };
 
   return (

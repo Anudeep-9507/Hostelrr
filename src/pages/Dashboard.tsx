@@ -138,12 +138,12 @@ export default function Dashboard() {
 
   const handleNavigateBuilding = (filter: any) => {
     setActiveBuildingFilter(filter);
-    navigate(ROUTES.rooms);
+    navigate(ROUTES.rooms.path);
   };
 
   const handleNavigatePayments = (filter: any) => {
     setActivePaymentsFilter(filter);
-    navigate(ROUTES.payments);
+    navigate(ROUTES.payments.path);
   };
 
   const newResidentsThisMonth = residents.filter(r => {

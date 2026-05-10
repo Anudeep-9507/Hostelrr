@@ -967,7 +967,7 @@ export default function BuildingView() {
                            <button 
                              onClick={() => {
                                setGlobalSelectedResidentId(resident.id);
-                               navigate(ROUTES.residents);
+                               navigate(ROUTES.residents.path);
                              }}
                              className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
                            >

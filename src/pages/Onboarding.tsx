@@ -133,7 +133,7 @@ export default function Onboarding() {
 
   const handleBackToSignIn = async () => {
     await supabase.auth.signOut();
-    navigate(ROUTES.signin, { replace: true });
+    navigate(ROUTES.signin.path, { replace: true });
   };
 
   const renderProgress = () => {

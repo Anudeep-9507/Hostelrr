@@ -95,7 +95,7 @@ export default function QRCodeModal({ isOpen, onClose }: { isOpen: boolean, onCl
             <button 
               onClick={() => {
                 onClose();
-                navigate(`${ROUTES.join}/${urlSlug}`);
+                navigate(`${ROUTES.join.path}/${urlSlug}`);
               }}
               type="button"
               className="flex items-center justify-center gap-2 bg-[#1D4ED8] hover:bg-[#1e40af] text-white py-3 rounded-xl text-sm font-semibold transition-colors shadow-sm"
