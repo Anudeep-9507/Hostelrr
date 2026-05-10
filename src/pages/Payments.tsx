@@ -591,7 +591,7 @@ export default function Payments() {
                   filteredResidents.map((r) => {
                     const { roomName: roomNum, bedName: bedLetter } = getNamesFromIds(floors, r.roomId, r.bedId);
                     const bedStatus = getBedStatusForResident(r.roomId, r.bedId);
-                    const displayDate = r.paymentStatus === 'paid' ? `Due: ${r.dueDate ? formatDate(r.dueDate) : 'Next Cycle'}` : (r.paymentStatus === 'late' ? `Due: ${r.dueDate ? formatDate(r.dueDate) : 'Overdue'}` : 'Due: Today');
+                    const displayDate = r.paymentStatus === 'paid' ? `Due: ${r.dueDate ? formatDate(r.dueDate) : 'Next Cycle'}` : (r.paymentStatus === 'late' ? `Due: ${r.dueDate ? formatDate(r.dueDate) : 'Overdue'}` : `Due: ${r.dueDate ? formatDate(r.dueDate) : formatDate(getTodayIST())}`);
                     const rentAmount = r.dueAmount > 0 ? r.dueAmount : (r.monthlyRent || 7500);
 
                     return (

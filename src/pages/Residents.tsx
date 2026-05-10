@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import DefaultAvatar from '../components/DefaultAvatar';
-import { Plus, Phone, X, History, ArrowLeft, Calendar, LogOut, UserPlus, IndianRupee, FileText, CheckCircle2, Edit, User, Smartphone, Banknote, Upload, Image as ImageIcon } from 'lucide-react';
+import { Plus, Phone, X, History, ArrowLeft, Calendar, LogOut, UserPlus, Users, IndianRupee, FileText, CheckCircle2, Edit, User, Smartphone, Banknote, Upload, Image as ImageIcon } from 'lucide-react';
 import { cn, formatDate, getNamesFromIds, getTodayIST, convertToIST, getCurrentTimeIST } from '../lib/utils';
 import EmptyState from '../components/EmptyState';
 import { Resident, PastResident, MockPastResidents } from '../data/mock';

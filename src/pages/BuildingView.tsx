@@ -845,11 +845,11 @@ export default function BuildingView() {
 
                   <div className="pt-4 flex flex-col gap-3">
                     <button 
-                      onClick={handleSaveRoom}
-                      disabled={(!isCustomSharing && !newRoomBeds) || (isCustomSharing && !customSharingValue) || !newRoomNumber}
+                      onClick={() => executeSaveRoom()}
+                      disabled={(!isCustomSharing && !newRoomBeds) || (isCustomSharing && !customSharingValue) || !newRoomNumber || isSavingRoom}
                       className="w-full bg-[#1D4ED8] hover:bg-[#1e40af] disabled:bg-blue-300 disabled:cursor-not-allowed text-white py-3.5 rounded-xl text-base font-semibold shadow-sm transition-colors"
                     >
-                      {isSetupMode ? 'Confirm Room Setup' : 'Add Room'}
+                      {isSavingRoom ? 'Saving...' : (isSetupMode ? 'Confirm Room Setup' : 'Add Room')}
                     </button>
                     
                     {isSetupMode && (
@@ -1583,7 +1583,7 @@ export default function BuildingView() {
                       return (
                         <button
                           key={floor.id}
-                          onClick={() => handleCopyLayout(floor.id)}
+                          onClick={() => executeCopyLayout(floor.id)}
                           disabled={setupRoomsCount === 0}
                           className={cn(
                             "w-full flex items-center justify-between p-4 rounded-2xl border transition-all text-left group",
