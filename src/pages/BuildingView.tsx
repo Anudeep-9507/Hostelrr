@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ROUTES } from '../routes/routes';
 import { useApp } from '../context/AppContext';
 import { Room, Bed, Resident } from '../data/mock';
 import DefaultAvatar from '../components/DefaultAvatar';
@@ -39,7 +41,8 @@ function isBedMatch(status: Bed['status'], filter: Bed['status'] | 'all') {
   return filter === 'all' || status === filter;
 }
 
-export default function BuildingView({ setActiveTab }: { setActiveTab?: (tab: string) => void }) {
+export default function BuildingView() {
+  const navigate = useNavigate();
   const { floors, residents, activeBuildingFilter: filterStatus, setActiveBuildingFilter: setFilterStatus, globalSelectedRoomId, setGlobalSelectedRoomId, vacateResident, setGlobalSelectedResidentId, addRoom, editRoomBeds, updateRoomSetup, deleteRoom, moveBeds, sharingRentMap, copyFloorLayout, hostelProfile } = useApp();
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [residentToVacate, setResidentToVacate] = useState<Resident | null>(null);
@@ -964,7 +967,7 @@ export default function BuildingView({ setActiveTab }: { setActiveTab?: (tab: st
                            <button 
                              onClick={() => {
                                setGlobalSelectedResidentId(resident.id);
-                               if (setActiveTab) setActiveTab('residents');
+                               navigate(ROUTES.residents);
                              }}
                              className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
                            >

@@ -1,10 +1,13 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ROUTES } from '../routes/routes';
 import { QRCodeSVG } from 'qrcode.react';
 import { X, Download, Share2, Printer, ExternalLink, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApp } from '../context/AppContext';
 
 export default function QRCodeModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
+  const navigate = useNavigate();
   const { hostelProfile } = useApp();
 
   if (!isOpen) return null;
@@ -91,9 +94,8 @@ export default function QRCodeModal({ isOpen, onClose }: { isOpen: boolean, onCl
 
             <button 
               onClick={() => {
-                window.history.pushState(null, '', `/join/${urlSlug}`);
-                window.dispatchEvent(new Event('popstate'));
                 onClose();
+                navigate(`${ROUTES.join}/${urlSlug}`);
               }}
               type="button"
               className="flex items-center justify-center gap-2 bg-[#1D4ED8] hover:bg-[#1e40af] text-white py-3 rounded-xl text-sm font-semibold transition-colors shadow-sm"

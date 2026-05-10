@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ROUTES } from '../routes/routes';
 import { supabase } from '../supabaseClient';
 import { Mail, Lock, Loader2, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function SignUp() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -42,10 +45,9 @@ export default function SignUp() {
     }
   };
 
-  const navigateToSignIn = (e: React.MouseEvent) => {
-    e.preventDefault();
-    window.history.pushState({}, '', '/signin');
-    window.dispatchEvent(new PopStateEvent('popstate'));
+  const navigateToSignIn = (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    navigate(ROUTES.signin);
   };
 
   return (

@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ROUTES } from '../routes/routes';
 import { supabase } from '../supabaseClient';
 import { Mail, Lock, Loader2, ArrowRight, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function SignIn() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -27,8 +30,7 @@ export default function SignIn() {
         toast.error(error.message);
       } else {
         toast.success('Successfully signed in!');
-        window.history.pushState({}, '', '/');
-        window.dispatchEvent(new PopStateEvent('popstate'));
+        navigate(ROUTES.home, { replace: true });
       }
     } catch (err: any) {
       console.error(err);
@@ -77,8 +79,7 @@ export default function SignIn() {
 
   const navigateToSignUp = (e: React.MouseEvent) => {
     e.preventDefault();
-    window.history.pushState({}, '', '/signup');
-    window.dispatchEvent(new PopStateEvent('popstate'));
+    navigate(ROUTES.signup);
   };
 
   return (

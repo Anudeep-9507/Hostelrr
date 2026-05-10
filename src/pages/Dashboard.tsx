@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import { ROUTES } from '../routes/routes';
 import { BedDouble, Users, AlertCircle, IndianRupee, PieChart, CheckCircle, Clock, LogOut, X, Info, Phone, ChevronRight } from 'lucide-react';
 import { cn, formatDate, getNamesFromIds } from '../lib/utils';
 import { PieChart as RePieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
@@ -42,7 +44,8 @@ function KpiCard({ title, value, icon: Icon, trend, className, cardBg = "bg-whit
   );
 }
 
-export default function Dashboard({ setActiveTab }: { setActiveTab?: (tab: string) => void }) {
+export default function Dashboard() {
+  const navigate = useNavigate();
   const { floors, residents, activities, joinRequests, rejectJoinRequest, markAsPaid, setActiveBuildingFilter, setActivePaymentsFilter, hostelProfile, sharingRentMap, syncStateWithDb } = useApp();
   const [requestSearch, setRequestSearch] = useState('');
   const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
@@ -135,12 +138,12 @@ export default function Dashboard({ setActiveTab }: { setActiveTab?: (tab: strin
 
   const handleNavigateBuilding = (filter: any) => {
     setActiveBuildingFilter(filter);
-    setActiveTab?.('building');
+    navigate(ROUTES.rooms);
   };
 
   const handleNavigatePayments = (filter: any) => {
     setActivePaymentsFilter(filter);
-    setActiveTab?.('payments');
+    navigate(ROUTES.payments);
   };
 
   const newResidentsThisMonth = residents.filter(r => {

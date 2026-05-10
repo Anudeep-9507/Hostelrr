@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ROUTES } from '../routes/routes';
 import { toast } from 'sonner';
 import { Save, Bell, User, Lock, HelpCircle, LogOut, Check, Loader2, Home, LayoutGrid } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -7,6 +9,7 @@ import { supabase } from '../supabaseClient';
 import { cn } from '../lib/utils';
 
 export default function Settings() {
+  const navigate = useNavigate();
   const { hostelProfile, updateHostelProfile } = useApp();
   const [activeTab, setActiveTab] = useState('hostel');
   const [isSaving, setIsSaving] = useState(false);
@@ -143,7 +146,7 @@ export default function Settings() {
     setShowLogoutModal(false);
     toast.success('Logging out...');
     await supabase.auth.signOut();
-    window.location.href = '/';
+    navigate(ROUTES.signin, { replace: true });
   };
 
   const getPillColor = (color: string, isActive: boolean) => {

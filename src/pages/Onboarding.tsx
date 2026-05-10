@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ROUTES } from '../routes/routes';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowRight, ArrowLeft, Check, CalendarDays, User2, LogOut, Loader2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
@@ -18,6 +20,7 @@ const INDIAN_STATES = [
 ];
 
 export default function Onboarding() {
+  const navigate = useNavigate();
   const { completeOnboarding } = useApp();
   const [step, setStep] = useState(1);
   const [isFinishing, setIsFinishing] = useState(false);
@@ -130,8 +133,7 @@ export default function Onboarding() {
 
   const handleBackToSignIn = async () => {
     await supabase.auth.signOut();
-    window.history.pushState({}, '', '/signin');
-    window.dispatchEvent(new PopStateEvent('popstate'));
+    navigate(ROUTES.signin, { replace: true });
   };
 
   const renderProgress = () => {

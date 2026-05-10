@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ROUTES } from '../routes/routes';
 import { CheckCircle2, ChevronLeft, Image as ImageIcon, FileText } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { createJoinRequestDb, uploadJoinRequestDocuments } from '../lib/supabaseAPI';
 import { toast } from 'sonner';
 
 export default function JoinForm() {
+  const navigate = useNavigate();
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -96,10 +99,7 @@ export default function JoinForm() {
             Your joining request for {hostelName} has been received. We will review your details and contact you shortly.
           </p>
           <button 
-            onClick={() => {
-              window.history.pushState(null, '', '/');
-              window.dispatchEvent(new Event('popstate'));
-            }}
+            onClick={() => navigate(ROUTES.dashboard)}
             className="w-full bg-gray-900 hover:bg-gray-800 text-white font-semibold py-4 rounded-xl transition-colors"
           >
             Go to Dashboard
@@ -114,10 +114,7 @@ export default function JoinForm() {
       <header className="bg-white border-b border-gray-100 p-4 sticky top-0 z-10 shrink-0">
         <div className="max-w-md mx-auto flex items-center gap-3">
           <button 
-            onClick={() => {
-              window.history.pushState(null, '', '/');
-              window.dispatchEvent(new Event('popstate'));
-            }}
+            onClick={() => navigate(ROUTES.home)}
             type="button"
             className="p-2 -ml-2 text-gray-400 hover:text-gray-900 transition-colors"
           >
