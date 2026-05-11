@@ -8,6 +8,17 @@ body,
 	overflow: hidden;
 }
 
+.no-scrollbar,
+.scrollbar-hide {
+	-ms-overflow-style: none;
+	scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar,
+.scrollbar-hide::-webkit-scrollbar {
+	display: none;
+}
+
 @keyframes door-blink {
 	0%, 100% {
 		opacity: 1;

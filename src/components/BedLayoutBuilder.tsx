@@ -574,7 +574,7 @@ export default function BedLayoutBuilder({ hostelId, onSaveComplete }: { hostelI
                         }
                       }));
                     }}
-                    className="absolute -top-3 -right-3 bg-white border border-gray-200 text-gray-500 hover:text-blue-600 rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm z-20 cursor-pointer"
+                    className="absolute -top-3 -right-3 bg-white border border-gray-200 text-gray-500 hover:text-blue-600 rounded-full w-6 h-6 flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shadow-sm z-20 cursor-pointer"
                   >
                     <RotateCcw className="w-3 h-3" />
                   </button>

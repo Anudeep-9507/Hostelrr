@@ -186,7 +186,7 @@ export default function Onboarding() {
 
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] overflow-y-auto flex flex-col items-center justify-start py-8 px-4 sm:px-6 font-sans relative">
+    <div className="min-h-screen bg-[#F8FAFC] overflow-y-auto no-scrollbar overscroll-y-contain flex flex-col items-center justify-start py-8 px-4 sm:px-6 font-sans relative">
       <div className="w-full max-w-lg relative">
         <div className="mb-6">
           <button 
