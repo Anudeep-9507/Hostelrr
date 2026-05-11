@@ -190,6 +190,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
+        // Publish session immediately so route guards can see auth state
+        // before the slower server verification and data load finish.
+        setSession(currentSession);
+        setAuthLoading(false);
+
         try {
           // Verify with the server to handle deleted users
           const { data: { user }, error } = await supabase.auth.getUser();
