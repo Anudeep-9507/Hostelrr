@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '../routes/routes';
+import { FLAGS } from '../core/env';
 import { useApp, PaymentsFilterType } from '../context/AppContext';
 import DefaultAvatar from '../components/DefaultAvatar';
 import { CheckCircle2, Wallet, Clock, AlertTriangle, Check, Send, X, Smartphone, Banknote, IndianRupee, AlertCircle, Info, PieChart, Users, ChevronRight } from 'lucide-react';
@@ -22,6 +23,7 @@ export default function Payments() {
   const { floors, residents, pastResidents, markAsPaid, markReminderSent, activePaymentsFilter: filter, setActivePaymentsFilter: setFilter, setGlobalSelectedResidentId, hostelProfile, isDemoMode, sharingRentMap } = useApp();
   const [showHistory, setShowHistory] = useState(false);
   const [historyTimeFilter, setHistoryTimeFilter] = useState<'All' | 'Today' | 'Monthly' | 'Yearly' | 'Security Deposits'>('All');
+
   const [isRevenueInfoModalOpen, setIsRevenueInfoModalOpen] = useState(false);
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -460,17 +462,17 @@ export default function Payments() {
                   </div>
 
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3.5 rounded-2xl bg-gray-50 border border-gray-100 group hover:border-indigo-200 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600">
-                        <Users className="w-5 h-5" />
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600">
+                          <Users className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-gray-500 uppercase tracking-tight">Security Deposits</p>
+                          <p className="text-sm font-medium text-gray-400">{occupiedResidentsCount} active residents</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-xs font-bold text-gray-500 uppercase tracking-tight">Security Deposits</p>
-                        <p className="text-sm font-medium text-gray-400">{occupiedResidentsCount} active residents</p>
-                      </div>
+                      <span className="text-lg font-bold text-gray-900">₹{expectedTotalSecurityDeposit.toLocaleString('en-IN')}</span>
                     </div>
-                    <span className="text-lg font-bold text-gray-900">₹{expectedTotalSecurityDeposit.toLocaleString('en-IN')}</span>
-                  </div>
                 </div>
 
                 <div className="pt-2">
@@ -596,10 +598,10 @@ export default function Payments() {
                     const { roomName: roomNum, bedName: bedLetter } = getNamesFromIds(floors, r.roomId, r.bedId);
                     const bedStatus = getBedStatusForResident(r.roomId, r.bedId);
                     const displayDate = r.paymentStatus === 'paid' 
-                      ? `Next Due: ${formatDate(r.dueDate) || formatDate(r.joinDate) || 'Today'}` 
+                      ? `Next Due: ${formatDate(r.dueDate || r.joinDate || getTodayIST())}` 
                       : (r.paymentStatus === 'late' 
-                        ? `Due: ${formatDate(r.dueDate) || 'Overdue'}` 
-                        : `Due: ${formatDate(r.dueDate) || formatDate(getTodayIST())}`);
+                        ? `Due: ${formatDate(r.dueDate || getTodayIST())}` 
+                        : `Due: ${formatDate(r.dueDate || getTodayIST())}`);
                     const rentAmount = r.dueAmount > 0 ? r.dueAmount : (r.monthlyRent || 7500);
 
                     return (
@@ -704,8 +706,8 @@ export default function Payments() {
                   ))}
                 </div>
                 <div className="bg-white px-4 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 whitespace-nowrap text-center">
-                  <div>{isSecurityDepositHistory ? 'Collected' : 'Total'}: ₹{totalHistoryAmount.toLocaleString('en-IN')}</div>
-                  {isSecurityDepositHistory && (
+                  <div>{historyTimeFilter === 'Security Deposits' ? 'Collected' : 'Total'}: ₹{totalHistoryAmount.toLocaleString('en-IN')}</div>
+                  {historyTimeFilter === 'Security Deposits' && (
                     <div className="mt-1 pt-1 border-t border-gray-100 text-[11px] font-medium text-gray-500">
                       Expected: ₹{expectedTotalSecurityDeposit.toLocaleString('en-IN')}
                     </div>

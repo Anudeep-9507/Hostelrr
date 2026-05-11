@@ -4,6 +4,7 @@ import {
   MOckFloors, MockResidents, MockPastResidents, MockActivities, MockJoinRequests
 } from '../data/mock';
 import { toast } from 'sonner';
+import { FLAGS } from '../core/env';
 
 export type PaymentsFilterType = 'All' | 'Paid' | 'Unpaid' | 'Pending' | 'Late' | 'Partially Paid';
 
@@ -66,7 +67,10 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const isOnboardingCompleteInitial = localStorage.getItem('hostelrr_onboarding') === 'true';
-  const [isDemoMode, setIsDemoMode] = useState(!isOnboardingCompleteInitial);
+  const [isDemoMode, setIsDemoMode] = useState(() => {
+    if (FLAGS.demoMode) return true;
+    return !isOnboardingCompleteInitial;
+  });
 
   const [floors, setFloors] = useState<Floor[]>(() => {
     if (!isOnboardingCompleteInitial) return MOckFloors;
@@ -190,11 +194,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           // Verify with the server to handle deleted users
           const { data: { user }, error } = await supabase.auth.getUser();
           if (error || !user) {
-            console.log("Session invalid or user deleted on backend. Signing out.");
             try {
               await supabase.auth.signOut();
             } catch (e) {
-              console.warn("Sign out failed:", e);
+              console.error("Auth: signOut failed", e);
             }
             currentUserId = null;
             setSession(null);
@@ -513,9 +516,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     import('../supabaseClient').then(async ({ supabase }) => {
       try {
-        console.log('updateRoomSetup input:', { floorId, roomId, numBeds, baseRent, newNumber, layoutId });
         const { data: currentBeds, error: bedErr } = await supabase.from('beds').select('id').eq('room_id', roomId);
-        if (bedErr) console.error('currentBeds error:', bedErr);
+        if (bedErr) console.error('updateRoomSetup: bed fetch error', bedErr);
         const currentCount = currentBeds ? currentBeds.length : 0;
         let toAdd = 0;
         let toRemove: string[] = [];
@@ -525,10 +527,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           toRemove = currentBeds.slice(numBeds).map(b => b.id);
         }
         
-        console.log('Calling updateRoomSetupDb with:', { roomId, toAdd, toRemove });
         const { updateRoomSetupDb } = await import('../lib/supabaseAPI');
         await updateRoomSetupDb(roomId, { number: newNumber, baseRent: baseRent || 0, layoutId: layoutId || null }, { bedsToAdd: toAdd, bedsToRemove: toRemove });
-        console.log('updateRoomSetupDb finished, syncing state...');
         toast.success('Room configuration saved');
         await syncStateWithDb();
       } catch (e) { 

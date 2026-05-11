@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { ROUTES } from '../routes/routes';
-import { BedDouble, Users, AlertCircle, IndianRupee, PieChart, CheckCircle, Clock, LogOut, X, Info, Phone, ChevronRight } from 'lucide-react';
+import { FLAGS } from '../core/env';
+import { BedDouble, Users, AlertCircle, IndianRupee, PieChart, CheckCircle, Clock, LogOut, X, Info, Phone, ChevronRight, UserPlus } from 'lucide-react';
 import { cn, formatDate, getNamesFromIds } from '../lib/utils';
 import { PieChart as RePieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { AnimatePresence, motion } from 'motion/react';
@@ -45,9 +46,17 @@ function KpiCard({ title, value, icon: Icon, trend, className, cardBg = "bg-whit
   );
 }
 
+type TrendTone = 'good' | 'bad' | 'neutral';
+
+function getTrendColor(tone: TrendTone) {
+  if (tone === 'good') return 'text-emerald-600';
+  if (tone === 'bad') return 'text-rose-600';
+  return 'text-gray-500';
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { floors, residents, activities, joinRequests, rejectJoinRequest, markAsPaid, setActiveBuildingFilter, setActivePaymentsFilter, hostelProfile, sharingRentMap, syncStateWithDb } = useApp();
+  const { floors, residents, pastResidents, activities, joinRequests, rejectJoinRequest, markAsPaid, setActiveBuildingFilter, setActivePaymentsFilter, hostelProfile, sharingRentMap, syncStateWithDb } = useApp();
   const [requestSearch, setRequestSearch] = useState('');
   const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
   const [isRevenueInfoModalOpen, setIsRevenueInfoModalOpen] = useState(false);
@@ -84,33 +93,32 @@ export default function Dashboard() {
   const totalBeds = Math.max(hostelProfile?.total_beds || 0, configuredBedsCount);
   const vacantBeds = configuredBedsCount - occupiedBeds - reservedBeds;
 
-  // Pending = total owed by all residents with unpaid/partial cycles
   const dueResidents = residents.filter(r => r.paymentStatus === 'due' || r.paymentStatus === 'late' || r.paymentStatus === 'partially_paid');
   const totalDueAmount = dueResidents.reduce((acc, curr) => acc + curr.dueAmount, 0);
-  
-  // Real monthly revenue — sum of all payment history amounts from paid residents this calendar month
+
+  // Calculate this month revenue for KPI
   const now = new Date();
-  const thisMonthRevenue = residents.reduce((total, r) => {
-    const historyRevenue = (r.paymentHistory || []).reduce((sum, h) => {
-      if (h.status === 'paid' || h.status === 'partial') {
-        const d = new Date(h.date);
-        if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()) {
-          return sum + h.amount;
+  const thisMonthRevenue = residents.reduce((total, resident) => {
+    return total + (resident.paymentHistory || []).reduce((sum, payment) => {
+      if (payment.status === 'paid' || payment.status === 'partial' || payment.status === 'partially_paid') {
+        const paymentDate = new Date(payment.date);
+        if (paymentDate.getFullYear() === now.getFullYear() && paymentDate.getMonth() === now.getMonth()) {
+          return sum + payment.amount;
         }
       }
       return sum;
     }, 0);
-
-    let depositRevenue = 0;
-    if (r.securityDeposit && r.isDepositPaid) {
-      const d = new Date(r.joinDate);
-      if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()) {
-        depositRevenue = r.securityDeposit;
-      }
-    }
-
-    return total + historyRevenue + depositRevenue;
   }, 0);
+
+  const handleNavigateBuilding = (filter: any) => {
+    setActiveBuildingFilter(filter);
+    navigate(ROUTES.rooms.path);
+  };
+
+  const handleNavigatePayments = (filter: any) => {
+    setActivePaymentsFilter(filter);
+    navigate(ROUTES.payments.path);
+  };
 
   // Expected = sum of monthlyRent for all currently OCCUPIED residents only
   // (resident.monthlyRent is set when resident is added and stored in DB)
@@ -136,16 +144,6 @@ export default function Dashboard() {
     { name: 'Vacant', value: vacantBeds, color: '#ef4444' },
     { name: 'Reserved', value: reservedBeds, color: '#3b82f6' },
   ];
-
-  const handleNavigateBuilding = (filter: any) => {
-    setActiveBuildingFilter(filter);
-    navigate(ROUTES.rooms.path);
-  };
-
-  const handleNavigatePayments = (filter: any) => {
-    setActivePaymentsFilter(filter);
-    navigate(ROUTES.payments.path);
-  };
 
   const newResidentsThisMonth = residents.filter(r => {
     if (!r.joinDate) return false;
@@ -195,6 +193,21 @@ export default function Dashboard() {
         />
       </div>
 
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="p-4 md:p-5">
+            <KpiCard
+              title="Monthly Overview"
+              value="View Details"
+              icon={PieChart}
+              trend="Revenue, dues, occupancy and monthly stats"
+              trendColor="text-gray-500"
+              className="bg-white text-gray-600"
+              cardBg="bg-white border-gray-100"
+              onClick={() => navigate(ROUTES.monthlyOverview.path)}
+            />
+          </div>
+        </div>
+
       <AnimatePresence>
         {isRevenueInfoModalOpen && (
           <motion.div
@@ -242,18 +255,18 @@ export default function Dashboard() {
                     <span className="text-lg font-bold text-gray-900">₹{expectedMonthlyRevenue.toLocaleString('en-IN')}</span>
                   </div>
 
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3.5 rounded-2xl bg-gray-50 border border-gray-100 group hover:border-indigo-200 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600">
-                        <Users className="w-5 h-5" />
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3.5 rounded-2xl bg-gray-50 border border-gray-100 group hover:border-indigo-200 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600">
+                          <Users className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-gray-500 uppercase tracking-tight">Security Deposits</p>
+                          <p className="text-sm font-medium text-gray-400">{occupiedResidentsCount} active residents</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-xs font-bold text-gray-500 uppercase tracking-tight">Security Deposits</p>
-                        <p className="text-sm font-medium text-gray-400">{occupiedResidentsCount} active residents</p>
-                      </div>
+                      <span className="text-lg font-bold text-gray-900">₹{expectedTotalSecurityDeposit.toLocaleString('en-IN')}</span>
                     </div>
-                    <span className="text-lg font-bold text-gray-900">₹{expectedTotalSecurityDeposit.toLocaleString('en-IN')}</span>
-                  </div>
                 </div>
 
                 <div className="pt-2">
@@ -358,7 +371,7 @@ export default function Dashboard() {
                         <p className="text-xs text-gray-500">Due {r.dueDate ? formatDate(r.dueDate) : 'Unknown'}</p>
                       </div>
                       <button 
-                        onClick={() => {
+                          onClick={() => {
                           const msg = `Hi ${r.name}, this is a reminder that your rent of Rs. *${r.dueAmount}* is pending. Please pay at your earliest convenience.\n\nThank you\uD83D\uDE01`;
                           window.open(`https://wa.me/91${(r.phone || '').replace(/[^0-9]/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
                         }}

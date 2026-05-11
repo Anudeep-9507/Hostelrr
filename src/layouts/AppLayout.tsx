@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { ROUTES, ROUTE_TO_TAB, TAB_TO_ROUTE, SIDEBAR_NAV_ITEMS } from '../routes/routes';
+import { FLAGS } from '../core/env';
 import { 
   Search,
   ChevronLeft,
@@ -193,31 +194,33 @@ export default function AppLayout() {
           })}
         </nav>
 
-        <div className="mx-4 mb-4 mt-2">
-          {isSidebarCollapsed ? (
-            <button 
-              onClick={() => toggleDemoMode(!isDemoMode)}
-              title="Toggle Demo Mode"
-              className="w-full hidden md:flex justify-center items-center p-3 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"
-            >
-              <Activity className="w-5 h-5" />
-            </button>
-          ) : null}
-          
-          <label className={cn(
-            "flex items-center justify-between p-3 bg-indigo-50 border border-indigo-100 rounded-xl cursor-pointer hover:bg-indigo-100/70 transition-colors",
-            isSidebarCollapsed ? "md:hidden" : "flex"
-          )}>
-            <div className="flex items-center gap-2">
-              <span className="text-[13px] font-bold text-indigo-900">Demo Mode</span>
+          {FLAGS.demoMode && (
+            <div className="mx-4 mb-4 mt-2">
+              {isSidebarCollapsed ? (
+                <button 
+                  onClick={() => toggleDemoMode(!isDemoMode)}
+                  title="Toggle Demo Mode"
+                  className="w-full hidden md:flex justify-center items-center p-3 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"
+                >
+                  <Activity className="w-5 h-5" />
+                </button>
+              ) : null}
+              
+              <label className={cn(
+                "flex items-center justify-between p-3 bg-indigo-50 border border-indigo-100 rounded-xl cursor-pointer hover:bg-indigo-100/70 transition-colors",
+                isSidebarCollapsed ? "md:hidden" : "flex"
+              )}>
+                <div className="flex items-center gap-2">
+                  <span className="text-[13px] font-bold text-indigo-900">Demo Mode</span>
+                </div>
+                <div className={cn("relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none", isDemoMode ? "bg-indigo-600" : "bg-gray-300")}>
+                  <span className="sr-only">Toggle Demo Mode</span>
+                  <span aria-hidden="true" className={cn("pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white ring-0 transition duration-200 ease-in-out", isDemoMode ? "translate-x-2" : "-translate-x-2")} />
+                </div>
+                <input type="checkbox" className="sr-only" checked={isDemoMode} onChange={(e) => toggleDemoMode(e.target.checked)} />
+              </label>
             </div>
-            <div className={cn("relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none", isDemoMode ? "bg-indigo-600" : "bg-gray-300")}>
-              <span className="sr-only">Toggle Demo Mode</span>
-              <span aria-hidden="true" className={cn("pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white ring-0 transition duration-200 ease-in-out", isDemoMode ? "translate-x-2" : "-translate-x-2")} />
-            </div>
-            <input type="checkbox" className="sr-only" checked={isDemoMode} onChange={(e) => toggleDemoMode(e.target.checked)} />
-          </label>
-        </div>
+          )}
         
         <div className={cn(
           "mx-4 mb-4 p-4 bg-gray-50/50 border border-gray-100 rounded-2xl transition-all",
@@ -284,6 +287,11 @@ export default function AppLayout() {
             </button>
             <div className="hidden sm:flex items-center gap-2 py-1.5 px-4 border border-gray-200 rounded-xl bg-gray-50/50 shadow-sm">
               <span className="font-semibold text-gray-800">{hostelDisplayName}</span>
+              {FLAGS.demoMode && (
+                <span className="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-semibold text-indigo-700">
+                  Demo Mode
+                </span>
+              )}
             </div>
           </div>
 

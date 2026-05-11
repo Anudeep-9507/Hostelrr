@@ -770,6 +770,7 @@ export async function editResidentDb(residentId: string, updatedData: any) {
   if (updatedData.aadharPath !== undefined) updatePayload.aadhar_document_path = updatedData.aadharPath;
   if (updatedData.hostelFormPath !== undefined) updatePayload.hostel_form_path = updatedData.hostelFormPath;
   if (updatedData.monthlyRent !== undefined) updatePayload.monthly_rent = updatedData.monthlyRent;
+  if (updatedData.securityDeposit !== undefined) updatePayload.security_deposit = updatedData.securityDeposit;
   if (updatedData.isDepositPaid !== undefined) updatePayload.is_deposit_paid = updatedData.isDepositPaid;
   if (updatedData.depositPaidDate !== undefined) updatePayload.deposit_paid_at = normalizeIstTimestamp(updatedData.depositPaidDate);
 
@@ -848,12 +849,10 @@ export async function updateRoomSetupDb(roomId: string, roomData: any, bedsData:
         room_id: roomId,
         label: String.fromCharCode(65 + existingCount + idx),
       }));
-      console.log('Inserting beds:', bedsToInsert);
       const { error: insErr } = await supabase.from('beds').insert(bedsToInsert);
-      if (insErr) console.error('insErr:', insErr);
+      if (insErr) console.error('updateRoomSetupDb: insertError', insErr);
     }
   }
-  console.log('updateRoomSetupDb DONE');
 }
 
 export async function deleteRoomDb(roomId: string) {

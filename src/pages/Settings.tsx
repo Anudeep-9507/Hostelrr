@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Save, Bell, User, Lock, HelpCircle, LogOut, Check, Loader2, Home, LayoutGrid } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from '../context/AppContext';
+import { FLAGS } from '../core/env';
 import { supabase } from '../supabaseClient';
 import { cn } from '../lib/utils';
 

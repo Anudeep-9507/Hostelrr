@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { ROUTES } from './routes';
+import { FLAGS } from '../core/env';
 import { Loader2, Database } from 'lucide-react';
 import EmptyState from '../components/EmptyState';
 
@@ -36,6 +37,18 @@ export default function AuthGuard() {
   // Not authenticated → redirect to sign in
   if (!session) {
     return <Navigate to={ROUTES.signin.path} replace />;
+  }
+
+  if (FLAGS.maintenanceMode) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
+        <EmptyState
+          icon={Database}
+          title="Maintenance Mode"
+          subtitle="The app is temporarily unavailable for protected users. Public sign-in, signup, and join links remain active."
+        />
+      </div>
+    );
   }
 
   // Authenticated but onboarding not complete → redirect to onboarding

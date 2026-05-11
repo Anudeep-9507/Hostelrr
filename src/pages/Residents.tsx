@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
+import { FLAGS } from '../core/env';
 import DefaultAvatar from '../components/DefaultAvatar';
 import { Plus, Phone, X, History, ArrowLeft, Calendar, LogOut, UserPlus, Users, IndianRupee, FileText, CheckCircle2, Edit, User, Smartphone, Banknote, Upload, Image as ImageIcon } from 'lucide-react';
 import { cn, formatDate, getNamesFromIds, getTodayIST, convertToIST, getCurrentTimeIST } from '../lib/utils';
@@ -1265,6 +1266,7 @@ export default function Residents() {
                     aadhar: formData.get('aadhar'),
                     emergencyPhone: normalizedEmergencyPhone,
                     monthlyRent: formData.get('monthlyRent') ? parseInt(formData.get('monthlyRent') as string, 10) : undefined,
+                    securityDeposit: formData.get('securityDeposit') ? parseInt(formData.get('securityDeposit') as string, 10) : undefined,
                     photoPath: uploadedPaths.photoPath,
                     aadharPath: uploadedPaths.aadharPath,
                     hostelFormPath: uploadedPaths.hostelFormPath,
@@ -1280,6 +1282,7 @@ export default function Residents() {
                       aadhar: formData.get('aadhar') as string,
                       emergencyPhone: normalizedEmergencyPhone,
                       dueAmount: formData.get('monthlyRent') ? parseInt(formData.get('monthlyRent') as string, 10) : ('dueAmount' in prev ? prev.dueAmount : 0),
+                      securityDeposit: formData.get('securityDeposit') ? parseInt(formData.get('securityDeposit') as string, 10) : ('securityDeposit' in prev ? prev.securityDeposit : undefined),
                     } as Resident : null);
                   }
                 } catch (error: any) {
@@ -1389,6 +1392,16 @@ export default function Residents() {
                       <IndianRupee className="h-4 w-4 text-gray-500" />
                     </div>
                     <input type="number" name="monthlyRent" defaultValue={(residentToEdit as any).monthlyRent ?? residentToEdit.dueAmount} className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all" />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-gray-900 block">Security Deposit</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <IndianRupee className="h-4 w-4 text-gray-500" />
+                    </div>
+                    <input type="number" name="securityDeposit" defaultValue={(residentToEdit as any).securityDeposit ?? 0} className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all" />
                   </div>
                 </div>
 

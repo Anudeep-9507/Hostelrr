@@ -14,6 +14,7 @@ export const ROUTES = {
   residents: { path: '/residents', label: 'Residents', icon: Users },
   payments: { path: '/payments', label: 'Payments', icon: IndianRupee },
   settings: { path: '/settings', label: 'Settings', icon: Settings },
+  monthlyOverview: { path: '/monthly-overview', label: 'Monthly Overview' },
   signin: { path: '/signin', label: 'Sign In' },
   signup: { path: '/signup', label: 'Sign Up' },
   onboarding: { path: '/onboarding', label: 'Onboarding' },
