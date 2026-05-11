@@ -110,7 +110,7 @@ export default function JoinForm() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="h-[100dvh] bg-gray-50 flex flex-col overflow-hidden">
       <header className="bg-white border-b border-gray-100 p-4 sticky top-0 z-10 shrink-0">
         <div className="max-w-md mx-auto flex items-center gap-3">
           <button 
@@ -134,7 +134,7 @@ export default function JoinForm() {
         </div>
       </header>
 
-      <div className="flex-1 p-4 overflow-y-auto no-scrollbar overscroll-y-contain">
+      <div className="flex-1 p-4 overflow-y-auto no-scrollbar overscroll-y-contain touch-pan-y">
         <div className="max-w-md mx-auto">
           <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 mb-8">
             <h2 className="text-xl font-bold text-gray-900 mb-1">Apply for Stay</h2>
