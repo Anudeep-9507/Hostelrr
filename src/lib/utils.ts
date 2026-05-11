@@ -104,3 +104,7 @@ export function getNamesFromIds(floors: Floor[], roomId: string | undefined, bed
   return { roomName, bedName };
 }
 
+export function isSecurityDepositPayment(payment: { title?: string } | null | undefined) {
+  return payment?.title === 'Security Deposit';
+}
+

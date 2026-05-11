@@ -5,7 +5,7 @@ import { FLAGS } from '../core/env';
 import { useApp, PaymentsFilterType } from '../context/AppContext';
 import DefaultAvatar from '../components/DefaultAvatar';
 import { CheckCircle2, Wallet, Clock, AlertTriangle, Check, Send, X, Smartphone, Banknote, IndianRupee, AlertCircle, Info, PieChart, Users, ChevronRight } from 'lucide-react';
-import { cn, formatDate, getNamesFromIds, getTodayIST, formatTimeIST, convertToIST } from '../lib/utils';
+import { cn, formatDate, getNamesFromIds, getTodayIST, formatTimeIST, convertToIST, isSecurityDepositPayment } from '../lib/utils';
 import { Resident } from '../data/mock';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
@@ -119,7 +119,7 @@ export default function Payments() {
     const rentAmount = resident.dueAmount > 0 ? resident.dueAmount : 7500;
     const dueDateDisplay = resident.dueDate ? getDayAndMonth(resident.dueDate) : 'Today';
 
-    const message = `Hello ${resident.name}, your hostel rent of *₹${rentAmount}* for Room ${roomNum} is currently pending.\n\nDue Date: *${dueDateDisplay}*\n\nPlease make the payment soon and reply *PAID* once done.\n\nThank you\uD83D\uDE01\n${hostelName}\nPowered by Hostelrr`;
+    const message = `Hello ${resident.name}, your hostel rent of *₹${rentAmount}* for Room ${roomNum} is currently pending.\n\nDue Date: *${dueDateDisplay}*\n\nPlease make the payment soon and reply *PAID* once done.\n\nThank you,\n${hostelName}\nPowered by Hostelrr`;
 
     markReminderSent(resident.id);
     
@@ -198,6 +198,7 @@ export default function Payments() {
   const istNow = convertToIST(now);
   const thisMonthRevenue = residents.reduce((total, r) => {
     const historyRevenue = (r.paymentHistory || []).reduce((sum, h) => {
+      if (isSecurityDepositPayment(h)) return sum;
       if (h.status === 'paid' || h.status === 'partial') {
         const d = new Date(h.date);
         const dateIST = convertToIST(d);
@@ -208,16 +209,7 @@ export default function Payments() {
       return sum;
     }, 0);
 
-    let depositRevenue = 0;
-    if (r.securityDeposit && r.isDepositPaid) {
-      const d = new Date(r.depositPaidDate || r.joinDate);
-      const dateIST = convertToIST(d);
-      if (dateIST.getUTCFullYear() === istNow.getUTCFullYear() && dateIST.getUTCMonth() === istNow.getUTCMonth()) {
-        depositRevenue = r.securityDeposit;
-      }
-    }
-
-    return total + historyRevenue + depositRevenue;
+    return total + historyRevenue;
   }, 0);
 
   // Logic for subsets

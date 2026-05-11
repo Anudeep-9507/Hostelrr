@@ -108,7 +108,7 @@ export default function AppLayout() {
   };
 
   return (
-    <div className="min-h-dvh bg-[#F8FAFC] flex font-sans overflow-x-hidden">
+    <div className="h-dvh bg-[#F8FAFC] flex font-sans overflow-hidden">
       
       {/* Mobile Sidebar Overlay */}
       {isMobileMenuOpen && (
@@ -275,7 +275,7 @@ export default function AppLayout() {
       </aside>
 
       {/* Main Content */}
-      <main className={cn("flex-1 flex flex-col min-h-dvh relative transition-all duration-300 w-full min-w-0", isSidebarCollapsed ? "md:ml-20" : "md:ml-64")}>
+      <main className={cn("flex-1 flex h-dvh flex-col overflow-hidden relative transition-all duration-300 w-full min-w-0", isSidebarCollapsed ? "md:ml-20" : "md:ml-64")}>
         {/* Top Navbar */}
         <header className="h-14 md:h-16 bg-white border-b border-gray-200 flex items-center justify-between gap-2 px-3 md:px-8 sticky top-0 z-20">
           <div className="flex items-center gap-2 md:gap-4 shrink-0">
@@ -380,7 +380,7 @@ export default function AppLayout() {
         </header>
 
         {/* Page Content — rendered by React Router */}
-        <div className="flex-1 min-w-0 overflow-x-hidden pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">
+        <div className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">
           <ErrorBoundary>
             <Outlet />
           </ErrorBoundary>

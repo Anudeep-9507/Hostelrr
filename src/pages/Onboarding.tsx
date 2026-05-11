@@ -560,7 +560,7 @@ export default function Onboarding() {
                         <input
                           type="number"
                           min="0"
-                          placeholder="e.g. 15000"
+                          placeholder="e.g. 1000"
                           value={securityDeposit}
                           onChange={(e) => setSecurityDeposit(e.target.value)}
                           className="w-full border border-gray-200 rounded-xl pl-8 pr-4 py-3 text-base outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 bg-white font-semibold"

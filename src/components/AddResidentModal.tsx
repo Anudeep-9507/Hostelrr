@@ -584,7 +584,7 @@ export default function AddResidentModal({
                   name="deposit"
                   key={hostelProfile?.security_deposit || securityDeposit || 'deposit'}
                   defaultValue={hostelProfile?.security_deposit || securityDeposit || ''}
-                  placeholder="e.g. 15000" 
+                  placeholder="e.g. 1000" 
                   className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl pl-8 pr-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400"
                 />
               </div>

@@ -3,8 +3,9 @@
 html,
 body,
 #root {
-	min-height: 100%;
-	overflow-x: hidden;
+	/* lock root to viewport and prevent outer scroll; inner app handles vertical scrolling */
+	height: 100dvh;
+	overflow: hidden;
 }
 
 @keyframes door-blink {

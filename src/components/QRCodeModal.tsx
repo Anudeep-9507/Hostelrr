@@ -83,15 +83,6 @@ export default function QRCodeModal({ isOpen, onClose }: { isOpen: boolean, onCl
           <p className="text-sm text-gray-500 mb-6">Scan this QR to open the joining form.</p>
 
           <div className="flex flex-col gap-3">
-            <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-left">
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
-                <p className="text-xs text-blue-800 leading-relaxed">
-                  <strong>Testing in AI Studio?</strong> You might get a "403 That's an error" if you scan this with your phone because development links require you to be logged heavily into AI Studio. <br className="hidden sm:block" />To test the form on this device, click the button below instead.
-                </p>
-              </div>
-            </div>
-
             <button 
               onClick={() => {
                 onClose();

@@ -85,7 +85,7 @@ export default function Residents() {
     const rentAmount = resident.dueAmount > 0 ? resident.dueAmount : 7500;
     const dueDateDisplay = resident.dueDate ? getDayAndMonth(resident.dueDate) : 'Today';
 
-    const message = `Hello ${resident.name}, your hostel rent of *₹${rentAmount}* for Room ${roomNum} is currently pending.\n\nDue Date: *${dueDateDisplay}*\n\nPlease make the payment soon and reply *PAID* once done.\n\nThank you\uD83D\uDE01\n${hostelName}\nPowered by Hostelrr`;
+    const message = `Hello ${resident.name}, your hostel rent of *₹${rentAmount}* for Room ${roomNum} is currently pending.\n\nDue Date: *${dueDateDisplay}*\n\nPlease make the payment soon and reply *PAID* once done.\n\nThank you,\n${hostelName}\nPowered by Hostelrr`;
 
     markReminderSent(resident.id);
     

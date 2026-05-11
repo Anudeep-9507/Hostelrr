@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext';
 import { ROUTES } from '../routes/routes';
 import { FLAGS } from '../core/env';
 import { BedDouble, Users, AlertCircle, IndianRupee, PieChart, CheckCircle, Clock, LogOut, X, Info, Phone, ChevronRight, UserPlus } from 'lucide-react';
-import { cn, formatDate, getNamesFromIds } from '../lib/utils';
+import { cn, formatDate, getNamesFromIds, isSecurityDepositPayment } from '../lib/utils';
 import { PieChart as RePieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { AnimatePresence, motion } from 'motion/react';
 import EmptyState from '../components/EmptyState';
@@ -15,10 +15,11 @@ const WhatsAppIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-function KpiCard({ title, value, icon: Icon, trend, className, cardBg = "bg-white", onClick, trendColor }: any) {
+function KpiCard({ title, value, icon: Icon, trend, className, cardBg = "bg-white", onClick, trendColor, style }: any) {
   return (
     <div 
       onClick={onClick}
+      style={style}
       className={cn(
         "rounded-2xl p-4 md:p-5 border shadow-sm flex flex-col justify-between h-full min-h-[124px] md:min-h-[140px] transition-all relative overflow-hidden min-w-0", 
         cardBg,
@@ -100,6 +101,7 @@ export default function Dashboard() {
   const now = new Date();
   const thisMonthRevenue = residents.reduce((total, resident) => {
     return total + (resident.paymentHistory || []).reduce((sum, payment) => {
+      if (isSecurityDepositPayment(payment)) return sum;
       if (payment.status === 'paid' || payment.status === 'partial' || payment.status === 'partially_paid') {
         const paymentDate = new Date(payment.date);
         if (paymentDate.getFullYear() === now.getFullYear() && paymentDate.getMonth() === now.getMonth()) {
@@ -155,7 +157,7 @@ export default function Dashboard() {
     <div className="w-full max-w-7xl mx-auto space-y-5 md:space-y-6 p-3 sm:p-4 md:p-8 overflow-x-hidden">
       <div className="mb-5 md:mb-8 min-w-0">
         <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight mb-1 leading-tight">Welcome back, {hostelProfile?.ownerName?.split(' ')[0] || "Owner"}</h1>
-        <p className="text-sm sm:text-base text-gray-500">Here's what's happening at your hostel today.</p>
+        <p className="text-sm sm:text-base text-gray-500">Here's what's happening at <span className="font-semibold text-gray-900">{hostelProfile?.hostelName || "your hostel"}</span> today.</p>
       </div>
 
       {/* KPI Grid */}
@@ -193,8 +195,8 @@ export default function Dashboard() {
         />
       </div>
 
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="p-4 md:p-5">
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden mt-2">
+          <div className="p-2 sm:p-3">
             <KpiCard
               title="Monthly Overview"
               value="View Details"
@@ -204,6 +206,7 @@ export default function Dashboard() {
               className="bg-white text-gray-600"
               cardBg="bg-white border-gray-100"
               onClick={() => navigate(ROUTES.monthlyOverview.path)}
+              style={{ minHeight: '80px' }}
             />
           </div>
         </div>
@@ -296,8 +299,8 @@ export default function Dashboard() {
         <div className="lg:col-span-2 space-y-5 md:space-y-6 min-w-0">
           
           {/* Occupancy Overview */}
-          <div className="bg-white rounded-2xl p-4 md:p-6 border border-gray-100 shadow-sm flex flex-col md:flex-row gap-5 md:gap-6 items-center min-w-0">
-            <div className="w-full max-w-[12rem] h-44 sm:h-48 md:w-48 md:h-48 flex-shrink-0">
+          <div className={cn("bg-white rounded-2xl p-4 md:p-6 border shadow-sm flex flex-col md:flex-row gap-5 md:gap-6 items-center min-w-0", totalBeds === 0 ? "border-gray-200 bg-gray-50" : "border-gray-100")}>
+            <div className={cn("w-full max-w-[12rem] h-44 sm:h-48 md:w-48 md:h-48 flex-shrink-0", totalBeds === 0 && "opacity-60")}>
               <ResponsiveContainer width="100%" height="100%">
                 <RePieChart>
                   <Pie
@@ -318,7 +321,7 @@ export default function Dashboard() {
                 </RePieChart>
               </ResponsiveContainer>
             </div>
-            <div className="flex-1 w-full space-y-4 min-w-0">
+            <div className={cn("flex-1 w-full space-y-4 min-w-0", totalBeds === 0 && "opacity-60")}>
               <h3 className="text-lg font-bold text-gray-900">Occupancy Overview</h3>
               <div className="space-y-3">
                 {legendData.map((d, i) => (
@@ -372,7 +375,7 @@ export default function Dashboard() {
                       </div>
                       <button 
                           onClick={() => {
-                          const msg = `Hi ${r.name}, this is a reminder that your rent of Rs. *${r.dueAmount}* is pending. Please pay at your earliest convenience.\n\nThank you\uD83D\uDE01`;
+                          const msg = `Hi ${r.name}, this is a reminder that your rent of Rs. *${r.dueAmount}* is pending. Please pay at your earliest convenience.\n\nThank you,\nPowered by Hostelrr`;
                           window.open(`https://wa.me/91${(r.phone || '').replace(/[^0-9]/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
                         }}
                         className="min-h-10 bg-[#25D366] hover:bg-[#20BE5B] text-white px-3 py-2 sm:py-1.5 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center justify-center gap-1.5 shrink-0" title="Send WhatsApp Reminder"
