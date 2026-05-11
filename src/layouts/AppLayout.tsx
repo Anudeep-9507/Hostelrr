@@ -107,7 +107,7 @@ export default function AppLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex font-sans">
+    <div className="min-h-dvh bg-[#F8FAFC] flex font-sans overflow-x-hidden">
       
       {/* Mobile Sidebar Overlay */}
       {isMobileMenuOpen && (
@@ -272,13 +272,13 @@ export default function AppLayout() {
       </aside>
 
       {/* Main Content */}
-      <main className={cn("flex-1 flex flex-col min-h-screen relative transition-all duration-300 w-full", isSidebarCollapsed ? "md:ml-20" : "md:ml-64")}>
+      <main className={cn("flex-1 flex flex-col min-h-dvh relative transition-all duration-300 w-full min-w-0", isSidebarCollapsed ? "md:ml-20" : "md:ml-64")}>
         {/* Top Navbar */}
-        <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 md:px-8 sticky top-0 z-20">
-          <div className="flex items-center gap-2 md:gap-4">
+        <header className="h-14 md:h-16 bg-white border-b border-gray-200 flex items-center justify-between gap-2 px-3 md:px-8 sticky top-0 z-20">
+          <div className="flex items-center gap-2 md:gap-4 shrink-0">
             <button 
               onClick={() => setIsMobileMenuOpen(true)}
-              className="md:hidden p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+              className="md:hidden p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <Menu className="w-5 h-5" />
             </button>
@@ -287,8 +287,8 @@ export default function AppLayout() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 md:gap-6">
-            <div className="relative z-50">
+          <div className="flex flex-1 md:flex-none min-w-0 items-center justify-end gap-2 md:gap-6">
+            <div className="relative z-50 min-w-0 flex-1 sm:flex-none">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input 
                 type="text" 
@@ -296,14 +296,14 @@ export default function AppLayout() {
                 value={globalSearch}
                 onChange={handleGlobalSearchChange}
                 onFocus={() => { if(globalSearch) setIsSearchOpen(true) }}
-                className="pl-10 pr-4 py-2.5 bg-gray-50/50 hover:bg-gray-100 border border-gray-200/60 rounded-full text-sm focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white w-64 md:w-80 transition-all shadow-sm"
+                className="w-full sm:w-64 md:w-80 pl-10 pr-3 sm:pr-4 py-2.5 bg-gray-50/50 hover:bg-gray-100 border border-gray-200/60 rounded-full text-sm focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all shadow-sm"
               />
 
               {/* Global Search Dropdown */}
               {isSearchOpen && globalSearch.trim().length > 0 && (
                 <>
                   <div className="fixed inset-0 z-[-1]" onClick={() => setIsSearchOpen(false)}></div>
-                  <div className="absolute top-12 right-0 w-80 bg-white shadow-xl border border-gray-100 rounded-2xl overflow-hidden py-2" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                  <div className="fixed left-3 right-3 top-16 max-h-[min(70vh,400px)] overflow-y-auto bg-white shadow-xl border border-gray-100 rounded-2xl py-2 sm:absolute sm:left-auto sm:top-12 sm:right-0 sm:w-80">
                     
                     {searchResults.residents.length === 0 && searchResults.rooms.length === 0 ? (
                       <div className="p-6 text-center text-gray-500 text-sm">
@@ -356,14 +356,14 @@ export default function AppLayout() {
             </div>
             <button 
               onClick={() => setIsQRModalOpen(true)}
-              className="flex items-center gap-2 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 text-indigo-700 px-3 py-2 rounded-xl text-sm font-semibold transition-colors"
+              className="flex h-10 shrink-0 items-center gap-2 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 text-indigo-700 px-2.5 sm:px-3 py-2 rounded-xl text-sm font-semibold transition-colors"
             >
               <QrCode className="w-4 h-4" />
               <span className="hidden sm:inline">Hostel QR</span>
             </button>
             <button 
               onClick={() => navigate(ROUTES.settings.path)}
-              className="flex items-center gap-2 bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-700 px-3 py-2 rounded-xl text-sm font-semibold transition-colors"
+              className="flex h-10 shrink-0 items-center gap-2 bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-700 px-2.5 sm:px-3 py-2 rounded-xl text-sm font-semibold transition-colors"
             >
               <HelpCircle className="w-4 h-4" />
               <span className="hidden sm:inline">Help</span>
@@ -372,12 +372,48 @@ export default function AppLayout() {
         </header>
 
         {/* Page Content — rendered by React Router */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 min-w-0 overflow-x-hidden pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">
           <ErrorBoundary>
             <Outlet />
           </ErrorBoundary>
         </div>
       </main>
+
+      {/* Mobile Bottom Navigation */}
+      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-gray-200 bg-white/95 px-1.5 pt-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur md:hidden">
+        <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            const badgeCount = item.id === 'dashboard' ? joinRequests.length : 0;
+
+            return (
+              <button
+                key={item.id}
+                onClick={() => {
+                  navigate(TAB_TO_ROUTE[item.id] || ROUTES.dashboard.path);
+                  setIsMobileMenuOpen(false);
+                }}
+                className={cn(
+                  "relative flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[11px] font-semibold transition-colors",
+                  isActive
+                    ? "bg-blue-50 text-blue-700"
+                    : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
+                )}
+              >
+                <Icon className={cn("h-5 w-5 shrink-0", isActive ? "text-blue-600" : "text-gray-400")} />
+                <span className="max-w-full truncate leading-none">{item.label.replace(' & Beds', '')}</span>
+                {badgeCount > 0 && (
+                  <span className="absolute right-3 top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[9px] font-bold leading-none text-white">
+                    {badgeCount}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
       <AddResidentModal 
         isOpen={isAddResidentModalOpen} 
         onClose={() => setIsAddResidentModalOpen(false)} 

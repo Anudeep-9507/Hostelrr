@@ -331,22 +331,23 @@ export default function BuildingView() {
       )}>
         <div className="max-w-7xl mx-auto space-y-6 pb-12">
           
-          <div className="flex justify-between items-end flex-wrap gap-4">
-            <div>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-5 md:mb-8 shrink-0 min-w-0">
+            <div className="min-w-0 shrink-0">
               <div className="flex items-center gap-3 mb-1">
-                <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Rooms & Beds</h1>
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight whitespace-nowrap">Rooms & Beds</h1>
                 <button
                   onClick={() => setIsBedLayoutModalOpen(true)}
-                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 p-1.5 rounded-lg text-sm font-medium transition-colors"
+                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 p-2 sm:p-1.5 rounded-lg text-sm font-medium transition-colors min-h-10 min-w-10 sm:min-h-0 sm:min-w-0 flex items-center justify-center shrink-0"
                   title="Configure Bed Layout Templates"
                 >
                   <LayoutTemplate className="w-5 h-5" />
                 </button>
               </div>
-              <p className="text-gray-500">Live status of all floors and rooms.</p>
+              <p className="text-sm sm:text-base text-gray-500 whitespace-nowrap">Live status of all floors and rooms.</p>
             </div>
+          </div>
             
-            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center w-full lg:w-auto">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 md:gap-4 mb-5 md:mb-6 shrink-0 min-w-0">
               <select 
                 value={selectedFloorFilter} 
                 onChange={(e) => setSelectedFloorFilter(e.target.value)}
@@ -417,7 +418,6 @@ export default function BuildingView() {
               </div>
               </div>
             </div>
-          </div>
 
           <div className="space-y-6">
             {(() => {

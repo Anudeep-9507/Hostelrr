@@ -393,7 +393,7 @@ export default function AddResidentModal({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium text-gray-900 block">Floor</label>
                     <div className="relative">
@@ -492,7 +492,7 @@ export default function AddResidentModal({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-gray-900 block">Phone No. <span className="text-red-500">*</span></label>
                 <div className="flex">
@@ -556,7 +556,7 @@ export default function AddResidentModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-gray-900 block">Monthly Rent <span className="text-red-500">*</span></label>
                 <div className="relative">
@@ -591,7 +591,7 @@ export default function AddResidentModal({
             </div>
           </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-gray-900 block">Emergency Contact No.</label>
                 <div className="flex">
@@ -639,7 +639,7 @@ export default function AddResidentModal({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-gray-900 block">State</label>
               <input 
@@ -662,7 +662,7 @@ export default function AddResidentModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-gray-900 block">Stay Time(Days)</label>
               <div className="relative">

@@ -328,14 +328,14 @@ export default function Payments() {
   });
 
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">
-      <div className="mb-2 flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Payments</h1>
-        <div className="flex items-center gap-3 w-full sm:w-auto">
+    <div className="p-3 sm:p-4 md:p-8 max-w-7xl mx-auto space-y-5 md:space-y-8 overflow-x-hidden">
+      <div className="mb-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Payments</h1>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
           <button 
             onClick={() => setShowHistory(!showHistory)}
             className={cn(
-              "px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-sm flex items-center gap-2",
+              "min-h-11 justify-center px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-sm flex items-center gap-2",
               showHistory 
                 ? "bg-gray-800 hover:bg-gray-900 text-white" 
                 : "bg-white border border-gray-200 hover:border-gray-300 text-gray-700"
@@ -348,7 +348,7 @@ export default function Payments() {
           {!showHistory && dueResidents.length > 0 && (
             <button
               onClick={() => setIsBulkModalOpen(true)}
-              className="bg-[#25D366] hover:bg-[#22c35e] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-sm flex items-center gap-2 cursor-pointer"
+              className="min-h-11 justify-center bg-[#25D366] hover:bg-[#22c35e] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-sm flex items-center gap-2 cursor-pointer"
             >
               <WhatsAppIcon className="w-4 h-4" />
               Remind All
@@ -358,16 +358,16 @@ export default function Payments() {
       </div>
 
       {!showHistory && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div onClick={() => setFilter('Unpaid')} className="bg-orange-50 rounded-2xl p-5 border border-orange-200 shadow-sm flex flex-col justify-between min-h-[140px] cursor-pointer hover:shadow-md transition-all">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+          <div onClick={() => setFilter('Unpaid')} className="bg-orange-50 rounded-2xl p-4 md:p-5 border border-orange-200 shadow-sm flex flex-col justify-between min-h-[120px] md:min-h-[140px] cursor-pointer hover:shadow-md transition-all">
             <div className="flex justify-between items-start mb-2">
               <span className="text-gray-500 font-medium text-sm">Pending Payments</span>
-              <div className="p-2 rounded-lg bg-white text-orange-600"><AlertCircle className="w-5 h-5" /></div>
+              <div className="p-2 rounded-lg bg-white text-orange-600 shadow-sm"><AlertCircle className="w-5 h-5" /></div>
             </div>
-            <h3 className="text-[28px] font-bold text-gray-900">₹{totalDueAmount.toLocaleString('en-IN')}</h3>
+            <h3 className="text-2xl md:text-[28px] font-bold text-gray-900">₹{totalDueAmount.toLocaleString('en-IN')}</h3>
           </div>
 
-          <div onClick={() => setFilter('Paid')} className="bg-green-50 rounded-2xl p-5 border border-green-200 shadow-sm flex flex-col justify-between min-h-[140px] cursor-pointer hover:shadow-md transition-all">
+          <div onClick={() => setFilter('Paid')} className="bg-green-50 rounded-2xl p-4 md:p-5 border border-green-200 shadow-sm flex flex-col justify-between min-h-[120px] md:min-h-[140px] cursor-pointer hover:shadow-md transition-all">
             <div className="flex justify-between items-start mb-2">
               <div>
                 <span className="text-gray-500 font-medium text-sm">This Month Revenue</span>
@@ -388,28 +388,29 @@ export default function Payments() {
                   </div>
                 </div>
               </div>
-              <div className="p-2 rounded-lg bg-white text-green-600"><IndianRupee className="w-5 h-5" /></div>
+              <div className="p-2 rounded-lg bg-white text-green-600 shadow-sm"><IndianRupee className="w-5 h-5" /></div>
             </div>
-            <h3 className="text-[28px] font-bold text-gray-900">₹{thisMonthRevenue.toLocaleString('en-IN')}</h3>
+            <h3 className="text-2xl md:text-[28px] font-bold text-gray-900">₹{thisMonthRevenue.toLocaleString('en-IN')}</h3>
           </div>
 
-          <div onClick={() => setFilter('Pending')} className="bg-blue-50 rounded-2xl p-5 border border-blue-200 shadow-sm flex flex-col justify-between min-h-[140px] cursor-pointer hover:shadow-md transition-all">
+          <div onClick={() => setFilter('Pending')} className="bg-blue-50 rounded-2xl p-4 md:p-5 border border-blue-200 shadow-sm flex flex-col justify-between min-h-[120px] md:min-h-[140px] cursor-pointer hover:shadow-md transition-all">
             <div className="flex justify-between items-start mb-2">
               <span className="text-gray-500 font-medium text-sm">Due Today</span>
-              <div className="p-2 rounded-lg bg-white text-blue-600"><Clock className="w-5 h-5" /></div>
+              <div className="p-2 rounded-lg bg-white text-blue-600 shadow-sm"><Clock className="w-5 h-5" /></div>
             </div>
-            <h3 className="text-[28px] font-bold text-gray-900">{dueTodayCount}</h3>
+            <h3 className="text-2xl md:text-[28px] font-bold text-gray-900">{dueTodayCount}</h3>
           </div>
 
-          <div onClick={() => setFilter('Late')} className="bg-red-50 rounded-2xl p-5 border border-red-200 shadow-sm flex flex-col justify-between min-h-[140px] cursor-pointer hover:shadow-md transition-all">
+          <div onClick={() => setFilter('Late')} className="bg-red-50 rounded-2xl p-4 md:p-5 border border-red-200 shadow-sm flex flex-col justify-between min-h-[120px] md:min-h-[140px] cursor-pointer hover:shadow-md transition-all">
             <div className="flex justify-between items-start mb-2">
               <span className="text-gray-500 font-medium text-sm">Late Payments</span>
-              <div className="p-2 rounded-lg bg-white text-red-600"><AlertTriangle className="w-5 h-5" /></div>
+              <div className="p-2 rounded-lg bg-white text-red-600 shadow-sm"><AlertTriangle className="w-5 h-5" /></div>
             </div>
-            <h3 className="text-[28px] font-bold text-gray-900">{lateCount}</h3>
+            <h3 className="text-2xl md:text-[28px] font-bold text-gray-900">{lateCount}</h3>
           </div>
         </div>
       )}
+
 
       <AnimatePresence>
         {isRevenueInfoModalOpen && (
@@ -418,14 +419,14 @@ export default function Payments() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setIsRevenueInfoModalOpen(false)}
-            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-3 sm:p-4"
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-sm bg-white rounded-3xl overflow-hidden shadow-2xl border border-gray-100"
+              className="w-full max-w-sm max-h-[calc(100dvh-1.5rem)] overflow-y-auto bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-gray-100"
             >
               <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-6 text-white relative">
                 <button
@@ -445,7 +446,7 @@ export default function Payments() {
 
               <div className="p-6 space-y-5">
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between p-3.5 rounded-2xl bg-gray-50 border border-gray-100 group hover:border-blue-200 transition-colors">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3.5 rounded-2xl bg-gray-50 border border-gray-100 group hover:border-blue-200 transition-colors">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
                         <IndianRupee className="w-5 h-5" />
@@ -458,7 +459,7 @@ export default function Payments() {
                     <span className="text-lg font-bold text-gray-900">₹{expectedMonthlyRevenue.toLocaleString('en-IN')}</span>
                   </div>
 
-                  <div className="flex items-center justify-between p-3.5 rounded-2xl bg-gray-50 border border-gray-100 group hover:border-indigo-200 transition-colors">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3.5 rounded-2xl bg-gray-50 border border-gray-100 group hover:border-indigo-200 transition-colors">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600">
                         <Users className="w-5 h-5" />
@@ -474,7 +475,7 @@ export default function Payments() {
 
                 <div className="pt-2">
                   <div className="p-5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100">
-                    <div className="flex items-center justify-between mb-1">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between mb-1">
                       <span className="text-sm font-bold text-emerald-800 uppercase tracking-wider">Total Expected</span>
                       <span className="text-2xl font-black text-emerald-700">₹{finalExpectedRevenue.toLocaleString('en-IN')}</span>
                     </div>
@@ -497,8 +498,8 @@ export default function Payments() {
       <div className="flex flex-col gap-4">
         {!showHistory ? (
           <>
-            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-              <div className="bg-gray-100/80 p-1.5 rounded-[14px] flex gap-1.5 items-center w-max border border-gray-200/60 shadow-sm">
+            <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center">
+              <div className="bg-gray-100/80 p-1.5 rounded-[14px] flex gap-1.5 items-center w-full sm:w-max border border-gray-200/60 shadow-sm overflow-x-auto no-scrollbar">
                 {(['All', 'Paid', 'Unpaid'] as PaymentsFilterType[]).map((mode) => {
                   const isUnpaidSelected = mode === 'Unpaid' && (filter === 'Unpaid' || filter === 'Pending' || filter === 'Late' || filter === 'Partially Paid');
                   return (
@@ -506,12 +507,12 @@ export default function Payments() {
                       key={mode}
                       onClick={() => setFilter(mode)}
                       className={cn(
-                        "px-5 py-2 rounded-xl text-[15px] font-semibold transition-all flex items-center gap-2",
+                        "px-4 sm:px-5 py-2 rounded-xl text-sm sm:text-[15px] font-semibold transition-all flex items-center gap-2 whitespace-nowrap",
                         (filter === mode || isUnpaidSelected) ? "bg-white text-blue-700 shadow-md ring-1 ring-black/5" : "text-gray-600 hover:text-gray-900 hover:bg-gray-200/50"
                       )}
                     >
                       {mode}
-                      <span className={cn("px-2.5 py-0.5 rounded-lg text-xs font-black", (filter === mode || isUnpaidSelected) ? "bg-blue-600 text-white" : "bg-gray-200/80 text-gray-700")}>
+                      <span className={cn("px-2 py-0.5 rounded-lg text-[10px] sm:text-xs font-black", (filter === mode || isUnpaidSelected) ? "bg-blue-600 text-white" : "bg-gray-200/80 text-gray-700")}>
                         {mode === 'All' ? allCount : mode === 'Paid' ? paidCount : unpaidCount}
                       </span>
                     </button>
@@ -520,11 +521,11 @@ export default function Payments() {
               </div>
 
             {(filter === 'Unpaid' || filter === 'Pending' || filter === 'Late' || filter === 'Partially Paid') && (
-              <div className="flex gap-2 items-center bg-orange-50 p-1.5 rounded-[14px] border border-orange-100/60 shadow-sm w-max transition-all flex-wrap">
+              <div className="flex gap-2 items-center bg-orange-50 p-1.5 rounded-[14px] border border-orange-100/60 shadow-sm w-full sm:w-max transition-all overflow-x-auto no-scrollbar">
                 <button
                   onClick={() => setFilter('Pending')}
                   className={cn(
-                    "px-4 py-1.5 rounded-xl text-[14px] font-semibold transition-all flex items-center gap-2",
+                    "px-3 sm:px-4 py-1.5 rounded-xl text-[13px] sm:text-[14px] font-semibold transition-all flex items-center gap-2 whitespace-nowrap",
                     filter === 'Pending' 
                       ? "bg-white text-orange-700 shadow-md ring-1 ring-black/5" 
                       : "text-orange-600 hover:bg-orange-100/50"
@@ -541,7 +542,7 @@ export default function Payments() {
                 <button
                   onClick={() => setFilter('Late')}
                   className={cn(
-                    "px-4 py-1.5 rounded-xl text-[14px] font-semibold transition-all flex items-center gap-2",
+                    "px-3 sm:px-4 py-1.5 rounded-xl text-[13px] sm:text-[14px] font-semibold transition-all flex items-center gap-2 whitespace-nowrap",
                     filter === 'Late' 
                       ? "bg-white text-red-700 shadow-md ring-1 ring-black/5" 
                       : "text-red-600 hover:bg-red-50"
@@ -558,13 +559,13 @@ export default function Payments() {
                 <button
                   onClick={() => setFilter('Partially Paid')}
                   className={cn(
-                    "px-4 py-1.5 rounded-xl text-[14px] font-semibold transition-all flex items-center gap-2",
+                    "px-3 sm:px-4 py-1.5 rounded-xl text-[13px] sm:text-[14px] font-semibold transition-all flex items-center gap-2 whitespace-nowrap",
                     filter === 'Partially Paid' 
                       ? "bg-white text-purple-700 shadow-md ring-1 ring-black/5" 
                       : "text-purple-600 hover:bg-purple-100/50"
                   )}
                 >
-                  Partially Paid
+                  Partial
                   <span className={cn(
                     "px-2 py-0.5 rounded-lg text-[10px] font-black",
                     filter === 'Partially Paid' ? "bg-purple-600 text-white" : "bg-purple-200 text-purple-700"
@@ -576,8 +577,11 @@ export default function Payments() {
             )}
           </div>
 
+
             <div className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
-              <div className="p-6 border-b border-gray-100 bg-white"><h3 className="text-xl font-bold text-gray-900">Resident Payments</h3></div>
+              <div className="p-4 sm:p-6 border-b border-gray-100 bg-white">
+                <h3 className="text-lg sm:text-xl font-bold text-gray-900">Resident Payments</h3>
+              </div>
               <div className="divide-y divide-gray-100 flex-1">
                 {filteredResidents.length === 0 ? (
                   <div className="py-8">
@@ -600,56 +604,70 @@ export default function Payments() {
 
                     return (
                       <div key={r.id} className="flex flex-col border-b border-gray-100 last:border-0 hover:bg-gray-50/50 transition-colors">
-                        <div onClick={() => setExpandedId(expandedId === r.id ? null : r.id)} className="p-5 flex flex-col sm:flex-row sm:items-center justify-between cursor-pointer gap-4">
+                        <div onClick={() => setExpandedId(expandedId === r.id ? null : r.id)} className="p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between cursor-pointer gap-4">
                           <div className="flex items-center gap-4">
                             <div onClick={(e) => { e.stopPropagation(); setGlobalSelectedResidentId(r.id); navigate(ROUTES.residents.path); }} className="w-12 h-12 bg-gray-50 border ring-1 ring-gray-200 shadow-sm rounded-full flex items-center justify-center text-gray-400 shrink-0 hover:ring-blue-300 overflow-hidden">
                               {r.photoUrl ? <img src={r.photoUrl} className="w-full h-full object-cover" /> : <DefaultAvatar className="w-full h-full" />}
                             </div>
-                            <div>
+                            <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <div className="font-bold text-gray-900 text-[15px]">{r.name}</div>
+                                <div className="font-bold text-gray-900 text-[15px] truncate">{r.name}</div>
                                 {bedStatus === 'reserved' && (
                                   <span className="px-1.5 py-0.5 rounded-md bg-blue-100 text-blue-700 text-[10px] font-bold uppercase tracking-wider leading-none">Reserved</span>
                                 )}
                               </div>
                               <div className="text-sm text-gray-400">Room {roomNum} · {bedLetter}</div>
                             </div>
+                            <div className="lg:hidden flex items-center gap-2">
+                               <div className="text-right">
+                                  <div className="font-bold text-gray-900 text-[15px]">₹{rentAmount.toLocaleString('en-IN')}</div>
+                                  <div className="text-[10px] text-gray-400 whitespace-nowrap">{displayDate.split(': ')[1]}</div>
+                               </div>
+                               {getStatusPill(r)}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-4 sm:gap-6 justify-between sm:justify-end w-full sm:w-auto mt-3 sm:mt-0">
-                            <div className="w-[70px] shrink-0 flex justify-end">{getStatusPill(r)}</div>
-                            <div className="text-right min-w-[110px] shrink-0">
+
+                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 sm:gap-6 justify-between lg:justify-end w-full lg:w-auto">
+                            <div className="hidden lg:block w-[80px] shrink-0 text-center">{getStatusPill(r)}</div>
+                            <div className="hidden lg:block text-right min-w-[120px] shrink-0">
                               <div className="font-bold text-gray-900 text-[15px]">₹{rentAmount.toLocaleString('en-IN')}</div>
                               <div className="text-xs text-gray-400 whitespace-nowrap">{displayDate}</div>
                             </div>
-                            <div className="flex items-center gap-2.5 w-[220px] shrink-0 justify-end" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center gap-2.5 w-full sm:w-auto lg:w-[220px] shrink-0 justify-stretch sm:justify-end" onClick={(e) => e.stopPropagation()}>
                               {r.paymentStatus === 'paid' ? (
-                                <span className="text-sm font-medium text-gray-500 flex items-center gap-1 h-[36px]">Received <Check className="w-4 h-4 text-gray-400" /></span>
+                                <div className="w-full text-center lg:text-right">
+                                  <span className="text-sm font-medium text-gray-500 inline-flex items-center gap-1 h-[36px]">Received <Check className="w-4 h-4 text-emerald-500" /></span>
+                                </div>
                               ) : (
                                 <>
-                                  <button onClick={(e) => { e.stopPropagation(); handleSendReminder(r); }} className="bg-[#25D366] hover:bg-[#22c35e] text-white px-4 py-1.5 rounded-full text-[13px] font-semibold transition-all flex items-center gap-1.5 shadow-sm"><WhatsAppIcon className="w-3.5 h-3.5" /> Remind</button>
-                                  <button onClick={(e) => { e.stopPropagation(); setResidentToMarkPaid(r); setPaymentDate(getTodayIST()); }} className="text-[#059669] bg-white border border-[#A7F3D0]/60 px-3 py-1.5 rounded-full text-[12px] font-semibold hover:bg-[#ECFDF5] transition-all flex items-center gap-1.5 shadow-sm"><CheckCircle2 className="w-3.5 h-3.5" /> Mark Paid</button>
+                                  <button onClick={(e) => { e.stopPropagation(); handleSendReminder(r); }} className="min-h-9 sm:min-h-10 flex-1 sm:flex-none bg-[#25D366] hover:bg-[#22c35e] text-white px-3 sm:px-4 py-1 sm:py-1.5 rounded-xl sm:rounded-full text-[11px] sm:text-[13px] font-semibold transition-all flex items-center justify-center gap-1.5 shadow-sm"><WhatsAppIcon className="w-3.5 h-3.5" /> Remind</button>
+                                  <button onClick={(e) => { e.stopPropagation(); setResidentToMarkPaid(r); setPaymentDate(getTodayIST()); }} className="min-h-9 sm:min-h-10 flex-1 sm:flex-none text-[#059669] bg-white border border-[#A7F3D0]/60 px-3 py-1 sm:py-1.5 rounded-xl sm:rounded-full text-[11px] sm:text-[12px] font-semibold hover:bg-[#ECFDF5] transition-all flex items-center justify-center gap-1.5 shadow-sm"><CheckCircle2 className="w-3.5 h-3.5" /> Mark Paid</button>
                                 </>
                               )}
                             </div>
                           </div>
                         </div>
                         {expandedId === r.id && (
-                          <div className="p-5 pt-0 pl-[84px] bg-transparent">
-                            <div className="border border-gray-100 rounded-xl overflow-hidden bg-white/50">
+                          <div className="p-4 sm:p-5 pt-0 lg:pl-[84px] bg-transparent">
+                            <div className="border border-gray-100 rounded-2xl overflow-hidden bg-white/50">
                               <div className="bg-gray-50/80 px-4 py-2 border-b border-gray-100"><h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Recent History</h4></div>
                               <div className="divide-y divide-gray-100">
-                                {getMockHistory(r).map(h => (
-                                  <div key={h.id} className={cn("px-4 py-3 flex items-center justify-between transition-colors border-l-4", h.status === 'partial' ? "border-l-purple-500 bg-purple-50" : "border-l-transparent hover:bg-white")}>
-                                    <div className="flex items-center gap-3">
-                                      <div className={cn("w-8 h-8 rounded-full flex items-center justify-center", h.status === 'partial' ? "bg-purple-100 text-purple-600" : "bg-green-50 text-green-600")}><Check className="w-4 h-4" /></div>
-                                      <div><p className="text-sm font-semibold text-gray-900">{h.title || 'Rent Payment'}</p><p className="text-xs text-gray-500">{getTransactionDateForDisplay(h.date)}</p></div>
+                                {getMockHistory(r).length === 0 ? (
+                                  <div className="px-4 py-6 text-center text-sm text-gray-400">No payment history yet</div>
+                                ) : (
+                                  getMockHistory(r).map(h => (
+                                    <div key={h.id} className={cn("px-4 py-3 flex items-center justify-between transition-colors border-l-4", h.status === 'partial' ? "border-l-purple-500 bg-purple-50" : "border-l-transparent hover:bg-white")}>
+                                      <div className="flex items-center gap-3">
+                                        <div className={cn("w-8 h-8 rounded-full flex items-center justify-center", h.status === 'partial' ? "bg-purple-100 text-purple-600" : "bg-green-50 text-green-600")}><Check className="w-4 h-4" /></div>
+                                        <div><p className="text-sm font-semibold text-gray-900">{h.title || 'Rent Payment'}</p><p className="text-xs text-gray-500">{getTransactionDateForDisplay(h.date)}</p></div>
+                                      </div>
+                                      <div className="text-right">
+                                        <p className="text-sm font-bold text-gray-900">₹{h.amount.toLocaleString('en-IN')}</p>
+                                        <p className={cn("text-xs font-medium capitalize", h.status === 'partial' ? "text-purple-600" : "text-green-600")}>{h.status} {h.method && <span className="bg-gray-100 px-1 py-0.5 rounded text-[9px] ml-1">{h.method}</span>}</p>
+                                      </div>
                                     </div>
-                                    <div className="text-right">
-                                      <p className="text-sm font-bold text-gray-900">₹{h.amount.toLocaleString('en-IN')}</p>
-                                      <p className={cn("text-xs font-medium capitalize", h.status === 'partial' ? "text-purple-600" : "text-green-600")}>{h.status} {h.method && <span className="bg-gray-100 px-1 py-0.5 rounded text-[9px] ml-1">{h.method}</span>}</p>
-                                    </div>
-                                  </div>
-                                ))}
+                                  ))
+                                )}
                               </div>
                             </div>
                           </div>
@@ -660,23 +678,24 @@ export default function Payments() {
                 )}
               </div>
             </div>
+
           </>
         ) : (
           <div className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-gray-100 bg-gray-50/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div className="p-4 sm:p-6 border-b border-gray-100 bg-gray-50/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
-                <h3 className="text-xl font-bold text-gray-900">Transaction History</h3>
+                <h3 className="text-lg sm:text-xl font-bold text-gray-900">Transaction History</h3>
                 <p className="text-sm text-gray-500">Chronological list of all payments received</p>
               </div>
               
-              <div className="flex items-center gap-3 w-full md:w-auto">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
                 <div className="bg-white p-1 rounded-xl border border-gray-200 flex gap-1 overflow-x-auto no-scrollbar">
                   {(['All', 'Today', 'Monthly', 'Yearly', 'Security Deposits'] as const).map(f => (
                     <button
                       key={f}
                       onClick={() => setHistoryTimeFilter(f)}
                       className={cn(
-                        "px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
+                        "px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap",
                         historyTimeFilter === f ? "bg-blue-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
                       )}
                     >
@@ -684,7 +703,7 @@ export default function Payments() {
                     </button>
                   ))}
                 </div>
-                <div className="bg-white px-4 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 whitespace-nowrap">
+                <div className="bg-white px-4 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 whitespace-nowrap text-center">
                   <div>{isSecurityDepositHistory ? 'Collected' : 'Total'}: ₹{totalHistoryAmount.toLocaleString('en-IN')}</div>
                   {isSecurityDepositHistory && (
                     <div className="mt-1 pt-1 border-t border-gray-100 text-[11px] font-medium text-gray-500">
@@ -696,7 +715,8 @@ export default function Payments() {
             </div>
             
             <div className="overflow-x-auto">
-              <table className="w-full text-left">
+              {/* Desktop Table */}
+              <table className="hidden md:table w-full text-left">
                 <thead className="bg-gray-50 text-[11px] font-bold uppercase tracking-wider text-gray-500">
                   <tr>
                     <th className="px-6 py-4">Date</th>
@@ -762,8 +782,60 @@ export default function Payments() {
                   )}
                 </tbody>
               </table>
+
+              {/* Mobile Cards */}
+              <div className="md:hidden divide-y divide-gray-100">
+                {allPaymentsTransactions.length === 0 ? (
+                  <div className="p-8">
+                    <EmptyState 
+                      icon={Clock}
+                      title="No transactions found"
+                      subtitle="No payment history matches the selected period."
+                    />
+                  </div>
+                ) : (
+                  allPaymentsTransactions.map((payment, idx) => {
+                    const { roomName } = getNamesFromIds(floors, payment.roomId, payment.bedId);
+                    const formattedDate = getTransactionDateForDisplay(payment.date);
+                    const formattedTime = formatTimeIST(payment.date);
+
+                    return (
+                      <div key={`${payment.id}-${idx}`} className={cn(
+                        "p-4 flex flex-col gap-3 transition-colors border-l-4",
+                        payment.status === 'partial' ? "border-l-purple-600 bg-purple-50" : "border-l-transparent"
+                      )}>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="text-sm font-bold text-gray-900">{payment.residentName}</p>
+                            <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">{payment.title || 'Rent Payment'}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-black text-gray-900">₹{payment.amount.toLocaleString('en-IN')}</p>
+                            <div className={cn(
+                              "inline-flex px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-wider items-center gap-1 mt-1",
+                              payment.method === 'Cash' ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"
+                            )}>
+                              {payment.method === 'Cash' ? <Banknote className="w-2.5 h-2.5" /> : <Smartphone className="w-2.5 h-2.5" />}
+                              {payment.method || 'UPI'}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-center text-xs text-gray-500 font-medium">
+                          <div className="flex items-center gap-2">
+                             <span>Room {roomName}</span>
+                             <span className="w-1 h-1 rounded-full bg-gray-300"></span>
+                             <span className="text-blue-600">{formattedTime}</span>
+                          </div>
+                          <span>{formattedDate}</span>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </div>
           </div>
+
         )}
       </div>
 
@@ -773,13 +845,13 @@ export default function Payments() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 bg-gray-900/40 backdrop-blur-sm"
           >
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col relative"
+              className="bg-white rounded-t-3xl sm:rounded-2xl shadow-xl w-full max-w-md max-h-[calc(100dvh-1.5rem)] overflow-y-auto flex flex-col relative"
             >
               <button 
                 onClick={() => setIsBulkModalOpen(false)}
@@ -788,7 +860,7 @@ export default function Payments() {
                 <X className="w-5 h-5" />
               </button>
               
-              <div className="p-6 pb-0">
+              <div className="p-5 sm:p-6 pb-0">
                 <div className="w-12 h-12 rounded-full bg-[#25D366]/10 text-[#25D366] flex items-center justify-center mb-4">
                   <Send className="w-6 h-6" />
                 </div>
@@ -839,7 +911,7 @@ export default function Payments() {
                 </p>
               </div>
 
-              <div className="p-6 flex items-center justify-end gap-3">
+              <div className="p-5 sm:p-6 flex items-center justify-end gap-3 pb-8 sm:pb-6">
                 <button 
                   onClick={() => setIsBulkModalOpen(false)}
                   className="px-5 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors"
@@ -864,13 +936,13 @@ export default function Payments() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 bg-gray-900/40 backdrop-blur-sm"
           >
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col relative"
+              className="bg-white rounded-t-3xl sm:rounded-2xl shadow-xl w-full max-w-md max-h-[calc(100dvh-1.5rem)] overflow-y-auto flex flex-col relative"
             >
               <button 
                 onClick={() => setResidentToMarkPaid(null)}
@@ -879,7 +951,7 @@ export default function Payments() {
                 <X className="w-5 h-5" />
               </button>
               
-              <div className="p-6 pb-0">
+              <div className="p-5 sm:p-6 pb-0">
                 <div className="w-12 h-12 rounded-full bg-green-50 text-green-600 flex items-center justify-center mb-4">
                   <Check className="w-6 h-6" />
                 </div>
@@ -890,7 +962,7 @@ export default function Payments() {
 
                 <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 mb-6 flex flex-col items-center justify-center">
                   <span className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Amount to Collect</span>
-                  <span className="text-3xl font-black text-blue-700">₹{(residentToMarkPaid.dueAmount > 0 ? residentToMarkPaid.dueAmount : 7500).toLocaleString('en-IN')}</span>
+                  <span className="text-2xl sm:text-3xl font-black text-blue-700">₹{(residentToMarkPaid.dueAmount > 0 ? residentToMarkPaid.dueAmount : 7500).toLocaleString('en-IN')}</span>
                 </div>
                 <div className="space-y-6">
                   <div>
@@ -899,7 +971,7 @@ export default function Payments() {
                       <button
                         onClick={() => setPaidUsing('UPI')}
                         className={cn(
-                          "flex-1 flex flex-col items-center gap-3 p-5 rounded-2xl border-2 transition-all",
+                          "flex-1 flex flex-col items-center gap-3 p-4 sm:p-5 rounded-2xl border-2 transition-all",
                           paidUsing === 'UPI' 
                             ? "border-green-600 bg-green-50 text-green-700 shadow-sm" 
                             : "border-gray-100 bg-gray-50/50 text-gray-500 hover:border-gray-200 hover:bg-gray-100"
@@ -911,7 +983,7 @@ export default function Payments() {
                       <button
                         onClick={() => setPaidUsing('Cash')}
                         className={cn(
-                          "flex-1 flex flex-col items-center gap-3 p-5 rounded-2xl border-2 transition-all",
+                          "flex-1 flex flex-col items-center gap-3 p-4 sm:p-5 rounded-2xl border-2 transition-all",
                           paidUsing === 'Cash' 
                             ? "border-green-600 bg-green-50 text-green-700 shadow-sm" 
                             : "border-gray-100 bg-gray-50/50 text-gray-500 hover:border-gray-200 hover:bg-gray-100"
@@ -957,7 +1029,7 @@ export default function Payments() {
                         exit={{ opacity: 0, height: 0, marginTop: 0 }}
                         className="space-y-4 overflow-hidden"
                       >
-                        <div className="flex gap-4">
+                        <div className="flex flex-col sm:flex-row gap-4">
                           <div className="flex-1 space-y-2">
                             <label className="text-sm font-medium text-gray-900 block">Pay Amount</label>
                             <div className="relative">
@@ -992,10 +1064,10 @@ export default function Payments() {
                             "text-sm font-medium",
                             Number(partialAmount) > (residentToMarkPaid.dueAmount > 0 ? residentToMarkPaid.dueAmount : 7500) ? "text-red-800" : "text-blue-800"
                           )}>
-                            {Number(partialAmount) > (residentToMarkPaid.dueAmount > 0 ? residentToMarkPaid.dueAmount : 7500) ? "Status:" : "Remaining Amount:"}
+                            {Number(partialAmount) > (residentToMarkPaid.dueAmount > 0 ? residentToMarkPaid.dueAmount : 7500) ? "Status:" : "Remaining:"}
                           </span>
                           <span className={cn(
-                            "text-sm font-bold",
+                            "text-sm font-bold text-right",
                             Number(partialAmount) > (residentToMarkPaid.dueAmount > 0 ? residentToMarkPaid.dueAmount : 7500) ? "text-red-900" : "text-blue-900"
                           )}>
                             {Number(partialAmount) > (residentToMarkPaid.dueAmount > 0 ? residentToMarkPaid.dueAmount : 7500) 
@@ -1011,7 +1083,7 @@ export default function Payments() {
                 </div>
               </div>
 
-              <div className="p-6 flex items-center justify-end gap-3 mt-4">
+              <div className="p-5 sm:p-6 flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3 mt-4 pb-8 sm:pb-6">
                 <button 
                   onClick={() => {
                     setResidentToMarkPaid(null);
@@ -1030,9 +1102,9 @@ export default function Payments() {
                     executeMarkPaid(residentToMarkPaid.id, paidUsing, amountToPay, isPartialPayment ? paymentDate : undefined, residentToMarkPaid.name, isPartialPayment);
                   }}
                   disabled={isMarkingPaid}
-                  className="px-5 py-2.5 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-xl transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
+                  className="px-5 py-2.5 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-xl transition-colors shadow-sm flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  {isMarkingPaid ? 'Confirming...' : (isPartialPayment ? 'Confirm Partially Paid' : 'Confirm Paid')}
+                  {isMarkingPaid ? 'Confirming...' : (isPartialPayment ? 'Confirm Partial' : 'Confirm Paid')}
                 </button>
               </div>
             </motion.div>

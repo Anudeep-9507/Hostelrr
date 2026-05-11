@@ -303,10 +303,10 @@ export default function Residents() {
       <div 
         key={resident.id} 
         onClick={() => setSelectedResident(resident)}
-        className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm flex flex-col gap-4 opacity-75 hover:opacity-100 transition-all cursor-pointer"
+        className="bg-white rounded-2xl p-4 md:p-5 border border-gray-200 shadow-sm flex flex-col gap-3 md:gap-4 opacity-75 hover:opacity-100 transition-all cursor-pointer min-w-0"
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <div className="w-12 h-12 bg-gray-50 border-2 border-white ring-1 ring-gray-200 shadow-sm rounded-full flex items-center justify-center text-gray-400 shrink-0 overflow-hidden">
               {resident.photoUrl ? (
                 <img src={resident.photoUrl} alt={resident.name} className="w-full h-full object-cover" />
@@ -314,8 +314,8 @@ export default function Residents() {
                 <DefaultAvatar className="w-full h-full" />
               )}
             </div>
-            <div>
-              <div className="font-bold text-gray-900 leading-tight">{resident.name}</div>
+            <div className="min-w-0">
+              <div className="font-bold text-gray-900 leading-tight truncate">{resident.name}</div>
               <div className="text-sm text-gray-500 mt-1">Room {roomNum} · {bedLetter}</div>
             </div>
           </div>
@@ -331,7 +331,7 @@ export default function Residents() {
                   // No roomId/bedId — let owner pick fresh vacant bed
                 } }));
             }}
-            className="p-2 border border-gray-200 rounded-lg text-gray-600 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-colors"
+            className="min-h-10 min-w-10 p-2 border border-gray-200 rounded-lg text-gray-600 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-colors shrink-0"
             title="Re-add Resident"
           >
             <UserPlus className="w-4 h-4" />
@@ -339,7 +339,7 @@ export default function Residents() {
         </div>
         
         <div className="text-sm text-gray-500 flex flex-col gap-2 border-b border-gray-100 pb-4 pt-2">
-          <div className="flex items-center gap-2"><Phone className="w-4 h-4 text-gray-400" /> {resident.phone}</div>
+          <div className="flex min-w-0 items-center gap-2"><Phone className="w-4 h-4 text-gray-400 shrink-0" /> <span className="truncate">{resident.phone}</span></div>
           <div className="flex flex-col gap-1.5 mt-1 bg-gray-50 p-2.5 rounded-lg border border-gray-100">
             <div className="flex items-center gap-2"><Calendar className="w-3.5 h-3.5 text-gray-400" /> <span className="text-xs">Joined: {joinDate}</span></div>
             <div className="flex items-center gap-2"><LogOut className="w-3.5 h-3.5 text-gray-400" /> <span className="text-xs">Left: {vacateDate}</span></div>
@@ -348,7 +348,7 @@ export default function Residents() {
         
         <div className="flex flex-col pt-1">
           <span className="text-xs text-gray-400 font-medium">Reason for leaving</span>
-          <span className="text-sm font-medium text-gray-800">{resident.reason}</span>
+          <span className="text-sm font-medium text-gray-800 break-words">{resident.reason}</span>
         </div>
       </div>
     );
@@ -364,9 +364,9 @@ export default function Residents() {
       <div 
         key={resident.id} 
         onClick={() => setSelectedResident(resident)}
-        className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm flex flex-col gap-4 transition-all hover:shadow-md cursor-pointer"
+        className="bg-white rounded-2xl p-4 md:p-5 border border-gray-200 shadow-sm flex flex-col gap-3 md:gap-4 transition-all hover:shadow-md cursor-pointer min-w-0"
       >
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           <div className="w-12 h-12 bg-gray-50 border-2 border-white ring-1 ring-gray-200 shadow-sm rounded-full flex items-center justify-center text-gray-400 shrink-0 overflow-hidden">
             {resident.photoUrl ? (
               <img src={resident.photoUrl} alt={resident.name} className="w-full h-full object-cover" />
@@ -374,8 +374,8 @@ export default function Residents() {
               <DefaultAvatar className="w-full h-full" />
             )}
           </div>
-          <div>
-            <div className="font-bold text-gray-900 leading-tight">{resident.name}</div>
+          <div className="min-w-0">
+            <div className="font-bold text-gray-900 leading-tight truncate">{resident.name}</div>
             <div className="text-sm text-gray-500 mt-1">Room {roomNum} · {bedLetter}</div>
             {bedStatus === 'reserved' && (
               <div className="mt-2">
@@ -386,11 +386,11 @@ export default function Residents() {
         </div>
         
         <div className="text-sm text-gray-500 flex flex-col gap-1.5 border-b border-gray-100 pb-4 pt-2">
-          <div className="flex items-center gap-2"><Phone className="w-4 h-4 text-gray-400" /> {resident.phone}</div>
+          <div className="flex min-w-0 items-center gap-2"><Phone className="w-4 h-4 text-gray-400 shrink-0" /> <span className="truncate">{resident.phone}</span></div>
           <div className="text-gray-400 pl-6">Joined {joinDate}</div>
         </div>
         
-        <div className="flex items-center justify-between pt-1">
+        <div className="flex items-center justify-between gap-3 pt-1">
           <div className="font-bold text-gray-900">₹{rentAmount.toLocaleString('en-IN')}/mo</div>
           {getStatusPill(resident)}
         </div>
@@ -400,7 +400,7 @@ export default function Residents() {
 
   const renderGrid = (list: Resident[]) => {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
         {list.map(renderCard)}
       </div>
     );
@@ -418,7 +418,7 @@ export default function Residents() {
         );
       }
       return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
           {sortedPastResidents.map(res => renderPastCard(res))}
         </div>
       );
@@ -463,7 +463,7 @@ export default function Residents() {
       });
 
       return (
-        <div className="space-y-10">
+        <div className="space-y-8 md:space-y-10">
           {sortedFloorNames.map((floorName) => {
             const resList = floorGroups[floorName];
             if (resList.length === 0) return null;
@@ -474,7 +474,7 @@ export default function Residents() {
 
             return (
               <div key={floorName}>
-                <div className="flex justify-between items-end mb-4 pb-2 border-b border-gray-200">
+                <div className="flex justify-between items-end gap-3 mb-4 pb-2 border-b border-gray-200">
                   <h3 className="text-lg font-bold text-gray-800">{floorName}</h3>
                   <span className="text-sm font-medium text-gray-500">{allocatedCount}/{totalBeds} beds</span>
                 </div>
@@ -486,7 +486,7 @@ export default function Residents() {
                     roomGroups[roomName].push(r);
                   });
                   return Object.entries(roomGroups).sort().map(([roomName, roomResidents]) => (
-                    <div key={roomName} className="mb-8 last:mb-0">
+                    <div key={roomName} className="mb-6 md:mb-8 last:mb-0">
                       <h4 className="text-md font-semibold text-gray-600 mb-3">{roomName}</h4>
                       {renderGrid(roomResidents)}
                     </div>
@@ -516,7 +516,7 @@ export default function Residents() {
       });
 
       return (
-        <div className="space-y-10">
+        <div className="space-y-8 md:space-y-10">
           {sortedRoomIds.map((roomId) => {
             const resList = roomGroups[roomId];
             if (resList.length === 0) return null;
@@ -533,7 +533,7 @@ export default function Residents() {
 
             return (
               <div key={roomId}>
-                <div className="flex justify-between items-end mb-4 pb-2 border-b border-gray-200">
+                <div className="flex justify-between items-end gap-3 mb-4 pb-2 border-b border-gray-200">
                   <h3 className="text-lg font-bold text-gray-800">{roomName}</h3>
                   <span className="text-sm font-medium text-gray-500">{allocatedCount}/{totalBeds} beds</span>
                 </div>
@@ -560,17 +560,17 @@ export default function Residents() {
   const selectedBedStatus = getSelectedBedStatus();
 
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto md:h-[calc(100vh-64px)] overflow-hidden flex flex-col relative w-full">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 shrink-0">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight mb-1">Residents</h1>
-          <p className="text-gray-500">Manage all your hostel residents.</p>
+    <div className="p-3 sm:p-4 md:p-8 max-w-7xl mx-auto md:h-[calc(100vh-64px)] overflow-x-hidden md:overflow-hidden flex flex-col relative w-full min-w-0">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-5 md:mb-8 shrink-0 min-w-0">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight mb-1">Residents</h1>
+          <p className="text-sm sm:text-base text-gray-500">Manage all your hostel residents.</p>
         </div>
-        <div className="flex items-center gap-3 w-full sm:w-auto">
+        <div className="grid grid-cols-2 sm:flex sm:items-center gap-3 w-full sm:w-auto">
           <button 
             onClick={() => setShowHistory(!showHistory)}
             className={cn(
-              "px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-sm flex items-center gap-2",
+              "min-h-11 justify-center px-4 md:px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-sm flex items-center gap-2",
               showHistory 
                 ? "bg-gray-800 hover:bg-gray-900 text-white" 
                 : "bg-white border border-gray-200 hover:border-gray-300 text-gray-700"
@@ -582,16 +582,16 @@ export default function Residents() {
           
           <button 
             onClick={() => window.dispatchEvent(new CustomEvent('open-add-resident-modal'))}
-            className="bg-[#1D4ED8] hover:bg-[#1e40af] text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-sm flex items-center gap-2 hover:shadow-md"
+            className="min-h-11 justify-center bg-[#1D4ED8] hover:bg-[#1e40af] text-white px-4 md:px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-sm flex items-center gap-2 hover:shadow-md"
           >
             <Plus className="w-4 h-4" /> Add Resident
           </button>
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 shrink-0">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 md:gap-4 mb-5 md:mb-6 shrink-0 min-w-0">
         {/* Toggle Buttons */}
-        <div className={cn("bg-gray-100/80 p-1.5 rounded-[14px] flex gap-1.5 items-center justify-start overflow-x-auto w-full sm:w-auto border border-gray-200/60 shadow-sm no-scrollbar", showHistory ? "invisible" : "visible")}>
+        <div className={cn("bg-gray-100/80 p-1.5 rounded-[14px] flex gap-1.5 items-center justify-start overflow-x-auto w-full sm:w-auto border border-gray-200/60 shadow-sm no-scrollbar", showHistory ? "hidden sm:invisible" : "visible")}>
           {(['all', 'floor', 'room'] as ViewMode[]).map((mode) => {
             let countNum = 0;
             if (mode === 'all') countNum = residents.length;
@@ -603,7 +603,7 @@ export default function Residents() {
                 key={mode}
                 onClick={() => handleViewModeChange(mode)}
                 className={cn(
-                  "px-5 py-2 rounded-xl text-[15px] font-semibold transition-all capitalize flex items-center gap-2.5 whitespace-nowrap",
+                  "min-h-10 px-4 md:px-5 py-2 rounded-xl text-sm md:text-[15px] font-semibold transition-all capitalize flex items-center gap-2.5 whitespace-nowrap",
                   viewMode === mode 
                     ? "bg-white text-blue-700 shadow-md ring-1 ring-black/5" 
                     : "text-gray-600 hover:text-gray-900 hover:bg-gray-200/50"
@@ -623,7 +623,7 @@ export default function Residents() {
 
         {/* Sort By Dropdown instead of Search */}
         {!showHistory && (
-          <div className="relative w-full sm:w-auto mt-4 sm:mt-0">
+          <div className="relative w-full sm:w-auto">
             <select
               value={currentSort}
               onChange={(e) => setCurrentSort(e.target.value)}
@@ -658,7 +658,7 @@ export default function Residents() {
 
       {/* Grid Content */}
       <div className={cn(
-        "flex-1 overflow-y-auto pb-12 pr-2 custom-scrollbar transition-all duration-300"
+        "flex-1 overflow-y-visible md:overflow-y-auto pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-12 pr-0 md:pr-2 custom-scrollbar transition-all duration-300 min-w-0"
       )}>
         {renderContent()}
       </div>
@@ -671,33 +671,33 @@ export default function Residents() {
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: "100%", opacity: 0 }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="w-full sm:w-[400px] bg-white border-l border-gray-200 shadow-2xl h-[calc(100vh-64px)] fixed right-0 top-16 z-30 flex flex-col overflow-hidden"
+            className="w-full sm:w-[400px] bg-white border-l border-gray-200 shadow-2xl h-dvh sm:h-[calc(100vh-64px)] fixed right-0 top-0 sm:top-16 z-50 sm:z-30 flex flex-col overflow-hidden"
           >
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">Resident Profile</h2>
+            <div className="p-4 sm:p-6 border-b border-gray-100 flex justify-between items-center gap-3 bg-gray-50/50 shrink-0">
+              <div className="min-w-0">
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">Resident Profile</h2>
                 <p className="text-sm text-gray-500">Details & Documents</p>
               </div>
               <div className="flex items-center gap-1">
                 {('paymentStatus' in selectedResident) && (
                   <button 
                     onClick={() => setResidentToEdit(selectedResident as Resident)}
-                    className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-600"
+                    className="min-h-10 min-w-10 p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-600"
                   >
                     <Edit className="w-5 h-5" />
                   </button>
                 )}
                 <button 
                   onClick={() => setSelectedResident(null)}
-                  className="p-2 hover:bg-gray-200 rounded-full transition-colors"
+                  className="min-h-10 min-w-10 p-2 hover:bg-gray-200 rounded-full transition-colors"
                 >
                   <X className="w-5 h-5 text-gray-600" />
                 </button>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              <div className="flex items-center gap-4">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 sm:space-y-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+              <div className="flex min-w-0 items-center gap-4">
                 <div className="relative group">
                   <div className="w-16 h-16 rounded-full bg-gray-50 border-2 border-white ring-1 ring-gray-200 shadow-sm flex items-center justify-center text-gray-400 overflow-hidden shrink-0">
                     {selectedResident.photoUrl ? (
@@ -724,8 +724,8 @@ export default function Residents() {
                     </div>
                   )}
                 </div>
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <div className="min-w-0">
+                  <h3 className="text-lg sm:text-xl font-bold text-gray-900 flex flex-wrap items-center gap-2">
                     {selectedResident.name}
                     {selectedBedStatus === 'reserved' && (
                       <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs tracking-wider rounded-md">RESERVED</span>
@@ -736,10 +736,10 @@ export default function Residents() {
               </div>
 
               <div className="flex items-center gap-3">
-                <a href={`tel:${selectedResident.phone}`} className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold transition-colors border border-gray-200">
+                <a href={`tel:${selectedResident.phone}`} className="min-h-11 flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold transition-colors border border-gray-200">
                   <Phone className="w-4 h-4" /> Call
                 </a>
-                <a href={`https://wa.me/${(selectedResident.phone || '').replace(/[^0-9]/g, '').startsWith('91') && (selectedResident.phone || '').replace(/[^0-9]/g, '').length === 12 ? (selectedResident.phone || '').replace(/[^0-9]/g, '') : ((selectedResident.phone || '').replace(/[^0-9]/g, '').length === 10 ? '91' + (selectedResident.phone || '').replace(/[^0-9]/g, '') : (selectedResident.phone || '').replace(/[^0-9]/g, ''))}`} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-[#25D366] hover:bg-[#22c35e] text-white rounded-xl text-sm font-bold transition-colors shadow-sm">
+                <a href={`https://wa.me/${(selectedResident.phone || '').replace(/[^0-9]/g, '').startsWith('91') && (selectedResident.phone || '').replace(/[^0-9]/g, '').length === 12 ? (selectedResident.phone || '').replace(/[^0-9]/g, '') : ((selectedResident.phone || '').replace(/[^0-9]/g, '').length === 10 ? '91' + (selectedResident.phone || '').replace(/[^0-9]/g, '') : (selectedResident.phone || '').replace(/[^0-9]/g, ''))}`} target="_blank" rel="noopener noreferrer" className="min-h-11 flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-[#25D366] hover:bg-[#22c35e] text-white rounded-xl text-sm font-bold transition-colors shadow-sm">
                   <WhatsAppIcon className="w-5 h-5" /> WhatsApp
                 </a>
               </div>
@@ -754,7 +754,7 @@ export default function Residents() {
                       setConfirmJoinDate(selectedResident.joinDate || getTodayIST());
                       setShowConfirmBedModal(true);
                     }}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
+                    className="w-full min-h-11 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
                   >
                     Confirm Bed
                   </button>
@@ -767,7 +767,7 @@ export default function Residents() {
                   <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Status</h4>
                   
                   {/* Dues Card */}
-                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex items-center justify-between">
+                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                      <div className="flex items-center gap-2">
                        <IndianRupee className="w-5 h-5 text-gray-400" />
                        <span className="font-medium text-sm text-gray-700">Dues</span>
@@ -775,12 +775,12 @@ export default function Residents() {
                      {selectedResident.paymentStatus === 'paid' ? (
                         <span className="text-sm font-bold text-green-600">Paid (₹{selectedResident.dueAmount > 0 ? selectedResident.dueAmount : 7500})</span>
                       ) : (
-                        <div className="flex items-center gap-2">
+                         <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center">
                           <span className="text-sm font-bold text-red-600">₹{selectedResident.dueAmount}</span>
-                          <div className="flex items-center gap-2">
+                           <div className="flex flex-wrap items-center gap-2">
                             <button
                               onClick={() => handleSendReminder(selectedResident as Resident)}
-                              className="bg-[#25D366] hover:bg-[#22c35e] text-white px-3 py-1.5 rounded-full text-[12px] font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                              className="min-h-9 bg-[#25D366] hover:bg-[#22c35e] text-white px-3 py-1.5 rounded-full text-[12px] font-bold transition-all flex items-center gap-1.5 shadow-sm"
                             >
                               <WhatsAppIcon className="w-3.5 h-3.5" /> Remind
                             </button>
@@ -792,7 +792,7 @@ export default function Residents() {
                                 setPartialAmount('');
                                 setPaymentDate(getTodayIST());
                               }}
-                              className="text-[#059669] bg-white border border-[#A7F3D0]/60 px-3 py-1.5 rounded-full text-[12px] font-semibold hover:bg-[#ECFDF5] transition-all flex items-center gap-1.5 shadow-sm"
+                              className="min-h-9 text-[#059669] bg-white border border-[#A7F3D0]/60 px-3 py-1.5 rounded-full text-[12px] font-semibold hover:bg-[#ECFDF5] transition-all flex items-center gap-1.5 shadow-sm"
                             >
                               <CheckCircle2 className="w-3.5 h-3.5" /> Mark Paid
                             </button>
@@ -803,7 +803,7 @@ export default function Residents() {
 
                   {/* Security Deposit Card */}
                   {('securityDeposit' in selectedResident && selectedResident.securityDeposit) && (
-                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex items-center justify-between">
+                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex items-center gap-2">
                         <IndianRupee className="w-5 h-5 text-gray-400" />
                         <span className="font-medium text-sm text-gray-700">Security Deposit</span>
@@ -811,7 +811,7 @@ export default function Residents() {
                       {'isDepositPaid' in selectedResident && selectedResident.isDepositPaid ? (
                         <span className="text-sm font-bold text-green-600">Paid (₹{selectedResident.securityDeposit.toLocaleString('en-IN')})</span>
                       ) : (
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3">
                           <span className="text-sm font-bold text-red-600">₹{selectedResident.securityDeposit.toLocaleString('en-IN')}</span>
                           <button
                             onClick={() => {
@@ -819,7 +819,7 @@ export default function Residents() {
                               setDepositPaymentMethod('UPI');
                               setDepositPaymentDate(getTodayIST());
                             }}
-                            className="text-[#059669] bg-white border border-[#A7F3D0]/60 px-3 py-1.5 rounded-full text-[12px] font-semibold hover:bg-[#ECFDF5] transition-all flex items-center gap-1.5 shadow-sm"
+                            className="min-h-9 text-[#059669] bg-white border border-[#A7F3D0]/60 px-3 py-1.5 rounded-full text-[12px] font-semibold hover:bg-[#ECFDF5] transition-all flex items-center gap-1.5 shadow-sm"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5" /> Mark Paid
                           </button>
@@ -853,7 +853,7 @@ export default function Residents() {
 
               {profileTab === 'info' && (
                 <div className="space-y-6">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
                       <span className="flex items-center gap-2 text-xs text-gray-500 font-medium mb-1.5"><Phone className="w-4 h-4" /> Phone</span>
                       <span className="text-sm font-semibold text-gray-900">{selectedResident.phone}</span>
@@ -903,9 +903,9 @@ export default function Residents() {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+                        className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/40"
                       >
-                        <motion.div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+                        <motion.div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-md max-h-[calc(100dvh-1.5rem)] overflow-y-auto p-5 sm:p-6">
                           <div className="flex justify-between items-center mb-4">
                             <h3 className="text-lg font-bold">Confirm Bed</h3>
                             <button onClick={() => setShowConfirmBedModal(false)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full"><X className="w-4 h-4" /></button>
@@ -946,7 +946,7 @@ export default function Residents() {
                               />
                             </div>
 
-                            <div className="flex items-center gap-2 pt-2">
+                            <div className="flex flex-col-reverse sm:flex-row sm:items-center gap-2 pt-2">
                               <button
                                 onClick={async () => {
                                   if (!confirmRoomId || !confirmBedId || !selectedResident) return;
@@ -968,11 +968,11 @@ export default function Residents() {
                                   setShowConfirmBedModal(false);
                                   setSelectedResident(null);
                                 }}
-                                className="bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700"
+                                className="w-full sm:w-auto min-h-11 bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700"
                               >
                                 Confirm
                               </button>
-                              <button onClick={() => setShowConfirmBedModal(false)} className="px-4 py-2 rounded-xl border">Cancel</button>
+                              <button onClick={() => setShowConfirmBedModal(false)} className="w-full sm:w-auto min-h-11 px-4 py-2 rounded-xl border">Cancel</button>
                             </div>
                           </div>
                         </motion.div>
@@ -991,39 +991,39 @@ export default function Residents() {
 
                     {'paymentStatus' in selectedResident ? (
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between p-3 border border-gray-200 rounded-xl">
-                          <div className="flex items-center gap-3">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3 border border-gray-200 rounded-xl">
+                          <div className="flex min-w-0 items-center gap-3">
                             <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
                               <FileText className="w-5 h-5" />
                             </div>
-                            <div>
+                            <div className="min-w-0">
                               <p className="text-sm font-medium text-gray-900">Aadhar Card</p>
                               <p className="text-xs text-gray-500">
                                 {selectedResident.aadharDocumentUrl ? 'Uploaded' : 'Not uploaded'}
                               </p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-3 sm:gap-2">
                             {selectedResident.aadharDocumentUrl ? (
                               <>
                                 <a
                                   href={selectedResident.aadharDocumentUrl}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="text-blue-600 text-sm font-medium"
+                                  className="min-h-9 inline-flex items-center text-blue-600 text-sm font-medium"
                                 >
                                   View
                                 </a>
                                 <button
                                   type="button"
                                   onClick={() => downloadFileInstantly(selectedResident.aadharDocumentUrl!, `${selectedResident.name}-aadhar`)}
-                                  className="text-gray-700 text-sm font-medium"
+                                  className="min-h-9 inline-flex items-center text-gray-700 text-sm font-medium"
                                 >
                                   Download
                                 </button>
                               </>
                             ) : (
-                              <label className="text-sm font-semibold bg-gray-900 text-white px-3 py-1.5 rounded-lg hover:bg-gray-800 transition-colors cursor-pointer">
+                              <label className="min-h-9 inline-flex items-center text-sm font-semibold bg-gray-900 text-white px-3 py-1.5 rounded-lg hover:bg-gray-800 transition-colors cursor-pointer">
                                 Upload
                                 <input
                                   type="file"
@@ -1037,39 +1037,39 @@ export default function Residents() {
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between p-3 border border-gray-200 rounded-xl">
-                          <div className="flex items-center gap-3">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3 border border-gray-200 rounded-xl">
+                          <div className="flex min-w-0 items-center gap-3">
                             <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
                               <FileText className="w-5 h-5" />
                             </div>
-                            <div>
+                            <div className="min-w-0">
                               <p className="text-sm font-medium text-gray-900">Hostel Form</p>
                               <p className="text-xs text-gray-500">
                                 {selectedResident.hostelFormUrl ? 'Uploaded' : 'Not uploaded'}
                               </p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-3 sm:gap-2">
                             {selectedResident.hostelFormUrl ? (
                               <>
                                 <a
                                   href={selectedResident.hostelFormUrl}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="text-blue-600 text-sm font-medium"
+                                  className="min-h-9 inline-flex items-center text-blue-600 text-sm font-medium"
                                 >
                                   View
                                 </a>
                                 <button
                                   type="button"
                                   onClick={() => downloadFileInstantly(selectedResident.hostelFormUrl!, `${selectedResident.name}-hostel-form`)}
-                                  className="text-gray-700 text-sm font-medium"
+                                  className="min-h-9 inline-flex items-center text-gray-700 text-sm font-medium"
                                 >
                                   Download
                                 </button>
                               </>
                             ) : (
-                              <label className="text-sm font-semibold bg-gray-100 text-gray-900 border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer">
+                              <label className="min-h-9 inline-flex items-center text-sm font-semibold bg-gray-100 text-gray-900 border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer">
                                 Upload
                                 <input
                                   type="file"
@@ -1106,17 +1106,17 @@ export default function Residents() {
                     <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Payment History</h4>
                     <div className="space-y-2">
                       {getMockHistory(selectedResident as Resident).map(history => (
-                        <div key={history.id} className={cn("flex items-center justify-between p-3 border rounded-xl transition-colors cursor-pointer group border-l-4", history.status === 'partial' ? "border-l-purple-500 bg-purple-50/50 hover:border-purple-300 border-gray-200" : "bg-white hover:border-blue-300 border-gray-200 border-l-transparent")}>
-                          <div className="flex items-center gap-3">
+                        <div key={history.id} className={cn("flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3 border rounded-xl transition-colors cursor-pointer group border-l-4", history.status === 'partial' ? "border-l-purple-500 bg-purple-50/50 hover:border-purple-300 border-gray-200" : "bg-white hover:border-blue-300 border-gray-200 border-l-transparent")}>
+                          <div className="flex min-w-0 items-center gap-3">
                             <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center shrink-0", history.status === 'partial' ? "bg-purple-100 text-purple-600" : "bg-green-50 text-green-600")}>
                               <CheckCircle2 className="w-5 h-5" />
                             </div>
-                            <div>
+                            <div className="min-w-0">
                               <p className="text-sm font-semibold text-gray-900">{history.title || 'Rent Payment'}</p>
                               <p className="text-xs text-gray-500">Paid on {getTransactionDateForDisplay(history.date)}</p>
                             </div>
                           </div>
-                          <div className="flex flex-col items-end">
+                          <div className="flex flex-row items-center justify-between gap-3 sm:flex-col sm:items-end">
                             <span className="text-sm font-bold text-gray-900">₹{history.amount.toLocaleString('en-IN')}</span>
                             <span className={cn("text-xs font-semibold flex items-center gap-1", history.status === 'partial' ? "text-purple-600" : "text-green-600")}>
                               {history.status === 'partial' ? 'Partial' : 'Successful'}
@@ -1171,13 +1171,13 @@ export default function Residents() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 bg-gray-900/40 backdrop-blur-sm"
           >
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col relative"
+              className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-md max-h-[calc(100dvh-1.5rem)] overflow-hidden flex flex-col relative"
             >
               <button 
                 onClick={() => setResidentToVacate(null)}
@@ -1186,7 +1186,7 @@ export default function Residents() {
                 <X className="w-5 h-5" />
               </button>
               
-              <div className="p-6 pb-0">
+              <div className="p-5 sm:p-6 pb-0">
                 <div className="w-12 h-12 rounded-full bg-red-50 text-red-600 flex items-center justify-center mb-4">
                   <LogOut className="w-6 h-6" />
                 </div>
@@ -1196,17 +1196,17 @@ export default function Residents() {
                 </p>
               </div>
 
-              <div className="p-6 flex items-center justify-end gap-3 mt-2">
+              <div className="p-4 sm:p-6 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3 mt-2">
                 <button 
                   onClick={() => setResidentToVacate(null)}
-                  className="px-5 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors"
+                  className="w-full sm:w-auto min-h-11 px-5 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors"
                 >
                   Cancel
                 </button>
                 <button 
                   onClick={() => executeVacate(residentToVacate.id)}
                   disabled={isVacating}
-                  className="px-5 py-2.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
+                  className="w-full sm:w-auto min-h-11 justify-center px-5 py-2.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
                 >
                   {isVacating ? 'Vacating...' : 'Confirm Vacate'}
                 </button>
@@ -1222,22 +1222,22 @@ export default function Residents() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 bg-gray-900/40 backdrop-blur-sm"
           >
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col relative"
+              className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-md max-h-[calc(100dvh-1.5rem)] overflow-hidden flex flex-col relative"
             >
-              <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-                <h3 className="text-xl font-bold text-gray-900">Edit Resident Profile</h3>
+              <div className="p-4 sm:p-6 border-b border-gray-100 flex items-center justify-between gap-3 shrink-0">
+                <h3 className="text-lg sm:text-xl font-bold text-gray-900">Edit Resident Profile</h3>
                 <button 
                   onClick={() => {
                     setResidentToEdit(null);
                     setResidentEditFiles({});
                   }}
-                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                  className="min-h-10 min-w-10 p-2 hover:bg-gray-100 rounded-full transition-colors shrink-0"
                 >
                   <X className="w-5 h-5 text-gray-500" />
                 </button>
@@ -1287,7 +1287,7 @@ export default function Residents() {
                 } finally {
                   setIsEditingFiles(false);
                 }
-              }} className="p-6 space-y-5 max-h-[70vh] overflow-y-auto custom-scrollbar">
+              }} className="flex-1 p-4 sm:p-6 space-y-5 overflow-y-auto custom-scrollbar">
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-gray-900 block">Full Name <span className="text-red-500">*</span></label>
                   <input type="text" name="name" defaultValue={residentToEdit.name} required className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all" />
@@ -1299,12 +1299,12 @@ export default function Residents() {
                     { label: 'Aadhar', key: 'aadhar', icon: FileText, current: (residentToEdit as Resident).aadharDocumentUrl, accept: 'image/*,application/pdf' },
                     { label: 'Hostel Form', key: 'hostelForm', icon: Upload, current: (residentToEdit as Resident).hostelFormUrl, accept: 'image/*,application/pdf' }
                   ].map((file) => (
-                    <div key={file.key} className="flex items-center justify-between p-3.5 bg-gray-50 border border-gray-100 rounded-2xl">
-                      <div className="flex items-center gap-3">
+                    <div key={file.key} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3.5 bg-gray-50 border border-gray-100 rounded-2xl">
+                      <div className="flex min-w-0 items-center gap-3">
                         <div className="w-9 h-9 rounded-xl bg-white shadow-sm border border-gray-100 flex items-center justify-center text-gray-400">
                           <file.icon className="w-4.5 h-4.5" />
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <p className="text-sm font-semibold text-gray-900">{file.label}</p>
                           {(file.current || residentEditFiles[file.key as keyof typeof residentEditFiles]) && (
                             <p className="text-[11px] text-green-600 font-bold flex items-center gap-1 mt-0.5">
@@ -1313,7 +1313,7 @@ export default function Residents() {
                           )}
                         </div>
                       </div>
-                      <label className="relative inline-flex items-center px-4 py-2 bg-white border border-gray-200 hover:border-gray-300 rounded-xl text-xs font-bold text-gray-700 shadow-sm cursor-pointer transition-all hover:bg-gray-50">
+                      <label className="relative inline-flex min-h-10 items-center justify-center px-4 py-2 bg-white border border-gray-200 hover:border-gray-300 rounded-xl text-xs font-bold text-gray-700 shadow-sm cursor-pointer transition-all hover:bg-gray-50">
                         {file.current || residentEditFiles[file.key as keyof typeof residentEditFiles] ? 'Replace' : 'Upload'}
                         <input 
                           type="file" 
@@ -1392,7 +1392,7 @@ export default function Residents() {
                   </div>
                 </div>
 
-                <div className="pt-4 flex items-center justify-end gap-3 sticky bottom-0 bg-white border-t border-gray-100 mt-2 -mx-6 px-6 pt-4">
+                <div className="pt-4 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3 sticky bottom-0 bg-white border-t border-gray-100 mt-2 -mx-4 sm:-mx-6 px-4 sm:px-6 pb-[env(safe-area-inset-bottom)]">
                   <button 
                     type="button"
                     onClick={() => {
@@ -1400,14 +1400,14 @@ export default function Residents() {
                       setResidentEditFiles({});
                     }}
                     disabled={isEditingFiles}
-                    className="px-5 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors disabled:opacity-50"
+                    className="w-full sm:w-auto min-h-11 px-5 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors disabled:opacity-50"
                   >
                     Cancel
                   </button>
                   <button 
                     type="submit"
                     disabled={isEditingFiles}
-                    className="px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full sm:w-auto min-h-11 justify-center px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isEditingFiles ? 'Saving...' : 'Save Changes'}
                   </button>
@@ -1424,17 +1424,17 @@ export default function Residents() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm"
+            className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-gray-900/40 backdrop-blur-sm"
             onClick={() => setResidentToMarkDepositPaid(null)}
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-3xl shadow-xl w-full max-w-md overflow-hidden relative z-10"
+              className="bg-white rounded-t-3xl sm:rounded-3xl shadow-xl w-full max-w-md max-h-[calc(100dvh-1.5rem)] overflow-y-auto relative z-10"
               onClick={e => e.stopPropagation()}
             >
-              <div className="p-6">
+              <div className="p-5 sm:p-6">
                 <div className="w-12 h-12 rounded-full bg-green-50 text-green-600 flex items-center justify-center mb-4">
                   <CheckCircle2 className="w-6 h-6" />
                 </div>
@@ -1450,7 +1450,7 @@ export default function Residents() {
                 <div className="space-y-6">
                   <div>
                     <label className="text-sm font-medium text-gray-900 block mb-4">Paid Using</label>
-                    <div className="flex gap-4">
+                    <div className="grid grid-cols-2 gap-3 sm:gap-4">
                       <button 
                         onClick={() => setDepositPaymentMethod('UPI')}
                         className={`flex-1 py-3 px-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${
@@ -1486,17 +1486,17 @@ export default function Residents() {
                   </div>
                 </div>
               </div>
-              <div className="p-4 bg-gray-50 flex items-center justify-end gap-3 border-t border-gray-100">
+              <div className="p-4 bg-gray-50 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3 border-t border-gray-100">
                 <button 
                   onClick={() => setResidentToMarkDepositPaid(null)}
-                  className="px-5 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors"
+                  className="w-full sm:w-auto min-h-11 px-5 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors"
                 >
                   Cancel
                 </button>
                 <button 
                   onClick={() => executeMarkDepositPaid(residentToMarkDepositPaid.id, depositPaymentDate)}
                   disabled={isMarkingDepositPaid}
-                  className="px-5 py-2.5 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-xl transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
+                  className="w-full sm:w-auto min-h-11 justify-center px-5 py-2.5 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-xl transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
                 >
                   {isMarkingDepositPaid ? 'Confirming...' : 'Confirm Paid'}
                 </button>
@@ -1512,13 +1512,13 @@ export default function Residents() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm"
+            className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-gray-900/40 backdrop-blur-sm"
           >
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col relative z-10"
+              className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-md max-h-[calc(100dvh-1.5rem)] overflow-hidden flex flex-col relative z-10"
             >
               <button 
                 onClick={() => setResidentToMarkPaid(null)}
@@ -1527,7 +1527,7 @@ export default function Residents() {
                 <X className="w-5 h-5" />
               </button>
               
-              <div className="p-6 pb-0">
+              <div className="p-5 sm:p-6 pb-0 overflow-y-auto">
                 <div className="w-12 h-12 rounded-full bg-green-50 text-green-600 flex items-center justify-center mb-4">
                   <CheckCircle2 className="w-6 h-6" />
                 </div>
@@ -1543,7 +1543,7 @@ export default function Residents() {
                 <div className="space-y-6">
                   <div>
                     <label className="text-sm font-medium text-gray-900 block mb-4">Paid Using</label>
-                    <div className="flex gap-4">
+                    <div className="grid grid-cols-2 gap-3 sm:gap-4">
                       <button
                         onClick={() => setPaidUsing('UPI')}
                         className={cn(
@@ -1571,7 +1571,7 @@ export default function Residents() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-6 pt-1">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6 pt-1">
                     <label className="text-sm font-medium text-gray-900">Partial Payment</label>
                     <div className="flex gap-6">
                       <label className="flex items-center gap-2 cursor-pointer">
@@ -1605,7 +1605,7 @@ export default function Residents() {
                         exit={{ opacity: 0, height: 0, marginTop: 0 }}
                         className="space-y-4 overflow-hidden"
                       >
-                        <div className="flex gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div className="flex-1 space-y-2">
                             <label className="text-sm font-medium text-gray-900 block">Pay Amount</label>
                             <div className="relative">
@@ -1631,7 +1631,7 @@ export default function Residents() {
                         </div>
                         
                         <div className={cn(
-                          "p-3 rounded-xl border flex items-center justify-between",
+                          "p-3 rounded-xl border flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between",
                           Number(partialAmount) > (residentToMarkPaid.dueAmount > 0 ? residentToMarkPaid.dueAmount : 7500)
                             ? "bg-red-50 border-red-100"
                             : "bg-blue-50 border-blue-100"
@@ -1659,7 +1659,7 @@ export default function Residents() {
                 </div>
               </div>
 
-              <div className="p-6 flex items-center justify-end gap-3 mt-4 border-t border-gray-100 bg-gray-50">
+              <div className="p-4 sm:p-6 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3 mt-4 border-t border-gray-100 bg-gray-50 shrink-0">
                 <button 
                   onClick={() => {
                     setResidentToMarkPaid(null);
@@ -1668,7 +1668,7 @@ export default function Residents() {
                     setPartialAmount('');
                     setPaymentDate(getTodayIST());
                   }}
-                  className="px-5 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors"
+                  className="w-full sm:w-auto min-h-11 px-5 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors"
                 >
                   Cancel
                 </button>
@@ -1680,7 +1680,7 @@ export default function Residents() {
                     }
                   }}
                   disabled={isMarkingPaid}
-                  className="px-6 py-2.5 text-[15px] font-bold text-white bg-green-600 hover:bg-green-700 rounded-xl transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
+                  className="w-full sm:w-auto min-h-11 justify-center px-6 py-2.5 text-[15px] font-bold text-white bg-green-600 hover:bg-green-700 rounded-xl transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
                 >
                   {isMarkingPaid ? 'Confirming...' : 'Confirm Paid'}
                 </button>

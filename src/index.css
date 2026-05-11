@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+html,
+body,
+#root {
+	min-height: 100%;
+	overflow-x: hidden;
+}
+
 @keyframes door-blink {
 	0%, 100% {
 		opacity: 1;

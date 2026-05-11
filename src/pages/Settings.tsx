@@ -164,16 +164,16 @@ export default function Settings() {
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-6 pb-32">
+    <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-6 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-20">
       {/* Page Header */}
       <div className="flex flex-col gap-1">
-        <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Settings</h1>
-        <p className="text-gray-500">Manage your hostel preferences and account details.</p>
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">Settings</h1>
+        <p className="text-sm md:text-base text-gray-500">Manage your hostel preferences and account details.</p>
       </div>
 
       {/* Horizontal Pill Navigation Bar */}
-      <div className="sticky top-0 z-30 -mx-4 md:mx-0 px-4 md:px-0 py-3 bg-gray-50/80 backdrop-blur-md border-b border-gray-200/50 -mt-2">
-        <div className="flex items-center gap-2.5 overflow-x-auto no-scrollbar pb-1">
+      <div className="sticky top-14 md:top-0 z-30 -mx-4 md:mx-0 px-4 md:px-0 py-3 bg-gray-50/80 backdrop-blur-md border-b border-gray-200/50 -mt-2">
+        <div className="flex items-center gap-2 md:gap-2.5 overflow-x-auto no-scrollbar pb-1">
           {TABS.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -211,9 +211,9 @@ export default function Settings() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -10 }}
               transition={{ duration: 0.2 }}
-              className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden"
+              className="bg-white rounded-2xl md:rounded-3xl border border-gray-200 shadow-sm overflow-hidden"
             >
-              <div className="p-6 pb-0 flex items-center">
+              <div className="p-4 md:p-6 pb-0 flex items-center">
                 <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-blue-50 border border-blue-100 shadow-sm">
                   <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 ring-2 ring-white">
                     <Home className="w-3.5 h-3.5" />
@@ -221,8 +221,8 @@ export default function Settings() {
                   <h2 className="text-[13px] font-semibold text-blue-700">Hostel Details</h2>
                 </div>
               </div>
-              <form onSubmit={handleSaveHostelDetails} className="p-6 space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <form onSubmit={handleSaveHostelDetails} className="p-4 md:p-6 space-y-5 md:space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6">
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-gray-700">Hostel Name</label>
                     <input name="hostelName" type="text" defaultValue={hostelProfile?.hostelName || "My Hostel"} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" />
@@ -268,7 +268,7 @@ export default function Settings() {
                   </div>
                 </div>
                 <div className="pt-2">
-                  <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-semibold transition-colors flex items-center gap-2 shadow-sm">
+                  <button type="submit" className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 md:py-2.5 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2 shadow-sm">
                     <Save className="w-4 h-4" /> Save Changes
                   </button>
                 </div>
@@ -283,9 +283,9 @@ export default function Settings() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -10 }}
               transition={{ duration: 0.2 }}
-              className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden"
+              className="bg-white rounded-2xl md:rounded-3xl border border-gray-200 shadow-sm overflow-hidden"
             >
-              <div className="p-6 pb-0 flex items-center">
+              <div className="p-4 md:p-6 pb-0 flex items-center">
                 <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-purple-50 border border-purple-100 shadow-sm">
                   <div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 ring-2 ring-white">
                     <LayoutGrid className="w-3.5 h-3.5" />
@@ -293,10 +293,10 @@ export default function Settings() {
                   <h2 className="text-[13px] font-semibold text-purple-700">Rooms & Floors Setup</h2>
                 </div>
               </div>
-              <div className="p-6 space-y-6">
+              <div className="p-4 md:p-6 space-y-6">
                 <p className="text-gray-500 text-sm">Use this section to manage your building structure.</p>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 text-center">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
+                  <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 text-center col-span-2 md:col-span-1">
                     <div className="text-2xl font-bold text-gray-900 mb-1">{numFloors}</div>
                     <div className="text-sm font-medium text-gray-500">Total Floors</div>
                   </div>
@@ -309,10 +309,10 @@ export default function Settings() {
                     <div className="text-sm font-medium text-gray-500">Total Beds</div>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-3 pt-2">
-                  <button onClick={() => toast.success('Navigation coming soon')} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-2.5 rounded-xl font-semibold transition-colors">Manage Rooms & Beds</button>
-                  <button onClick={() => toast.success('Navigation coming soon')} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-2.5 rounded-xl font-semibold transition-colors">Add New Floor</button>
-                  <button onClick={() => toast.success('Navigation coming soon')} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-2.5 rounded-xl font-semibold transition-colors">Add New Room</button>
+                <div className="flex flex-col md:flex-row flex-wrap gap-3 pt-2">
+                  <button onClick={() => toast.success('Navigation coming soon')} className="w-full md:w-auto bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-3 md:py-2.5 rounded-xl font-semibold transition-colors">Manage Rooms & Beds</button>
+                  <button onClick={() => toast.success('Navigation coming soon')} className="w-full md:w-auto bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-3 md:py-2.5 rounded-xl font-semibold transition-colors text-sm">Add New Floor</button>
+                  <button onClick={() => toast.success('Navigation coming soon')} className="w-full md:w-auto bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-3 md:py-2.5 rounded-xl font-semibold transition-colors text-sm">Add New Room</button>
                 </div>
               </div>
             </motion.section>
@@ -325,9 +325,9 @@ export default function Settings() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -10 }}
               transition={{ duration: 0.2 }}
-              className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden"
+              className="bg-white rounded-2xl md:rounded-3xl border border-gray-200 shadow-sm overflow-hidden"
             >
-              <div className="p-6 pb-0 flex items-center">
+              <div className="p-4 md:p-6 pb-0 flex items-center">
                 <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-emerald-50 border border-emerald-100 shadow-sm">
                   <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 ring-2 ring-white">
                     <Bell className="w-3.5 h-3.5" />
@@ -335,7 +335,7 @@ export default function Settings() {
                   <h2 className="text-[13px] font-semibold text-emerald-700">Payment Reminders</h2>
                 </div>
               </div>
-              <div className="p-6 space-y-6">
+              <div className="p-4 md:p-6 space-y-6">
                 <div className="grid grid-cols-1 gap-6">
                   <div className="space-y-2 max-w-md">
                     <label className="text-sm font-semibold text-gray-700">Monthly Rent Due Date</label>
@@ -365,7 +365,7 @@ export default function Settings() {
                   </label>
                 </div>
                 <div className="pt-2">
-                  <button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-semibold transition-colors flex items-center gap-2 shadow-sm">
+                  <button onClick={handleSave} className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 md:py-2.5 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2 shadow-sm">
                     <Save className="w-4 h-4" /> Save Reminder Settings
                   </button>
                 </div>
@@ -380,9 +380,9 @@ export default function Settings() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -10 }}
               transition={{ duration: 0.2 }}
-              className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden"
+              className="bg-white rounded-2xl md:rounded-3xl border border-gray-200 shadow-sm overflow-hidden"
             >
-              <div className="p-6 pb-0 flex items-center">
+              <div className="p-4 md:p-6 pb-0 flex items-center">
                 <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-orange-50 border border-orange-100 shadow-sm">
                   <div className="w-6 h-6 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 ring-2 ring-white">
                     <User className="w-3.5 h-3.5" />
@@ -390,8 +390,8 @@ export default function Settings() {
                   <h2 className="text-[13px] font-semibold text-orange-700">Profile</h2>
                 </div>
               </div>
-              <div className="p-6 space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="p-4 md:p-6 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6">
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-gray-700">Full Name</label>
                     <input type="text" defaultValue={hostelProfile?.ownerName || "Hostel Owner"} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" />
@@ -418,7 +418,7 @@ export default function Settings() {
                   </div>
                 </div>
                 <div className="pt-2">
-                  <button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-semibold transition-colors flex items-center gap-2 shadow-sm">
+                  <button onClick={handleSave} className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 md:py-2.5 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2 shadow-sm">
                     <Save className="w-4 h-4" /> Update Profile
                   </button>
                 </div>
@@ -433,9 +433,9 @@ export default function Settings() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -10 }}
               transition={{ duration: 0.2 }}
-              className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden"
+              className="bg-white rounded-2xl md:rounded-3xl border border-gray-200 shadow-sm overflow-hidden"
             >
-              <div className="p-6 pb-0 flex items-center">
+              <div className="p-4 md:p-6 pb-0 flex items-center">
                 <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-rose-50 border border-rose-100 shadow-sm">
                   <div className="w-6 h-6 rounded-full bg-rose-100 flex items-center justify-center text-rose-600 ring-2 ring-white">
                     <Lock className="w-3.5 h-3.5" />
@@ -443,26 +443,26 @@ export default function Settings() {
                   <h2 className="text-[13px] font-semibold text-rose-700">Security</h2>
                 </div>
               </div>
-              <div className="p-6 space-y-6">
+              <div className="p-4 md:p-6 space-y-6">
                 <div className="grid grid-cols-1 gap-6 max-w-md">
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-gray-700">Current Password</label>
-                    <div className="flex gap-2">
+                    <div className="flex flex-col sm:flex-row gap-2">
                       <input 
                         type="password" 
                         value={currentPassword}
                         onChange={(e) => { setCurrentPassword(e.target.value); setIsCurrentPasswordVerified(false); }}
                         disabled={isCurrentPasswordVerified}
                         placeholder="••••••••" 
-                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none disabled:opacity-50" 
+                        className="w-full px-4 py-3 md:py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none disabled:opacity-50" 
                       />
                       <button
                         type="button"
                         onClick={handleVerifyCurrentPassword}
                         disabled={isVerifyingPassword || isCurrentPasswordVerified || !currentPassword}
-                        className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2.5 rounded-xl font-semibold transition-colors disabled:opacity-50 flex items-center whitespace-nowrap"
+                        className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-3 md:py-2.5 rounded-xl font-semibold transition-colors disabled:opacity-50 flex items-center justify-center whitespace-nowrap"
                       >
-                        {isVerifyingPassword ? <Loader2 className="w-4 h-4 animate-spin" /> : (isCurrentPasswordVerified ? <Check className="w-4 h-4 text-green-600" /> : 'Verify')}
+                        {isVerifyingPassword ? <Loader2 className="w-4 h-4 animate-spin" /> : (isCurrentPasswordVerified ? <><Check className="w-4 h-4 text-green-600 mr-2" /> Verified</> : 'Verify')}
                       </button>
                     </div>
                   </div>
@@ -479,18 +479,18 @@ export default function Settings() {
                     </motion.div>
                   )}
                 </div>
-                <div className="pt-2 flex flex-wrap gap-4 items-center border-t border-gray-100 mt-6 pt-6">
+                <div className="pt-2 flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4 items-center border-t border-gray-100 mt-6 pt-6">
                   <button 
                     type="button"
                     onClick={handlePasswordChange} 
                     disabled={isChangingPassword || !isCurrentPasswordVerified}
-                    className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-6 py-2.5 rounded-xl font-semibold transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full sm:w-auto bg-gray-100 hover:bg-gray-200 text-gray-700 px-6 py-3 md:py-2.5 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isChangingPassword && <Loader2 className="w-4 h-4 animate-spin" />}
                     {isChangingPassword ? 'Updating...' : 'Change Password'}
                   </button>
-                  <button onClick={() => setShowLogoutModal(true)} className="bg-red-50 hover:bg-red-100 text-red-600 px-6 py-2.5 rounded-xl font-semibold transition-colors flex items-center gap-2">
-                    <LogOut className="w-4 h-4" /> Logout
+                  <button onClick={() => setShowLogoutModal(true)} className="w-full sm:w-auto bg-red-50 hover:bg-red-100 text-red-600 px-6 py-3 md:py-2.5 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2">
+                    <LogOut className="w-4 h-4" /> Logout Account
                   </button>
                 </div>
               </div>
@@ -504,9 +504,9 @@ export default function Settings() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -10 }}
               transition={{ duration: 0.2 }}
-              className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden"
+              className="bg-white rounded-2xl md:rounded-3xl border border-gray-200 shadow-sm overflow-hidden"
             >
-              <div className="p-6 pb-0 flex items-center">
+              <div className="p-4 md:p-6 pb-0 flex items-center">
                 <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-teal-50 border border-teal-100 shadow-sm">
                   <div className="w-6 h-6 rounded-full bg-teal-100 flex items-center justify-center text-teal-600 ring-2 ring-white">
                     <HelpCircle className="w-3.5 h-3.5" />
@@ -514,13 +514,13 @@ export default function Settings() {
                   <h2 className="text-[13px] font-semibold text-teal-700">Data & Support</h2>
                 </div>
               </div>
-              <div className="p-6 flex flex-wrap gap-4">
-                <button onClick={() => handleExport('Residents CSV')} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-2.5 rounded-xl font-semibold transition-colors">Export Residents CSV</button>
-                <button onClick={() => handleExport('Payments CSV')} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-2.5 rounded-xl font-semibold transition-colors">Export Payments CSV</button>
-                <button onClick={() => handleExport('Join Requests')} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-2.5 rounded-xl font-semibold transition-colors">Download Join Requests</button>
-                <div className="w-full border-t border-gray-100 my-2"></div>
-                <button onClick={() => toast.success('Support center coming soon')} className="bg-blue-50 border border-blue-100 hover:bg-blue-100 text-blue-700 px-5 py-2.5 rounded-xl font-semibold transition-colors">Contact Support</button>
-                <button onClick={() => toast.success('Help guide coming soon')} className="bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-700 px-5 py-2.5 rounded-xl font-semibold transition-colors">Help Guide</button>
+              <div className="p-4 md:p-6 flex flex-col md:flex-row md:flex-wrap gap-3 md:gap-4">
+                <button onClick={() => handleExport('Residents CSV')} className="w-full md:w-auto bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-3 md:py-2.5 rounded-xl font-semibold transition-colors text-sm">Export Residents CSV</button>
+                <button onClick={() => handleExport('Payments CSV')} className="w-full md:w-auto bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-3 md:py-2.5 rounded-xl font-semibold transition-colors text-sm">Export Payments CSV</button>
+                <button onClick={() => handleExport('Join Requests')} className="w-full md:w-auto bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-3 md:py-2.5 rounded-xl font-semibold transition-colors text-sm">Download Join Requests</button>
+                <div className="w-full border-t border-gray-100 my-1 md:my-2"></div>
+                <button onClick={() => toast.success('Support center coming soon')} className="w-full md:w-auto bg-blue-50 border border-blue-100 hover:bg-blue-100 text-blue-700 px-5 py-3 md:py-2.5 rounded-xl font-semibold transition-colors text-sm">Contact Support</button>
+                <button onClick={() => toast.success('Help guide coming soon')} className="w-full md:w-auto bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-700 px-5 py-3 md:py-2.5 rounded-xl font-semibold transition-colors text-sm">Help Guide</button>
               </div>
             </motion.section>
           )}
