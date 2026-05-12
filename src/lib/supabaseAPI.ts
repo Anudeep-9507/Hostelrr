@@ -301,6 +301,9 @@ export async function fetchHostelData(userId: string) {
       hostelFormUrl,
       emergencyPhone: r.emergency_contact || '',
       aadhar: r.aadhar_number || '',
+      areaAndCity: r.area_and_city || '',
+      state: r.state || '',
+      country: r.country || 'India',
       stayTime,
       securityDeposit: r.security_deposit || 0,
       isDepositPaid: r.is_deposit_paid || false,
@@ -357,6 +360,9 @@ export async function fetchHostelData(userId: string) {
     photoUrl: await getSignedFileUrl(r.photo_path),
     photoPath: r.photo_path || undefined,
     emergencyPhone: r.emergency_contact || '',
+    areaAndCity: r.area_and_city || '',
+    state: r.state || '',
+    country: r.country || 'India',
     paymentHistory: (paymentsData || [])
       .filter((p: any) => p.resident_id === r.id)
       .map((p: any) => {
@@ -429,6 +435,9 @@ export async function fetchHostelData(userId: string) {
     occupation: jr.occupation || '',
     preferredRoom: jr.preferred_room || '',
     aadharNumber: jr.aadhar_number || '',
+    areaAndCity: jr.area_and_city || '',
+    state: jr.state || '',
+    country: jr.country || 'India',
     requestDate: (() => {
       const diff = Date.now() - new Date(jr.created_at).getTime();
       const hours = Math.floor(diff / (1000 * 60 * 60));
@@ -772,6 +781,9 @@ export async function editResidentDb(residentId: string, updatedData: any) {
   if (updatedData.phone !== undefined) updatePayload.phone = updatedData.phone;
   if (updatedData.emergencyPhone !== undefined) updatePayload.emergency_contact = updatedData.emergencyPhone;
   if (updatedData.aadhar !== undefined) updatePayload.aadhar_number = updatedData.aadhar;
+  if (updatedData.areaAndCity !== undefined) updatePayload.area_and_city = updatedData.areaAndCity;
+  if (updatedData.state !== undefined) updatePayload.state = updatedData.state;
+  if (updatedData.country !== undefined) updatePayload.country = updatedData.country;
   if (updatedData.photoPath !== undefined) updatePayload.photo_path = updatedData.photoPath;
   if (updatedData.aadharPath !== undefined) updatePayload.aadhar_document_path = updatedData.aadharPath;
   if (updatedData.hostelFormPath !== undefined) updatePayload.hostel_form_path = updatedData.hostelFormPath;

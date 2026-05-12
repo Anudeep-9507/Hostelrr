@@ -68,6 +68,16 @@ export default function Residents() {
     setResidentToMarkDepositPaid(null);
   });
 
+  const openWhatsAppReminder = (resident: Resident, message: string) => {
+    const phoneDigits = (resident.phone || '').replace(/\D/g, '');
+    const waPhone = phoneDigits.startsWith('91') && phoneDigits.length === 12 ? phoneDigits : (phoneDigits.length === 10 ? `91${phoneDigits}` : phoneDigits);
+    const waUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(message)}`;
+
+    markReminderSent(resident.id);
+    window.open(waUrl, '_blank');
+    toast.success(`Opening WhatsApp for ${resident.name}`);
+  };
+
   const handleSendReminder = (resident: Resident) => {
     if (!resident.phone) {
       toast.error('Resident phone number not available');
@@ -87,13 +97,31 @@ export default function Residents() {
 
     const message = `Hello ${resident.name}, your hostel rent of *₹${rentAmount}* for Room ${roomNum} is currently pending.\n\nDue Date: *${dueDateDisplay}*\n\nPlease make the payment soon and reply *PAID* once done.\n\nThank you,\n${hostelName}\nPowered by Hostelrr`;
 
-    markReminderSent(resident.id);
-    
-    const waPhone = phoneDigits.startsWith('91') && phoneDigits.length === 12 ? phoneDigits : (phoneDigits.length === 10 ? `91${phoneDigits}` : phoneDigits);
-    const waUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(message)}`;
-    
-    window.open(waUrl, '_blank');
-    toast.success(`Opening WhatsApp for ${resident.name}`);
+    openWhatsAppReminder(resident, message);
+  };
+
+  const handleSendDepositReminder = (resident: Resident) => {
+    if (!resident.phone) {
+      toast.error('Resident phone number not available');
+      return;
+    }
+
+    const phoneDigits = (resident.phone || '').replace(/\D/g, '');
+    if (phoneDigits.length < 10) {
+      toast.error('Invalid phone number');
+      return;
+    }
+
+    if (!resident.securityDeposit) {
+      toast.error('Security deposit amount not available');
+      return;
+    }
+
+    const hostelName = hostelProfile?.hostelName || 'My Hostel';
+    const { roomName: roomNum } = getNamesFromIds(floors, resident.roomId, resident.bedId);
+    const message = `Hello ${resident.name}, your security deposit of *₹${resident.securityDeposit.toLocaleString('en-IN')}* for Room ${roomNum} is still pending.\n\nPlease make the payment soon and reply *PAID* once done.\n\nThank you,\n${hostelName}\nPowered by Hostelrr`;
+
+    openWhatsAppReminder(resident, message);
   };
 
   React.useEffect(() => {
@@ -374,6 +402,7 @@ export default function Residents() {
   const renderCard = (resident: Resident) => {
     const { roomName: roomNum, bedName: bedLetter } = getNamesFromIds(floors, resident.roomId, resident.bedId);
     const joinDate = formatDate(resident.joinDate);
+    const vacatingOn = resident.vacatingDate ? formatDate(resident.vacatingDate) : null;
     const rentAmount = resident.dueAmount > 0 ? resident.dueAmount : 7500; // Mock rent
     const bedStatus = getBedStatusFor(resident);
 
@@ -394,6 +423,11 @@ export default function Residents() {
           <div className="min-w-0">
             <div className="font-bold text-gray-900 leading-tight truncate">{resident.name}</div>
             <div className="text-sm text-gray-500 mt-1">Room {roomNum} · {bedLetter}</div>
+            {vacatingOn && (
+              <div className="mt-2">
+                <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-xs font-bold rounded-md">VACATING</span>
+              </div>
+            )}
             {bedStatus === 'reserved' && (
               <div className="mt-2">
                 <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-bold rounded-md">RESERVED</span>
@@ -405,6 +439,7 @@ export default function Residents() {
         <div className="text-sm text-gray-500 flex flex-col gap-1.5 border-b border-gray-100 pb-4 pt-2">
           <div className="flex min-w-0 items-center gap-2"><Phone className="w-4 h-4 text-gray-400 shrink-0" /> <span className="truncate">{resident.phone}</span></div>
           <div className="text-gray-400 pl-6">Joined {joinDate}</div>
+          {vacatingOn && <div className="text-orange-600 pl-6 font-medium">Vacating on {vacatingOn}</div>}
         </div>
         
         <div className="flex items-center justify-between gap-3 pt-1">
@@ -749,11 +784,17 @@ export default function Residents() {
                 <div className="min-w-0">
                   <h3 className="text-lg sm:text-xl font-bold text-gray-900 flex flex-wrap items-center gap-2">
                     {selectedResident.name}
+                    {('paymentStatus' in selectedResident) && selectedResident.vacatingDate && (
+                      <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-xs tracking-wider rounded-md">VACATING</span>
+                    )}
                     {selectedBedStatus === 'reserved' && (
                       <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs tracking-wider rounded-md">RESERVED</span>
                     )}
                   </h3>
                   <p className="text-sm text-gray-500">Room {getNamesFromIds(floors, selectedResident.roomId, selectedResident.bedId).roomName} • Bed {getNamesFromIds(floors, selectedResident.roomId, selectedResident.bedId).bedName}</p>
+                  {('paymentStatus' in selectedResident) && selectedResident.vacatingDate && (
+                    <p className="text-sm text-orange-600 font-medium mt-1">Vacating on {formatDate(selectedResident.vacatingDate)}</p>
+                  )}
                 </div>
               </div>
 
@@ -835,16 +876,25 @@ export default function Residents() {
                       ) : (
                         <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3">
                           <span className="text-sm font-bold text-red-600">₹{selectedResident.securityDeposit.toLocaleString('en-IN')}</span>
-                          <button
-                            onClick={() => {
-                              setResidentToMarkDepositPaid(selectedResident as Resident);
-                              setDepositPaymentMethod('UPI');
-                              setDepositPaymentDate(getTodayIST());
-                            }}
-                            className="min-h-9 text-[#059669] bg-white border border-[#A7F3D0]/60 px-3 py-1.5 rounded-full text-[12px] font-semibold hover:bg-[#ECFDF5] transition-all flex items-center gap-1.5 shadow-sm"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Mark Paid
-                          </button>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              onClick={() => handleSendDepositReminder(selectedResident as Resident)}
+                              disabled={isSendingReminder}
+                              className="min-h-9 bg-[#25D366] hover:bg-[#22c35e] disabled:opacity-60 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded-full text-[12px] font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                            >
+                              <WhatsAppIcon className="w-3.5 h-3.5" /> Remind
+                            </button>
+                            <button
+                              onClick={() => {
+                                setResidentToMarkDepositPaid(selectedResident as Resident);
+                                setDepositPaymentMethod('UPI');
+                                setDepositPaymentDate(getTodayIST());
+                              }}
+                              className="min-h-9 text-[#059669] bg-white border border-[#A7F3D0]/60 px-3 py-1.5 rounded-full text-[12px] font-semibold hover:bg-[#ECFDF5] transition-all flex items-center gap-1.5 shadow-sm"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" /> Mark Paid
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -886,6 +936,14 @@ export default function Residents() {
                         {formatDate(selectedResident.joinDate)}
                       </span>
                     </div>
+                    {('paymentStatus' in selectedResident) && selectedResident.vacatingDate && (
+                      <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 sm:col-span-2">
+                        <span className="flex items-center gap-2 text-xs text-gray-500 font-medium mb-1.5"><LogOut className="w-4 h-4" /> Vacating On</span>
+                        <span className="text-sm font-semibold text-orange-700">
+                          {formatDate(selectedResident.vacatingDate)}
+                        </span>
+                      </div>
+                    )}
                     {('vacateDate' in selectedResident) && (
                       <>
                         <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 col-span-2">
@@ -913,7 +971,7 @@ export default function Residents() {
                     {('dueAmount' in selectedResident) && (
                       <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
                         <span className="flex items-center gap-2 text-xs text-gray-500 font-medium mb-1.5"><IndianRupee className="w-4 h-4" /> Monthly Rent</span>
-                        <span className="text-sm font-semibold text-gray-900">₹{selectedResident.dueAmount > 0 ? selectedResident.dueAmount : 7500}</span>
+                        <span className="text-sm font-semibold text-gray-900">₹{(selectedResident as Resident).monthlyRent ?? selectedResident.dueAmount ?? 7500}</span>
                       </div>
                     )}
                     <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
@@ -1298,6 +1356,9 @@ export default function Residents() {
                     phone: normalizedPhone,
                     aadhar: formData.get('aadhar'),
                     emergencyPhone: normalizedEmergencyPhone,
+                    areaAndCity: formData.get('areaAndCity'),
+                    state: formData.get('state'),
+                    country: formData.get('country'),
                     monthlyRent: formData.get('monthlyRent') ? parseInt(formData.get('monthlyRent') as string, 10) : undefined,
                     securityDeposit: formData.get('securityDeposit') ? parseInt(formData.get('securityDeposit') as string, 10) : undefined,
                     vacatingDate: formData.get('vacatingDate') || undefined,
@@ -1315,6 +1376,10 @@ export default function Residents() {
                       phone: normalizedPhone,
                       aadhar: formData.get('aadhar') as string,
                       emergencyPhone: normalizedEmergencyPhone,
+                      areaAndCity: formData.get('areaAndCity') as string,
+                      state: formData.get('state') as string,
+                      country: formData.get('country') as string,
+                      monthlyRent: formData.get('monthlyRent') ? parseInt(formData.get('monthlyRent') as string, 10) : ('monthlyRent' in prev ? (prev as Resident).monthlyRent : undefined),
                       dueAmount: formData.get('monthlyRent') ? parseInt(formData.get('monthlyRent') as string, 10) : ('dueAmount' in prev ? prev.dueAmount : 0),
                       securityDeposit: formData.get('securityDeposit') ? parseInt(formData.get('securityDeposit') as string, 10) : ('securityDeposit' in prev ? prev.securityDeposit : undefined),
                     } as Resident : null);
@@ -1394,6 +1459,20 @@ export default function Residents() {
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-gray-900 block">Aadhar No.</label>
                   <input type="text" name="aadhar" defaultValue={residentToEdit.aadhar || ''} className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-gray-900 block">Area & City</label>
+                  <input type="text" name="areaAndCity" defaultValue={(residentToEdit as any).areaAndCity || ''} className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all" />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-gray-900 block">State</label>
+                    <input type="text" name="state" defaultValue={(residentToEdit as any).state || ''} className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-gray-900 block">Country</label>
+                    <input type="text" name="country" defaultValue={(residentToEdit as any).country || 'India'} className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all" />
+                  </div>
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-gray-900 block">Emergency Contact</label>

@@ -70,6 +70,9 @@ export interface PastResident {
   aadhar?: string;
   paymentHistory?: { id: string | number; date: string; amount: number; status: string; method?: 'UPI' | 'Cash'; title?: string }[];
   createdAt?: string;
+  areaAndCity?: string;
+  state?: string;
+  country?: string;
 }
 
 export interface JoinRequest {
@@ -84,6 +87,9 @@ export interface JoinRequest {
   photoUrl?: string;
   aadharDocumentPath?: string;
   aadharDocumentUrl?: string;
+  areaAndCity?: string;
+  state?: string;
+  country?: string;
   requestDate: string;
   status: 'pending' | 'approved' | 'rejected';
   stayDuration?: number | null;

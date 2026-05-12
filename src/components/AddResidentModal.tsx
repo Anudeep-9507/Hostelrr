@@ -538,9 +538,17 @@ export default function AddResidentModal({
                     initial={{ opacity: 0, y: 5, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 5, scale: 0.95 }}
-                    className="absolute z-20 bottom-full left-0 mb-2 w-48 bg-gray-900 text-white text-[11px] p-2.5 rounded-xl shadow-xl border border-gray-800 pointer-events-none"
+                    className="absolute z-20 bottom-full left-0 mb-2 w-56 bg-gray-900 text-white text-[11px] p-2.5 rounded-xl shadow-xl border border-gray-800"
                   >
-                    <div className="relative">
+                    <div className="relative pr-5">
+                      <button
+                        type="button"
+                        aria-label="Close joining date info"
+                        onClick={() => setShowJoiningInfo(false)}
+                        className="absolute -top-0.5 -right-0.5 text-gray-300 hover:text-white transition-colors"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
                       This date will be considered for collecting the payments.
                       <div className="absolute -bottom-3.5 left-2 w-2 h-2 bg-gray-900 rotate-45 border-r border-b border-gray-800"></div>
                     </div>
