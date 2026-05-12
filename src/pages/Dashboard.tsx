@@ -55,6 +55,100 @@ function getTrendColor(tone: TrendTone) {
   return 'text-gray-500';
 }
 
+type DashboardActivity = {
+  id: string | number;
+  text?: string;
+  time?: string;
+  icon?: string;
+  action?: string;
+  entity_type?: string | null;
+  entity_id?: string | null;
+  metadata?: Record<string, any> | null;
+  created_at?: string | null;
+};
+
+function humanizeActivityAction(action?: string) {
+  if (!action) return 'Activity';
+
+  const overrides: Record<string, string> = {
+    resident_added: 'Resident added',
+    payment_recorded: 'Payment recorded',
+    resident_vacated: 'Resident vacated',
+    reminder_sent: 'Reminder sent',
+    complaint_resolved: 'Complaint resolved',
+    room_updated: 'Room updated',
+    room_created: 'Room created',
+    bed_moved: 'Bed moved',
+  };
+
+  if (overrides[action]) return overrides[action];
+
+  return action
+    .split('_')
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function formatActivityValue(value: any): string {
+  if (value === null || value === undefined || value === '') return '';
+  if (Array.isArray(value)) return value.map(formatActivityValue).filter(Boolean).join(', ');
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+function getActivitySummary(activity: DashboardActivity) {
+  if (activity.text) return activity.text;
+
+  const actionLabel = humanizeActivityAction(activity.action);
+  const entityLabel = activity.entity_type
+    ? activity.entity_type.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase())
+    : '';
+
+  if (entityLabel) return `${actionLabel} · ${entityLabel}`;
+  return actionLabel;
+}
+
+function getActivityContext(activity: DashboardActivity) {
+  const bits: string[] = [];
+
+  if (activity.action) bits.push(activity.action.replace(/_/g, ' '));
+  if (activity.entity_type) bits.push(activity.entity_type.replace(/_/g, ' '));
+  if (activity.entity_id) bits.push(`ID ${activity.entity_id.slice(0, 8)}`);
+
+  return bits.join(' · ');
+}
+
+function getActivityDetails(activity: DashboardActivity) {
+  const metadata = activity.metadata || {};
+  const preferredKeys = ['name', 'resident', 'amount', 'method', 'room', 'bed', 'phone', 'reason', 'notes', 'reviewNotes', 'status'];
+  const usedKeys = new Set<string>();
+  const details: Array<{ label: string; value: string }> = [];
+
+  preferredKeys.forEach((key) => {
+    const value = formatActivityValue(metadata[key]);
+    if (value) {
+      usedKeys.add(key);
+      details.push({
+        label: key === 'reviewNotes' ? 'Review' : key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').replace(/^./, char => char.toUpperCase()),
+        value: key === 'amount' && !value.startsWith('₹') ? `₹${value}` : value,
+      });
+    }
+  });
+
+  Object.entries(metadata).forEach(([key, rawValue]) => {
+    if (usedKeys.has(key)) return;
+    const value = formatActivityValue(rawValue);
+    if (!value) return;
+    details.push({
+      label: key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').replace(/^./, char => char.toUpperCase()),
+      value: key.toLowerCase().includes('amount') && !value.startsWith('₹') ? `₹${value}` : value,
+    });
+  });
+
+  return details.slice(0, 4);
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { floors, residents, pastResidents, activities, joinRequests, rejectJoinRequest, markAsPaid, setActiveBuildingFilter, setActivePaymentsFilter, hostelProfile, sharingRentMap, syncStateWithDb } = useApp();
@@ -172,6 +266,8 @@ export default function Dashboard() {
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   }).length;
 
+  const activityFeed: DashboardActivity[] = [...vacatingAlerts, ...activities];
+
   return (
     <div className="w-full max-w-7xl mx-auto space-y-5 md:space-y-6 p-3 sm:p-4 md:p-8 overflow-x-hidden">
       <div className="mb-5 md:mb-8 min-w-0">
@@ -277,18 +373,18 @@ export default function Dashboard() {
                     <span className="text-lg font-bold text-gray-900">₹{expectedMonthlyRevenue.toLocaleString('en-IN')}</span>
                   </div>
 
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3.5 rounded-2xl bg-gray-50 border border-gray-100 group hover:border-indigo-200 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600">
-                          <Users className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold text-gray-500 uppercase tracking-tight">Security Deposits</p>
-                          <p className="text-sm font-medium text-gray-400">{occupiedResidentsCount} active residents</p>
-                        </div>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3.5 rounded-2xl bg-gray-50 border border-gray-100 group hover:border-indigo-200 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600">
+                        <Users className="w-5 h-5" />
                       </div>
-                      <span className="text-lg font-bold text-gray-900">₹{expectedTotalSecurityDeposit.toLocaleString('en-IN')}</span>
+                      <div>
+                        <p className="text-xs font-bold text-gray-500 uppercase tracking-tight">Security Deposits</p>
+                        <p className="text-sm font-medium text-gray-400">{occupiedResidentsCount} active residents</p>
+                      </div>
                     </div>
+                    <span className="text-lg font-bold text-gray-900">₹{expectedTotalSecurityDeposit.toLocaleString('en-IN')}</span>
+                  </div>
                 </div>
 
                 <div className="pt-2">
@@ -300,7 +396,7 @@ export default function Dashboard() {
                     <p className="text-xs text-emerald-600/80 font-medium">Sum of all rent and security deposits</p>
                   </div>
                 </div>
-                
+
                 <button 
                   onClick={() => setIsRevenueInfoModalOpen(false)}
                   className="w-full py-3.5 bg-gray-900 text-white rounded-2xl font-bold text-sm hover:bg-black transition-all active:scale-[0.98] shadow-lg shadow-gray-200"
