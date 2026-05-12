@@ -513,7 +513,7 @@ export default function BuildingView() {
                         key={`${room.id}-${idx}`}
                         onClick={() => handleRoomClick(room)}
                         className={cn(
-                          "rounded-2xl border-2 p-5 cursor-pointer transition-all duration-300 hover:-translate-y-1.5 hover:shadow-lg group bg-white overflow-hidden",
+                          "rounded-2xl border-2 p-5 cursor-pointer transition-all duration-300 hover:-translate-y-1.5 hover:shadow-lg group bg-white overflow-visible",
                           isSelected ? "border-blue-500 shadow-lg ring-4 ring-blue-50" : "border-gray-200 hover:border-blue-200",
                           allVacant ? "bg-red-50/10 hover:bg-red-50/30" : ""
                         )}
@@ -540,27 +540,30 @@ export default function BuildingView() {
                               template = allTemplates.find(t => t.sharing === room.beds.length) || null;
                             }
                             
-                            if (!template) {
-                              const defaultPositions: Record<string, any> = {};
-                              Array.from({ length: room.beds.length }).forEach((_, i) => {
-                                const label = String.fromCharCode(65 + i);
-                                defaultPositions[label] = {
-                                  x: 80 + (i % 2) * 80,
-                                  y: 100 + Math.floor(i / 2) * 100,
-                                  rotated: false
-                                };
-                              });
-                              
-                              template = {
-                                id: `default_${room.beds.length}`,
-                                sharing: room.beds.length,
-                                positions: defaultPositions,
-                                door: 'S',
-                                color: 'Blue'
-                              };
+                            const resolvedTemplate = template;
+                            if (!resolvedTemplate) {
+                              return (
+                                <div className="flex flex-wrap gap-3 max-w-full">
+                                  {room.beds
+                                    .filter(bed => isBedMatch(bed.status, filterStatus))
+                                    .map((bed, bedIdx) => {
+                                    const styles = getBedPillStyles(bed.status);
+                                    return (
+                                      <div key={`${bed.id}-${bedIdx}`} className={cn("flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-sm font-semibold", styles.container)}>
+                                        <span>{bed.name}</span>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              );
                             }
-                            
-                            if (!template) {
+
+                            const hasValidTemplate = room.beds.every(bed => {
+                              const label = bed.name.replace(/^Bed\s+/i, '').trim();
+                              return Boolean(resolvedTemplate.positions?.[label]);
+                            });
+
+                            if (!hasValidTemplate) {
                               return (
                                 <div className="flex flex-wrap gap-3 max-w-full">
                                   {room.beds
@@ -580,13 +583,13 @@ export default function BuildingView() {
                             return (
                               <div className="relative w-full mx-auto aspect-[4/5] bg-white rounded-xl overflow-visible">
                                 {/* Miniature door */}
-                                {template.door && (
+                                {resolvedTemplate.door && (
                                   <div className={cn(
                                     "absolute bg-amber-700/20 rounded-sm z-0",
-                                    template.door === 'N' && "top-0 left-1/2 -translate-x-1/2 w-10 h-1",
-                                    template.door === 'S' && "bottom-0 left-1/2 -translate-x-1/2 w-10 h-1",
-                                    template.door === 'E' && "right-0 top-1/2 -translate-y-1/2 w-1 h-10",
-                                    template.door === 'W' && "left-0 top-1/2 -translate-y-1/2 w-1 h-10"
+                                    resolvedTemplate.door === 'N' && "top-0 left-1/2 -translate-x-1/2 w-10 h-1",
+                                    resolvedTemplate.door === 'S' && "bottom-0 left-1/2 -translate-x-1/2 w-10 h-1",
+                                    resolvedTemplate.door === 'E' && "right-0 top-1/2 -translate-y-1/2 w-1 h-10",
+                                    resolvedTemplate.door === 'W' && "left-0 top-1/2 -translate-y-1/2 w-1 h-10"
                                   )} />
                                 )}
 
@@ -595,7 +598,7 @@ export default function BuildingView() {
                                   // template position lookup is correct regardless of
                                   // DB fetch order — never use iteration index here.
                                   const label = bed.name.replace(/^Bed\s+/i, '').trim();
-                                  const pos = template.positions[label];
+                                  const pos = resolvedTemplate.positions[label];
                                   if (!pos) return null;
                                   const styles = getBedPillStyles(bed.status);
                                   
@@ -621,12 +624,21 @@ export default function BuildingView() {
                                   const widthPct = (bedWidthPx / 320) * 100;
                                   const heightPct = (bedHeightPx / 400) * 100;
 
+                                  const centerX = Math.min(
+                                    Math.max(scaleX + xOffsetPct, widthPct / 2),
+                                    100 - widthPct / 2
+                                  );
+                                  const centerY = Math.min(
+                                    Math.max(scaleY + yOffsetPct, heightPct / 2),
+                                    100 - heightPct / 2
+                                  );
+
                                   return (
                                     <div
                                       key={bed.id}
                                       style={{
-                                        left: `${Math.min(scaleX + xOffsetPct, 100)}%`,
-                                        top: `${Math.min(scaleY + yOffsetPct, 100)}%`,
+                                        left: `${centerX}%`,
+                                        top: `${centerY}%`,
                                         width: `${widthPct}%`,
                                         height: `${heightPct}%`,
                                         transform: 'translate(-50%, -50%)',
