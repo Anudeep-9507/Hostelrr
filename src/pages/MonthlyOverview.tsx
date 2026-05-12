@@ -138,11 +138,11 @@ export default function MonthlyOverview() {
     const collectCurrent = totalCollectedByMonth(currentMonthKey);
     const collectPrevious = totalCollectedByMonth(previousMonthKey);
 
-    // FIX: Outstanding dues = ALL unpaid balances, regardless of month
+    // FIX: Outstanding dues = ALL unpaid balances (rent only), regardless of month
     // This includes carry-forward dues, old late balances, partial balances, etc.
+    // Source of truth: dueAmount > 0, NOT payment status (deposit status is separate)
     const outstandingTotal = residents.reduce((sum, resident) => {
       if (!resident.dueAmount || resident.dueAmount <= 0) return sum;
-      if (!['due', 'late', 'partially_paid'].includes(resident.paymentStatus)) return sum;
       return sum + resident.dueAmount;
     }, 0);
 
@@ -150,7 +150,6 @@ export default function MonthlyOverview() {
     // (approximation: count residents who had dues in previous month by checking dueDate)
     const outstandingPreviousApprox = residents.reduce((sum, resident) => {
       if (!resident.dueAmount || resident.dueAmount <= 0) return sum;
-      if (!['due', 'late', 'partially_paid'].includes(resident.paymentStatus)) return sum;
       const dateKey = getMonthKeyForDate(resident.dueDate);
       if (dateKey === previousMonthKey) {
         return sum + resident.dueAmount;

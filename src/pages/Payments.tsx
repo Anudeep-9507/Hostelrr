@@ -186,8 +186,8 @@ export default function Payments() {
     return [...history, ...mock].sort((a: any, b: any) => getTransactionDateForSort(b.date).getTime() - getTransactionDateForSort(a.date).getTime());
   };
 
-  const dueResidents = residents.filter(r => r.paymentStatus === 'due' || r.paymentStatus === 'late' || r.paymentStatus === 'partially_paid');
-  const paidResidents = residents.filter(r => r.paymentStatus === 'paid');
+  const dueResidents = residents.filter(r => (r.dueAmount || 0) > 0);
+  const paidResidents = residents.filter(r => (r.dueAmount || 0) === 0);
 
   const totalDueAmount = dueResidents.reduce((acc, curr) => acc + curr.dueAmount, 0);
 

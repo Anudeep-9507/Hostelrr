@@ -374,8 +374,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         roomId: params.roomId,
         bedId: params.bedId,
         joinDate: params.joinDate || new Date().toISOString().split('T')[0],
-        paymentStatus: params.isDepositPaid ? 'paid' : 'due',
-        dueAmount: params.isDepositPaid ? 0 : params.monthlyRent,
+        // Rent dues are independent of security-deposit collection.
+        paymentStatus: 'due',
+        dueAmount: params.monthlyRent,
         dueDate: params.joinDate || new Date().toISOString().split('T')[0],
         documentsComplete: true,
         emergencyPhone: localRequest.emergencyContact,
