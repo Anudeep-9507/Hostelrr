@@ -311,21 +311,17 @@ export default function Dashboard() {
         />
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden mt-2">
-          <div className="p-2 sm:p-3">
-            <KpiCard
-              title="Monthly Overview"
-              value="View Details"
-              icon={PieChart}
-              trend="Revenue, dues, occupancy and monthly stats"
-              trendColor="text-gray-500"
-              className="bg-white text-gray-600"
-              cardBg="bg-white border-gray-100"
-              onClick={() => navigate(ROUTES.monthlyOverview.path)}
-              style={{ minHeight: '80px' }}
-            />
-          </div>
-        </div>
+      <div className="mt-2">
+        <button
+          type="button"
+          onClick={() => navigate(ROUTES.monthlyOverview.path)}
+          className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 active:scale-[0.98]"
+        >
+          <PieChart className="w-4 h-4 text-gray-500" />
+          <span>Monthly Overview</span>
+          <ChevronRight className="w-4 h-4 text-gray-400" />
+        </button>
+      </div>
 
       <AnimatePresence>
         {isRevenueInfoModalOpen && (
