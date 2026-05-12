@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { uploadResidentDocuments } from '../lib/supabaseAPI';
 import useAsyncAction from '../hooks/useAsyncAction';
 
-type ViewMode = 'all' | 'floor' | 'room';
+type ViewMode = 'all' | 'floor' | 'room' | 'vacating';
 
 export const WhatsAppIcon = ({ className }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="0" className={className}>
@@ -134,6 +134,7 @@ export default function Residents() {
     if (mode === 'all') setCurrentSort('all');
     else if (mode === 'floor') setCurrentSort('floor_asc');
     else if (mode === 'room') setCurrentSort('room_asc');
+    else if (mode === 'vacating') setCurrentSort('vacating');
   };
 
   const handleProfileDocumentUpload = async (
@@ -255,7 +256,15 @@ export default function Residents() {
     return dateB - dateA;
   });
 
-  let sortedResidents = [...residents];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const vacatingResidents = residents.filter(r => {
+    if (!r.vacatingDate) return false;
+    const vacateDate = new Date(r.vacatingDate);
+    return vacateDate >= today;
+  });
+
+  let sortedResidents = viewMode === 'vacating' ? [...vacatingResidents] : [...residents];
   if (viewMode === 'all') {
     if (currentSort === 'paid') {
       sortedResidents = sortedResidents.filter(r => r.isDepositPaid);
@@ -268,6 +277,13 @@ export default function Residents() {
       const dateA = new Date(a.createdAt || a.joinDate).getTime();
       const dateB = new Date(b.createdAt || b.joinDate).getTime();
       return dateB - dateA;
+    });
+  } else if (viewMode === 'vacating') {
+    // Sort by vacating date (nearest first)
+    sortedResidents.sort((a, b) => {
+      const dateA = new Date(a.vacatingDate || '').getTime();
+      const dateB = new Date(b.vacatingDate || '').getTime();
+      return dateA - dateB;
     });
   }
 
@@ -545,6 +561,10 @@ export default function Residents() {
         </div>
       );
     }
+
+    if (viewMode === 'vacating') {
+      return renderGrid(sortedResidents);
+    }
   };
 
   const getSelectedBedStatus = () => {
@@ -593,11 +613,12 @@ export default function Residents() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 md:gap-4 mb-5 md:mb-6 shrink-0 min-w-0">
         {/* Toggle Buttons */}
         <div className={cn("bg-gray-100/80 p-1.5 rounded-[14px] flex gap-1.5 items-center justify-start overflow-x-auto w-full sm:w-auto border border-gray-200/60 shadow-sm no-scrollbar", showHistory ? "hidden sm:invisible" : "visible")}>
-          {(['all', 'floor', 'room'] as ViewMode[]).map((mode) => {
+          {(['all', 'floor', 'room', 'vacating'] as ViewMode[]).map((mode) => {
             let countNum = 0;
             if (mode === 'all') countNum = residents.length;
             if (mode === 'floor') countNum = floors.length;
             if (mode === 'room') countNum = floors.reduce((acc, f) => acc + f.rooms.length, 0);
+            if (mode === 'vacating') countNum = vacatingResidents.length;
 
             return (
               <button
@@ -610,7 +631,7 @@ export default function Residents() {
                     : "text-gray-600 hover:text-gray-900 hover:bg-gray-200/50"
                 )}
               >
-                {mode === 'all' ? 'All' : `${mode} wise`}
+                {mode === 'all' ? 'All' : mode === 'vacating' ? 'Vacating Soon' : `${mode} wise`}
                 <span className={cn(
                   "px-2.5 py-0.5 rounded-lg text-xs font-black",
                   viewMode === mode ? "bg-blue-600 text-white shadow-sm" : "bg-gray-200/80 text-gray-700"
@@ -890,11 +911,23 @@ export default function Residents() {
                       <span className="text-sm font-semibold text-gray-900">{selectedResident.emergencyPhone || '+91 98765 00000'}</span>
                     </div>
                     {('dueAmount' in selectedResident) && (
-                      <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 col-span-2">
+                      <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
                         <span className="flex items-center gap-2 text-xs text-gray-500 font-medium mb-1.5"><IndianRupee className="w-4 h-4" /> Monthly Rent</span>
                         <span className="text-sm font-semibold text-gray-900">₹{selectedResident.dueAmount > 0 ? selectedResident.dueAmount : 7500}</span>
                       </div>
                     )}
+                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                      <span className="flex items-center gap-2 text-xs text-gray-500 font-medium mb-1.5">🏛️ State</span>
+                      <span className="text-sm font-semibold text-gray-900">{(selectedResident as any).state || 'Not provided'}</span>
+                    </div>
+                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                      <span className="flex items-center gap-2 text-xs text-gray-500 font-medium mb-1.5">📍 Area & City</span>
+                      <span className="text-sm font-semibold text-gray-900">{(selectedResident as any).areaAndCity || 'Not provided'}</span>
+                    </div>
+                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                      <span className="flex items-center gap-2 text-xs text-gray-500 font-medium mb-1.5">🌍 Country</span>
+                      <span className="text-sm font-semibold text-gray-900">{(selectedResident as any).country || 'India'}</span>
+                    </div>
                   </div>
 
                   {/* Confirm Bed Modal */}
@@ -1267,6 +1300,7 @@ export default function Residents() {
                     emergencyPhone: normalizedEmergencyPhone,
                     monthlyRent: formData.get('monthlyRent') ? parseInt(formData.get('monthlyRent') as string, 10) : undefined,
                     securityDeposit: formData.get('securityDeposit') ? parseInt(formData.get('securityDeposit') as string, 10) : undefined,
+                    vacatingDate: formData.get('vacatingDate') || undefined,
                     photoPath: uploadedPaths.photoPath,
                     aadharPath: uploadedPaths.aadharPath,
                     hostelFormPath: uploadedPaths.hostelFormPath,
@@ -1362,7 +1396,7 @@ export default function Residents() {
                   <input type="text" name="aadhar" defaultValue={residentToEdit.aadhar || ''} className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all" />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-gray-900 block">Emergency Contact <span className="text-red-500">*</span></label>
+                  <label className="text-sm font-medium text-gray-900 block">Emergency Contact</label>
                   <div className="flex">
                     <span className="inline-flex items-center px-4 rounded-l-xl border border-r-0 border-gray-200 bg-white text-gray-500 text-sm font-medium">
                       +91
@@ -1371,12 +1405,11 @@ export default function Residents() {
                       type="tel"
                       name="emergencyPhone"
                       defaultValue={(residentToEdit.emergencyPhone || '').replace(/\D/g, '').slice(-10)}
-                      required
                       inputMode="numeric"
                       pattern="\d{10}"
                       minLength={10}
                       maxLength={10}
-                      title="Emergency number must be exactly 10 digits"
+                      title="Emergency number must be exactly 10 digits when provided"
                       onInput={(e) => {
                         const input = e.currentTarget;
                         input.value = input.value.replace(/\D/g, '').slice(0, 10);
@@ -1403,6 +1436,12 @@ export default function Residents() {
                     </div>
                     <input type="number" name="securityDeposit" defaultValue={(residentToEdit as any).securityDeposit ?? 0} className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all" />
                   </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-gray-900 block">Vacating Date <span className="text-gray-400">(Optional)</span></label>
+                  <input type="date" name="vacatingDate" defaultValue={residentToEdit.vacatingDate || ''} className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all" />
+                  <p className="text-xs text-gray-500">For future planning only.</p>
                 </div>
 
                 <div className="pt-4 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3 sticky bottom-0 bg-white border-t border-gray-100 mt-2 -mx-4 sm:-mx-6 px-4 sm:px-6 pb-[env(safe-area-inset-bottom)]">

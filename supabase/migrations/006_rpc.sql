@@ -34,7 +34,7 @@ CREATE OR REPLACE FUNCTION public.add_resident(
   p_stay_duration_days  INTEGER DEFAULT NULL,
   p_emergency_contact   TEXT DEFAULT NULL,
   p_aadhar_number       TEXT DEFAULT NULL,
-  p_email               TEXT DEFAULT NULL
+  p_vacating_date       DATE DEFAULT NULL
 )
 RETURNS UUID
 LANGUAGE plpgsql
@@ -85,12 +85,12 @@ BEGIN
   INSERT INTO public.residents (
     hostel_id, room_id, bed_id, name, phone,
     monthly_rent, join_date, security_deposit, is_deposit_paid,
-    stay_duration_days, emergency_contact, aadhar_number, email
+    stay_duration_days, emergency_contact, aadhar_number, vacating_date
   )
   VALUES (
     p_hostel_id, p_room_id, p_bed_id, p_name, p_phone,
     p_monthly_rent, p_join_date, p_security_deposit, p_is_deposit_paid,
-    p_stay_duration_days, p_emergency_contact, p_aadhar_number, p_email
+    p_stay_duration_days, p_emergency_contact, p_aadhar_number, p_vacating_date
   )
   RETURNING id INTO v_new_resident_id;
 
@@ -117,8 +117,7 @@ BEGIN
       v_due_date := public._compute_due_date(
         v_cycle_start,
         v_hostel.rent_cycle_type,
-        v_hostel.rent_due_day,
-        v_hostel.grace_period_days
+        v_hostel.rent_due_day
       );
 
       INSERT INTO public.payment_cycles (
@@ -135,8 +134,7 @@ BEGIN
     v_due_date  := public._compute_due_date(
       v_cycle_start,
       v_hostel.rent_cycle_type,
-      NULL,
-      v_hostel.grace_period_days
+      NULL
     );
 
     INSERT INTO public.payment_cycles (
@@ -374,9 +372,11 @@ BEGIN
   END IF;
 
   -- Update resident — the _on_resident_status_changed trigger frees the bed
+  -- Clear vacating_date when actually vacating
   UPDATE public.residents
   SET status = 'left',
       actual_leave_date = p_leave_date,
+      vacating_date = NULL,
       updated_at = NOW()
   WHERE id = p_resident_id;
 
@@ -623,8 +623,7 @@ BEGIN
     v_due_date := public._compute_due_date(
       v_new_cycle_start,
       v_hostel.rent_cycle_type,
-      v_hostel.rent_due_day,
-      v_hostel.grace_period_days
+      v_hostel.rent_due_day
     );
 
     -- ON CONFLICT DO NOTHING prevents duplicate cycles

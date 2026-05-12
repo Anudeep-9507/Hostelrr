@@ -986,6 +986,9 @@ export default function BuildingView() {
                           <div>
                             <h4 className="font-bold text-gray-900 text-lg">{resident.name}</h4>
                             <p className="text-xs text-gray-500">Joined {resident.joinDate}</p>
+                            {resident.vacatingDate && (
+                              <p className="text-xs text-orange-600 font-medium mt-1">Vacating on {resident.vacatingDate}</p>
+                            )}
                           </div>
                         </div>
 

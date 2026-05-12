@@ -48,7 +48,11 @@ export interface Resident {
   securityDeposit?: number;
   isDepositPaid?: boolean;
   depositPaidDate?: string;
+  vacatingDate?: string;
   createdAt?: string;
+  areaAndCity?: string;
+  state?: string;
+  country?: string;
 }
 
 export interface PastResident {

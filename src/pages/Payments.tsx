@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '../routes/routes';
 import { FLAGS } from '../core/env';
 import { useApp, PaymentsFilterType } from '../context/AppContext';
 import DefaultAvatar from '../components/DefaultAvatar';
-import { CheckCircle2, Wallet, Clock, AlertTriangle, Check, Send, X, Smartphone, Banknote, IndianRupee, AlertCircle, Info, PieChart, Users, ChevronRight } from 'lucide-react';
+import { CheckCircle2, Wallet, Clock, AlertTriangle, Check, Send, X, Smartphone, Banknote, IndianRupee, AlertCircle, Info, PieChart, Users, ChevronRight, Search, Calendar } from 'lucide-react';
 import { cn, formatDate, getNamesFromIds, getTodayIST, formatTimeIST, convertToIST, isSecurityDepositPayment } from '../lib/utils';
 import { Resident } from '../data/mock';
 import { toast } from 'sonner';
@@ -22,7 +22,14 @@ export default function Payments() {
   const navigate = useNavigate();
   const { floors, residents, pastResidents, markAsPaid, markReminderSent, activePaymentsFilter: filter, setActivePaymentsFilter: setFilter, setGlobalSelectedResidentId, hostelProfile, isDemoMode, sharingRentMap } = useApp();
   const [showHistory, setShowHistory] = useState(false);
-  const [historyTimeFilter, setHistoryTimeFilter] = useState<'All' | 'Today' | 'Monthly' | 'Yearly' | 'Security Deposits'>('All');
+  const [historyTimeFilter, setHistoryTimeFilter] = useState<'Today' | 'Monthly' | 'Yearly'>('Today');
+  const [historyPaymentFilter, setHistoryPaymentFilter] = useState<'Rent' | 'Security Deposits'>('Rent');
+  const [historySearchQuery, setHistorySearchQuery] = useState('');
+  const [selectedHistoryMonth, setSelectedHistoryMonth] = useState(() => {
+    const now = convertToIST(new Date());
+    return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+  });
+  const [selectedHistoryYear, setSelectedHistoryYear] = useState(() => String(convertToIST(new Date()).getUTCFullYear()));
 
   const [isRevenueInfoModalOpen, setIsRevenueInfoModalOpen] = useState(false);
 
@@ -220,7 +227,7 @@ export default function Payments() {
   const paidCount = paidResidents.length;
   const allCount = residents.length;
 
-  const allPaymentsTransactions = React.useMemo(() => {
+  const allPaymentsTransactions = useMemo(() => {
     const activeHistory = residents.flatMap(r => {
       const history = (r.paymentHistory || []).map(p => ({ ...p, residentName: r.name, residentId: r.id, roomId: r.roomId, bedId: r.bedId }));
       if (r.securityDeposit && r.isDepositPaid) {
@@ -261,39 +268,97 @@ export default function Payments() {
       return history;
     });
     
-    let base = [...activeHistory, ...pastHistory];
+    return [...activeHistory, ...pastHistory].sort((a, b) => getTransactionDateForSort(b.date).getTime() - getTransactionDateForSort(a.date).getTime());
+  }, [residents, pastResidents]);
 
+  const historyMonthOptions = useMemo(() => {
+    const months = new Map<string, Date>();
+
+    allPaymentsTransactions.forEach((payment) => {
+      const dateIST = getTransactionDateForSort(payment.date);
+      if (Number.isNaN(dateIST.getTime())) return;
+      const key = `${dateIST.getUTCFullYear()}-${String(dateIST.getUTCMonth() + 1).padStart(2, '0')}`;
+      if (!months.has(key)) {
+        months.set(key, dateIST);
+      }
+    });
+
+    return Array.from(months.entries())
+      .sort((a, b) => b[1].getTime() - a[1].getTime())
+      .map(([value, date]) => ({
+        value,
+        label: new Intl.DateTimeFormat('en-IN', { month: 'short', year: 'numeric' }).format(date),
+      }));
+  }, [allPaymentsTransactions]);
+
+  const historyYearOptions = useMemo(() => {
+    const years = new Set<string>();
+
+    allPaymentsTransactions.forEach((payment) => {
+      const dateIST = getTransactionDateForSort(payment.date);
+      if (Number.isNaN(dateIST.getTime())) return;
+      years.add(String(dateIST.getUTCFullYear()));
+    });
+
+    return Array.from(years)
+      .sort((a, b) => Number(b) - Number(a))
+      .map((value) => ({ value, label: value }));
+  }, [allPaymentsTransactions]);
+
+  const filteredHistoryTransactions = useMemo(() => {
     const today = getTodayIST();
-    const now = new Date();
-    const istNow = convertToIST(now);
-    const currentMonth = istNow.getUTCMonth();
-    const currentYear = istNow.getUTCFullYear();
+    const normalizedQuery = historySearchQuery.trim().toLowerCase();
+
+    let base = allPaymentsTransactions;
+
+    if (historyPaymentFilter === 'Rent') {
+      base = base.filter(payment => payment.title !== 'Security Deposit');
+    } else {
+      base = base.filter(payment => payment.title === 'Security Deposit');
+    }
 
     if (historyTimeFilter === 'Today') {
-      base = base.filter(p => {
-        const dateIST = getTransactionDateForSort(p.date);
+      base = base.filter(payment => {
+        const dateIST = getTransactionDateForSort(payment.date);
         const dateStr = `${dateIST.getUTCFullYear()}-${String(dateIST.getUTCMonth() + 1).padStart(2, '0')}-${String(dateIST.getUTCDate()).padStart(2, '0')}`;
         return dateStr === today;
       });
     } else if (historyTimeFilter === 'Monthly') {
-      base = base.filter(p => {
-        const dateIST = getTransactionDateForSort(p.date);
-        return dateIST.getUTCMonth() === currentMonth && dateIST.getUTCFullYear() === currentYear;
+      base = base.filter(payment => {
+        const dateIST = getTransactionDateForSort(payment.date);
+        const key = `${dateIST.getUTCFullYear()}-${String(dateIST.getUTCMonth() + 1).padStart(2, '0')}`;
+        return key === selectedHistoryMonth;
       });
     } else if (historyTimeFilter === 'Yearly') {
-      base = base.filter(p => {
-        const dateIST = getTransactionDateForSort(p.date);
-        return dateIST.getUTCFullYear() === currentYear;
+      base = base.filter(payment => {
+        const dateIST = getTransactionDateForSort(payment.date);
+        return String(dateIST.getUTCFullYear()) === selectedHistoryYear;
       });
-    } else if (historyTimeFilter === 'Security Deposits') {
-      base = base.filter(p => p.title === 'Security Deposit');
+    }
+
+    if (normalizedQuery) {
+      base = base.filter(payment => {
+        const roomName = getNamesFromIds(floors, payment.roomId, payment.bedId).roomName;
+        const searchHaystack = [payment.residentName, roomName, `room ${roomName}`, payment.roomId]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+
+        return searchHaystack.includes(normalizedQuery);
+      });
     }
 
     return base.sort((a, b) => getTransactionDateForSort(b.date).getTime() - getTransactionDateForSort(a.date).getTime());
-  }, [residents, pastResidents, historyTimeFilter]);
+  }, [allPaymentsTransactions, floors, historyPaymentFilter, historySearchQuery, historyTimeFilter, selectedHistoryMonth, selectedHistoryYear]);
 
-  const totalHistoryAmount = allPaymentsTransactions.reduce((acc, p) => acc + p.amount, 0);
-  const isSecurityDepositHistory = historyTimeFilter === 'Security Deposits';
+  const totalHistoryAmount = filteredHistoryTransactions.reduce((acc, p) => acc + p.amount, 0);
+  const isSecurityDepositHistory = historyPaymentFilter === 'Security Deposits';
+
+  const historyTimeLabel = historyTimeFilter === 'Today'
+    ? 'Today'
+    : historyTimeFilter === 'Monthly'
+      ? historyMonthOptions.find(option => option.value === selectedHistoryMonth)?.label || 'Month'
+      : historyYearOptions.find(option => option.value === selectedHistoryYear)?.label || 'Year';
   
   // KPI counts
   const dueTodayCount = pendingCount;
@@ -682,24 +747,89 @@ export default function Payments() {
                 <p className="text-sm text-gray-500">Chronological list of all payments received</p>
               </div>
               
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
-                <div className="bg-white p-1 rounded-xl border border-gray-200 flex gap-1 overflow-x-auto no-scrollbar">
-                  {(['All', 'Today', 'Monthly', 'Yearly', 'Security Deposits'] as const).map(f => (
-                    <button
-                      key={f}
-                      onClick={() => setHistoryTimeFilter(f)}
-                      className={cn(
-                        "px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap",
-                        historyTimeFilter === f ? "bg-blue-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
-                      )}
-                    >
-                      {f}
-                    </button>
-                  ))}
+              <div className="flex flex-col gap-3 w-full md:w-auto md:min-w-[520px]">
+                <div className="flex flex-col lg:flex-row gap-3 lg:items-center">
+                  <div className="relative w-full lg:w-[260px]">
+                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                    <input
+                      value={historySearchQuery}
+                      onChange={(e) => setHistorySearchQuery(e.target.value)}
+                      placeholder="Search name or room"
+                      className="w-full h-11 rounded-xl border border-gray-200 bg-white pl-9 pr-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                    />
+                  </div>
+
+                  <div className="bg-white p-1 rounded-xl border border-gray-200 flex gap-1 overflow-x-auto no-scrollbar">
+                    {(['Today', 'Monthly', 'Yearly'] as const).map(f => (
+                      <button
+                        key={f}
+                        onClick={() => setHistoryTimeFilter(f)}
+                        className={cn(
+                          "px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap",
+                          historyTimeFilter === f ? "bg-blue-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
+                        )}
+                      >
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="bg-white p-1 rounded-xl border border-gray-200 flex gap-1 overflow-x-auto no-scrollbar">
+                    {([
+                      { value: 'Rent' as const, label: 'Rent Payments', icon: Wallet },
+                      { value: 'Security Deposits' as const, label: 'Security Deposits', icon: Banknote },
+                    ]).map(option => {
+                      const Icon = option.icon;
+                      return (
+                        <button
+                          key={option.value}
+                          onClick={() => setHistoryPaymentFilter(option.value)}
+                          className={cn(
+                            "px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5",
+                            historyPaymentFilter === option.value ? "bg-blue-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
+                          )}
+                        >
+                          <Icon className="w-3.5 h-3.5" />
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {historyTimeFilter === 'Monthly' && (
+                    <div className="relative">
+                      <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                      <select
+                        value={selectedHistoryMonth}
+                        onChange={(e) => setSelectedHistoryMonth(e.target.value)}
+                        className="h-11 min-w-[170px] rounded-xl border border-gray-200 bg-white pl-9 pr-9 text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                      >
+                        {historyMonthOptions.map(option => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {historyTimeFilter === 'Yearly' && (
+                    <div className="relative">
+                      <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                      <select
+                        value={selectedHistoryYear}
+                        onChange={(e) => setSelectedHistoryYear(e.target.value)}
+                        className="h-11 min-w-[140px] rounded-xl border border-gray-200 bg-white pl-9 pr-9 text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                      >
+                        {historyYearOptions.map(option => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
-                <div className="bg-white px-4 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 whitespace-nowrap text-center">
-                  <div>{historyTimeFilter === 'Security Deposits' ? 'Collected' : 'Total'}: ₹{totalHistoryAmount.toLocaleString('en-IN')}</div>
-                  {historyTimeFilter === 'Security Deposits' && (
+
+                <div className="bg-white px-4 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 whitespace-nowrap text-center w-full md:w-auto">
+                  <div>{isSecurityDepositHistory ? 'Collected' : 'Total'}: ₹{totalHistoryAmount.toLocaleString('en-IN')} · {historyTimeLabel}</div>
+                  {isSecurityDepositHistory && (
                     <div className="mt-1 pt-1 border-t border-gray-100 text-[11px] font-medium text-gray-500">
                       Expected: ₹{expectedTotalSecurityDeposit.toLocaleString('en-IN')}
                     </div>
@@ -722,18 +852,18 @@ export default function Payments() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {allPaymentsTransactions.length === 0 ? (
+                  {filteredHistoryTransactions.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="px-6 py-12">
                         <EmptyState 
                           icon={Clock}
                           title="No transactions found"
-                          subtitle="No payment history matches the selected period."
+                          subtitle={historySearchQuery ? 'No payment history matches search and filters.' : 'No payment history matches selected filters.'}
                         />
                       </td>
                     </tr>
                   ) : (
-                    allPaymentsTransactions.map((payment, idx) => {
+                    filteredHistoryTransactions.map((payment, idx) => {
                       const { roomName } = getNamesFromIds(floors, payment.roomId, payment.bedId);
                         const bedStatus = getBedStatusForResident(payment.roomId, payment.bedId);
                       const formattedDate = getTransactionDateForDisplay(payment.date);
@@ -779,16 +909,16 @@ export default function Payments() {
 
               {/* Mobile Cards */}
               <div className="md:hidden divide-y divide-gray-100">
-                {allPaymentsTransactions.length === 0 ? (
+                {filteredHistoryTransactions.length === 0 ? (
                   <div className="p-8">
                     <EmptyState 
                       icon={Clock}
                       title="No transactions found"
-                      subtitle="No payment history matches the selected period."
+                      subtitle={historySearchQuery ? 'No payment history matches search and filters.' : 'No payment history matches selected filters.'}
                     />
                   </div>
                 ) : (
-                  allPaymentsTransactions.map((payment, idx) => {
+                  filteredHistoryTransactions.map((payment, idx) => {
                     const { roomName } = getNamesFromIds(floors, payment.roomId, payment.bedId);
                     const formattedDate = getTransactionDateForDisplay(payment.date);
                     const formattedTime = formatTimeIST(payment.date);

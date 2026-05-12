@@ -112,6 +112,25 @@ export default function Dashboard() {
     }, 0);
   }, 0);
 
+  // Calculate vacating alerts (within 7 days)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const sevenDaysFromNow = new Date(today);
+  sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+
+  const vacatingThisWeek = residents.filter(r => {
+    if (!r.vacatingDate) return false;
+    const vacateDate = new Date(r.vacatingDate);
+    return vacateDate >= today && vacateDate <= sevenDaysFromNow;
+  });
+
+  const vacatingAlerts = vacatingThisWeek.length > 0 ? [{
+    id: 'vacating-alert',
+    text: `${vacatingThisWeek.length} resident${vacatingThisWeek.length === 1 ? '' : 's'} vacating this week`,
+    time: 'Alert',
+    icon: 'AlertCircle'
+  }] : [];
+
   const handleNavigateBuilding = (filter: any) => {
     setActiveBuildingFilter(filter);
     navigate(ROUTES.rooms.path);
@@ -529,16 +548,17 @@ export default function Dashboard() {
               </button>
             </div>
             <div className="p-2 space-y-1">
-              {activities.length === 0 ? (
+              {vacatingAlerts.length === 0 && activities.length === 0 ? (
                 <div className="p-8 text-center text-gray-500 text-sm">No recent activity</div>
               ) : (
-                activities.slice(0, 5).map((a, i) => (
+                [...vacatingAlerts, ...activities].slice(0, 5).map((a, i) => (
                   <div key={a.id} className="flex items-start gap-3 sm:gap-4 p-3 hover:bg-gray-50 rounded-xl transition-colors">
-                    <div className="flex items-center justify-center w-10 h-10 rounded-full bg-blue-50 text-blue-600 shrink-0">
+                    <div className={cn("flex items-center justify-center w-10 h-10 rounded-full shrink-0", a.icon === 'AlertCircle' ? "bg-orange-50 text-orange-600" : "bg-blue-50 text-blue-600")}>
                       {a.icon === 'UserPlus' && <Users className="w-5 h-5" />}
                       {a.icon === 'IndianRupee' && <IndianRupee className="w-5 h-5" />}
                       {a.icon === 'LogOut' && <LogOut className="w-5 h-5" />}
                       {a.icon === 'CheckCircle' && <CheckCircle className="w-5 h-5" />}
+                      {a.icon === 'AlertCircle' && <AlertCircle className="w-5 h-5" />}
                     </div>
                     <div className="flex min-w-0 flex-col flex-1 pt-0.5">
                       <span className="font-medium text-sm text-gray-900">{a.text}</span>
@@ -579,16 +599,17 @@ export default function Dashboard() {
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2 relative">
-                {activities.length === 0 ? (
+                {vacatingAlerts.length === 0 && activities.length === 0 ? (
                   <div className="p-12 text-center text-gray-500">No activity history found.</div>
                 ) : (
-                  activities.map((a, i) => (
+                  [...vacatingAlerts, ...activities].map((a, i) => (
                     <div key={a.id} className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 hover:bg-gray-50 rounded-xl transition-colors border border-transparent hover:border-gray-100 group">
-                      <div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-blue-50 text-blue-600 shrink-0 group-hover:scale-110 transition-transform">
+                      <div className={cn("flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-full shrink-0 group-hover:scale-110 transition-transform", a.icon === 'AlertCircle' ? "bg-orange-50 text-orange-600" : "bg-blue-50 text-blue-600")}>
                         {a.icon === 'UserPlus' && <Users className="w-5 h-5 sm:w-6 sm:h-6" />}
                         {a.icon === 'IndianRupee' && <IndianRupee className="w-5 h-5 sm:w-6 sm:h-6" />}
                         {a.icon === 'LogOut' && <LogOut className="w-5 h-5 sm:w-6 sm:h-6" />}
                         {a.icon === 'CheckCircle' && <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6" />}
+                        {a.icon === 'AlertCircle' && <AlertCircle className="w-5 h-5 sm:w-6 sm:h-6" />}
                       </div>
                       <div className="flex min-w-0 flex-col flex-1 pt-1">
                         <span className="font-medium text-sm sm:text-base text-gray-900">{a.text}</span>

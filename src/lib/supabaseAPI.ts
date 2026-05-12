@@ -305,6 +305,7 @@ export async function fetchHostelData(userId: string) {
       securityDeposit: r.security_deposit || 0,
       isDepositPaid: r.is_deposit_paid || false,
       depositPaidDate: r.deposit_paid_at || undefined,
+      vacatingDate: r.vacating_date || undefined,
       paymentHistory: (paymentsData || [])
         .filter((p: any) => p.resident_id === r.id)
         .map((p: any) => {
@@ -703,9 +704,7 @@ export async function addResidentDb(hostelId: string, roomId: string, bedId: str
     p_stay_duration_days: residentData.stayTime ? parseInt(residentData.stayTime as string) : null,
     p_emergency_contact: residentData.emergencyPhone,
     p_aadhar_number: residentData.aadhar,
-    p_area_and_city: residentData.areaAndCity || null,
-    p_state: residentData.state || null,
-    p_country: residentData.country || 'India'
+    p_vacating_date: residentData.vacatingDate || null
   });
   if (error) throw error;
   
@@ -773,6 +772,7 @@ export async function editResidentDb(residentId: string, updatedData: any) {
   if (updatedData.securityDeposit !== undefined) updatePayload.security_deposit = updatedData.securityDeposit;
   if (updatedData.isDepositPaid !== undefined) updatePayload.is_deposit_paid = updatedData.isDepositPaid;
   if (updatedData.depositPaidDate !== undefined) updatePayload.deposit_paid_at = normalizeIstTimestamp(updatedData.depositPaidDate);
+  if (updatedData.vacatingDate !== undefined) updatePayload.vacating_date = updatedData.vacatingDate || null;
 
   const { data, error } = await supabase
     .from('residents')

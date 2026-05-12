@@ -368,6 +368,17 @@ export default function MonthlyOverview() {
       categories: ['all'],
     },
     {
+      title: 'Beds Becoming Vacant',
+      value: `${residents.filter(r => {
+        const vacateDate = parseDate(r.vacatingDate);
+        return vacateDate && vacateDate.getFullYear() === now.getFullYear() && vacateDate.getMonth() === now.getMonth();
+      }).length}`,
+      icon: BedDouble,
+      trend: 'Planning for vacancies this month',
+      trendColor: 'text-gray-500',
+      categories: ['all', 'occupancy'],
+    },
+    {
       title: 'Collection Efficiency',
       value: `${monthlyStats.collectionEfficiency}%`,
       icon: PieChart,

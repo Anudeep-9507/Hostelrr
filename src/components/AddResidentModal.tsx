@@ -18,6 +18,7 @@ export default function AddResidentModal({
   const [showJoiningInfo, setShowJoiningInfo] = React.useState(true);
 
   const [joiningDate, setJoiningDate] = React.useState<string>(getTodayIST());
+  const [vacatingDate, setVacatingDate] = React.useState<string>('');
 
   // States for smart filtering
   const [selectedSharingType, setSelectedSharingType] = React.useState<string>('');
@@ -194,6 +195,7 @@ export default function AddResidentModal({
       rent: Number(formData.get('rent')),
       stayTime: formData.get('stayTime') as string,
       joinDate: formData.get('joiningDate') as string || joiningDate || getTodayIST(),
+      vacatingDate: vacatingDate || undefined,
       securityDeposit: Number(formData.get('deposit')) || 0,
       isDepositPaid: false,
       roomId: selectedRoomId, 
@@ -554,6 +556,17 @@ export default function AddResidentModal({
                 className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all"
               />
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-gray-900 block">Vacating Date <span className="text-gray-400">(Optional)</span></label>
+            <input 
+              type="date"
+              value={vacatingDate}
+              onChange={(e) => setVacatingDate(e.target.value)}
+              className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all"
+            />
+            <p className="text-xs text-gray-500">For future planning only. Resident remains active until explicitly vacated.</p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
