@@ -5,7 +5,7 @@ const parseFlag = (value: string | undefined, defaultValue = false): boolean => 
 };
 
 export const FLAGS = {
-  demoMode: parseFlag(import.meta.env.VITE_DEMO_MODE, true), // Production-safe default
+  demoMode: parseFlag(import.meta.env.VITE_DEMO_MODE, false), // Production-safe default
   monthlyOverview: parseFlag(import.meta.env.VITE_ENABLE_MONTHLY_OVERVIEW, true),
   whatsappAutomation: parseFlag(import.meta.env.VITE_ENABLE_WHATSAPP_AUTOMATION, true),
   autoReminders: parseFlag(import.meta.env.VITE_ENABLE_AUTO_REMINDERS, true),

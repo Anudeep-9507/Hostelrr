@@ -63,6 +63,13 @@ export default function AppLayout() {
     return { id: tabId, label: route.label, icon: route.icon };
   });
 
+  type SearchRoomResult = {
+    floorName: string;
+    number: string;
+    id: string;
+    residents: typeof residents;
+  };
+
   const handleGlobalSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setGlobalSearch(e.target.value);
     setIsSearchOpen(true);
@@ -79,11 +86,26 @@ export default function AppLayout() {
       r.roomId.toLowerCase().includes(query)
     );
 
-    const matchedRooms: { floorName: string; number: string; id: string }[] = [];
+    const matchedRooms: SearchRoomResult[] = [];
     floors.forEach(floor => {
       floor.rooms.forEach(room => {
         if (room.number.toLowerCase().includes(query)) {
-          matchedRooms.push({ floorName: floor.name, number: room.number, id: room.id });
+          const roomResidents = residents
+            .filter(resident => resident.roomId === room.id)
+            .sort((left, right) => {
+              const leftBed = getNamesFromIds(floors, left.roomId, left.bedId).bedName || '';
+              const rightBed = getNamesFromIds(floors, right.roomId, right.bedId).bedName || '';
+
+              return leftBed.localeCompare(rightBed, undefined, { numeric: true, sensitivity: 'base' }) ||
+                left.name.localeCompare(right.name, undefined, { sensitivity: 'base' });
+            });
+
+          matchedRooms.push({
+            floorName: floor.name,
+            number: room.number,
+            id: room.id,
+            residents: roomResidents,
+          });
         }
       });
     });
@@ -337,17 +359,51 @@ export default function AppLayout() {
                           <div className="px-3 py-1">
                             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-2 block mb-2">Rooms</span>
                             {searchResults.rooms.map(room => (
-                              <button 
+                              <div
                                 key={room.id}
+                                className="w-full text-left p-2 hover:bg-gray-50 rounded-xl transition-colors cursor-pointer"
+                                role="button"
+                                tabIndex={0}
                                 onClick={() => handleSelectRoom(room.id)}
-                                className="w-full text-left flex items-center justify-between p-2 hover:bg-gray-50 rounded-xl transition-colors cursor-pointer"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    handleSelectRoom(room.id);
+                                  }
+                                }}
                               >
-                                <div>
-                                  <div className="text-sm font-medium text-gray-900">Room {room.number}</div>
-                                  <div className="text-xs text-gray-500">{room.floorName}</div>
+                                <div className="flex items-start justify-between gap-3">
+                                  <div>
+                                    <div className="text-sm font-medium text-gray-900">Room {room.number}</div>
+                                    <div className="text-xs text-gray-500">{room.floorName}</div>
+                                  </div>
+                                  <BedDouble className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
                                 </div>
-                                <BedDouble className="w-4 h-4 text-gray-400" />
-                              </button>
+
+                                <div className="mt-2 space-y-1.5 border-t border-gray-100 pt-2">
+                                  <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 px-1">Residents</div>
+                                  {room.residents.length > 0 ? (
+                                    room.residents.map((resident) => {
+                                      const { bedName } = getNamesFromIds(floors, resident.roomId, resident.bedId);
+                                      return (
+                                        <button
+                                          key={resident.id}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleSelectResident(resident.id);
+                                          }}
+                                          className="w-full flex items-center justify-between rounded-lg px-2 py-1.5 text-left hover:bg-blue-50 transition-colors"
+                                        >
+                                          <span className="text-xs font-medium text-gray-700 truncate">{resident.name}</span>
+                                          <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider shrink-0 ml-2">{bedName ? `Bed ${bedName}` : 'Resident'}</span>
+                                        </button>
+                                      );
+                                    })
+                                  ) : (
+                                    <div className="px-2 py-1 text-xs text-gray-400">No residents in this room</div>
+                                  )}
+                                </div>
+                              </div>
                             ))}
                           </div>
                         )}

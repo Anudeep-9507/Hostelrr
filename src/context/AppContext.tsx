@@ -51,6 +51,8 @@ interface AppContextType {
   completeOnboarding: (data: any) => void;
   isDemoMode: boolean;
   toggleDemoMode: (enabled: boolean) => void;
+  showBedLayout: boolean;
+  setShowBedLayout: (v: boolean) => void;
   sharingRentMap: Record<number, number>;
   securityDeposit: number;
   hostelProfile: any;
@@ -132,6 +134,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return raw ? JSON.parse(raw) : null;
     } catch { return null; }
   });
+
+  const [showBedLayout, setShowBedLayout] = React.useState<boolean>(() => {
+    try {
+      const raw = localStorage.getItem('hostelrr_show_bed_layout');
+      return raw ? JSON.parse(raw) : true;
+    } catch {
+      return true;
+    }
+  });
+
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('hostelrr_show_bed_layout', JSON.stringify(showBedLayout));
+    } catch {}
+  }, [showBedLayout]);
 
   // Track if we are fetching data
   const [isDataLoading, setIsDataLoading] = React.useState(true);
@@ -780,6 +797,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       addRoom, editRoomBeds, updateRoomSetup, deleteRoom, moveBeds, copyFloorLayout,
       isOnboardingComplete, completeOnboarding,
       isDemoMode, toggleDemoMode,
+      showBedLayout, setShowBedLayout,
       sharingRentMap,
       securityDeposit,
       hostelProfile,

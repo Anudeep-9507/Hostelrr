@@ -45,7 +45,7 @@ function isBedMatch(status: Bed['status'], filter: Bed['status'] | 'all') {
 
 export default function BuildingView() {
   const navigate = useNavigate();
-  const { floors, residents, activeBuildingFilter: filterStatus, setActiveBuildingFilter: setFilterStatus, globalSelectedRoomId, setGlobalSelectedRoomId, vacateResident, setGlobalSelectedResidentId, addRoom, editRoomBeds, updateRoomSetup, deleteRoom, moveBeds, sharingRentMap, copyFloorLayout, hostelProfile } = useApp();
+  const { floors, residents, activeBuildingFilter: filterStatus, setActiveBuildingFilter: setFilterStatus, globalSelectedRoomId, setGlobalSelectedRoomId, vacateResident, setGlobalSelectedResidentId, addRoom, editRoomBeds, updateRoomSetup, deleteRoom, moveBeds, sharingRentMap, copyFloorLayout, hostelProfile, showBedLayout, setShowBedLayout } = useApp();
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [residentToVacate, setResidentToVacate] = useState<Resident | null>(null);
   const [isAddRoomModalOpen, setIsAddRoomModalOpen] = useState(false);
@@ -72,10 +72,6 @@ export default function BuildingView() {
   const [selectedFloorFilter, setSelectedFloorFilter] = useState<string>('all');
   const [roomSearchQuery, setRoomSearchQuery] = useState('');
   const [isRoomDropdownOpen, setIsRoomDropdownOpen] = useState(false);
-  const [showBedLayout, setShowBedLayout] = useState(() => {
-    const saved = localStorage.getItem('hostelrr_show_bed_layout');
-    return saved ? JSON.parse(saved) : true;
-  });
   const [isCopyLayoutModalOpen, setIsCopyLayoutModalOpen] = useState(false);
   const [targetFloorForCopy, setTargetFloorForCopy] = useState<string | null>(null);
   const [allTemplates, setAllTemplates] = useState<Template[]>([]);
@@ -141,9 +137,7 @@ export default function BuildingView() {
     }
   }, [editRoomBedsNum, isEditRoomModalOpen, editModalTab, allTemplates]);
 
-  React.useEffect(() => {
-    localStorage.setItem('hostelrr_show_bed_layout', JSON.stringify(showBedLayout));
-  }, [showBedLayout]);
+  
 
   const { execute: executeSaveRoom, isLoading: isSavingRoom } = useAsyncAction(async () => {
     const bedsCount = isCustomSharing ? parseInt(customSharingValue) : parseInt(newRoomBeds);
@@ -411,23 +405,7 @@ export default function BuildingView() {
               
               <div className="w-px h-8 bg-gray-200 mx-1 hidden sm:block"></div>
 
-              <div className="flex items-center gap-2 pl-2">
-                <span className="text-sm font-semibold text-gray-600 whitespace-nowrap">Bed Layout</span>
-                <button
-                  onClick={() => setShowBedLayout(!showBedLayout)}
-                  className={cn(
-                    "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none",
-                    showBedLayout ? "bg-blue-600" : "bg-gray-300"
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
-                      showBedLayout ? "translate-x-6" : "translate-x-1"
-                    )}
-                  />
-                </button>
-              </div>
+              {/* Bed Layout toggle moved to Settings (global). Removed duplicate control here. */}
               </div>
             </div>
 

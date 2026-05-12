@@ -11,7 +11,7 @@ import { cn } from '../lib/utils';
 
 export default function Settings() {
   const navigate = useNavigate();
-  const { hostelProfile, updateHostelProfile } = useApp();
+  const { hostelProfile, updateHostelProfile, showBedLayout, setShowBedLayout } = useApp();
   const [activeTab, setActiveTab] = useState('hostel');
   const [isSaving, setIsSaving] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -222,6 +222,27 @@ export default function Settings() {
                   <h2 className="text-[13px] font-semibold text-blue-700">Hostel Details</h2>
                 </div>
               </div>
+              <div className="px-4 md:px-6 pb-2 flex items-center justify-between">
+                <div />
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-semibold text-gray-600 whitespace-nowrap">Show Bed Layout</span>
+                  <button
+                    onClick={() => setShowBedLayout(!showBedLayout)}
+                    className={cn(
+                      "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none",
+                      showBedLayout ? "bg-blue-600" : "bg-gray-300"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                        showBedLayout ? "translate-x-6" : "translate-x-1"
+                      )}
+                    />
+                  </button>
+                </div>
+              </div>
+
               <form onSubmit={handleSaveHostelDetails} className="p-4 md:p-6 space-y-5 md:space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6">
                   <div className="space-y-2">

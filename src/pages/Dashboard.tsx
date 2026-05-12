@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { ROUTES } from '../routes/routes';
 import { FLAGS } from '../core/env';
-import { BedDouble, Users, AlertCircle, IndianRupee, PieChart, CheckCircle, Clock, LogOut, X, Info, Phone, ChevronRight, UserPlus } from 'lucide-react';
+import { BedDouble, Users, AlertCircle, IndianRupee, PieChart, CheckCircle, Clock, LogOut, X, Info, Phone, ChevronRight, ChevronDown, UserPlus } from 'lucide-react';
 import { cn, formatDate, getNamesFromIds, isSecurityDepositPayment } from '../lib/utils';
 import { PieChart as RePieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { AnimatePresence, motion } from 'motion/react';
@@ -364,19 +364,20 @@ export default function Dashboard() {
           {/* Due Payments */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="p-4 md:p-5 border-b border-gray-100 flex justify-between items-center gap-3 bg-gray-50/50">
-              <h3 className="text-lg font-bold text-gray-900">Pending Dues</h3>
+              <h3 className="text-lg font-bold text-gray-900">Pending Dues ({dueResidents.length})</h3>
               <button 
-                onClick={() => handleNavigatePayments('Pending')}
+                onClick={() => handleNavigatePayments('Unpaid')}
                 className="min-h-10 px-2 text-sm font-medium text-blue-600 hover:text-blue-700"
               >
                 View All
               </button>
             </div>
-            <div className="divide-y divide-gray-100">
+            <div className="relative">
+              <div className="divide-y divide-gray-100">
               {dueResidents.length === 0 ? (
                 <div className="p-8 text-center text-gray-500">No pending dues!</div>
               ) : (
-                dueResidents.map(r => (
+                dueResidents.slice(0,3).map(r => (
                   <div key={r.id} className="p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between hover:bg-gray-50 transition-colors">
                     <div className="flex min-w-0 items-center gap-3 sm:gap-4">
                       <div className="w-10 h-10 rounded-full bg-gray-50 border-2 border-white ring-1 ring-gray-200 shadow-sm flex items-center justify-center text-gray-400 overflow-hidden shrink-0">
@@ -407,6 +408,21 @@ export default function Dashboard() {
                     </div>
                   </div>
                 ))
+              )}
+              </div>
+
+              {dueResidents.length > 3 && (
+                <div className="absolute left-0 right-0 bottom-0 pointer-events-none">
+                  <div className="w-full h-20 bg-gradient-to-t from-white to-transparent z-0"></div>
+                  <button
+                    onClick={() => handleNavigatePayments('Unpaid')}
+                    className="pointer-events-auto absolute bottom-3 left-1/2 transform -translate-x-1/2 z-10 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full flex items-center gap-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-white"
+                    aria-label="View more pending dues"
+                  >
+                    More
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -547,11 +563,11 @@ export default function Dashboard() {
                 View All
               </button>
             </div>
-            <div className="p-2 space-y-1">
+            <div className="p-2 space-y-1 relative">
               {vacatingAlerts.length === 0 && activities.length === 0 ? (
                 <div className="p-8 text-center text-gray-500 text-sm">No recent activity</div>
               ) : (
-                [...vacatingAlerts, ...activities].slice(0, 5).map((a, i) => (
+                ([...vacatingAlerts, ...activities]).slice(0, 3).map((a, i) => (
                   <div key={a.id} className="flex items-start gap-3 sm:gap-4 p-3 hover:bg-gray-50 rounded-xl transition-colors">
                     <div className={cn("flex items-center justify-center w-10 h-10 rounded-full shrink-0", a.icon === 'AlertCircle' ? "bg-orange-50 text-orange-600" : "bg-blue-50 text-blue-600")}>
                       {a.icon === 'UserPlus' && <Users className="w-5 h-5" />}
@@ -566,6 +582,20 @@ export default function Dashboard() {
                     </div>
                   </div>
                 ))
+              )}
+
+              {[...vacatingAlerts, ...activities].length > 3 && (
+                <div className="absolute left-0 right-0 bottom-0 pointer-events-none">
+                  <div className="w-full h-20 bg-gradient-to-t from-white to-transparent z-0"></div>
+                  <button
+                    onClick={() => setIsActivityModalOpen(true)}
+                    className="pointer-events-auto absolute bottom-3 left-1/2 transform -translate-x-1/2 z-10 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full flex items-center gap-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-white"
+                    aria-label="View more activity"
+                  >
+                    More
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+                </div>
               )}
             </div>
           </div>
