@@ -703,10 +703,17 @@ export async function addResidentDb(hostelId: string, roomId: string, bedId: str
     p_is_deposit_paid: residentData.isDepositPaid || false,
     p_stay_duration_days: residentData.stayTime ? parseInt(residentData.stayTime as string) : null,
     p_emergency_contact: residentData.emergencyPhone,
-    p_aadhar_number: residentData.aadhar,
-    p_vacating_date: residentData.vacatingDate || null
+    p_aadhar_number: residentData.aadhar
   });
   if (error) throw error;
+
+  if (residentData.vacatingDate && data) {
+    const { error: vacatingDateError } = await supabase
+      .from('residents')
+      .update({ vacating_date: residentData.vacatingDate })
+      .eq('id', data as string);
+    if (vacatingDateError) throw vacatingDateError;
+  }
   
   if (isReservedOnly) {
     const { error: bedError } = await supabase

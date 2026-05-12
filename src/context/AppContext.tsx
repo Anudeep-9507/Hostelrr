@@ -354,6 +354,55 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     stayDurationDays?: number | null;
     reviewNotes?: string | null;
   }) => {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(params.requestId);
+    const localRequest = joinRequests.find(req => req.id === params.requestId);
+
+    if (isDemoMode || !session?.user || !isUuid) {
+      if (!localRequest) {
+        toast.error('Failed to approve join request');
+        return;
+      }
+
+      const newResidentId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `res_${Date.now()}`;
+
+      setResidents(prev => [{
+        id: newResidentId,
+        name: localRequest.name,
+        phone: localRequest.phone,
+        roomId: params.roomId,
+        bedId: params.bedId,
+        joinDate: params.joinDate || new Date().toISOString().split('T')[0],
+        paymentStatus: params.isDepositPaid ? 'paid' : 'due',
+        dueAmount: params.isDepositPaid ? 0 : params.monthlyRent,
+        dueDate: params.joinDate || new Date().toISOString().split('T')[0],
+        documentsComplete: true,
+        emergencyPhone: localRequest.emergencyContact,
+        aadhar: localRequest.aadharNumber,
+        monthlyRent: params.monthlyRent,
+        stayTime: params.stayDurationDays,
+        securityDeposit: params.securityDeposit ?? 0,
+        isDepositPaid: params.isDepositPaid ?? false,
+        photoPath: localRequest.photoPath,
+        photoUrl: localRequest.photoUrl,
+        aadharDocumentPath: localRequest.aadharDocumentPath,
+        aadharDocumentUrl: localRequest.aadharDocumentUrl,
+      }, ...prev]);
+
+      setFloors(prev => prev.map(floor => ({
+        ...floor,
+        rooms: floor.rooms.map(room => room.id !== params.roomId ? room : ({
+          ...room,
+          beds: room.beds.map(bed => bed.id === params.bedId ? { ...bed, status: 'occupied', residentId: newResidentId } : bed)
+        }))
+      })));
+
+      setJoinRequests(prev => prev.filter(req => req.id !== params.requestId));
+      toast.success('Join request approved and resident added');
+      return;
+    }
+
     import('../lib/supabaseAPI').then(async ({ approveJoinRequestDb }) => {
       try {
         await approveJoinRequestDb(params);
@@ -381,7 +430,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const addJoinRequest = (request: Omit<JoinRequest, 'id' | 'requestDate' | 'status'>) => {
     const newRequest: JoinRequest = {
-      id: `jr_${Date.now()}`,
+      id: typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `jr_${Date.now()}`,
       ...request,
       requestDate: 'Just now',
       status: 'pending'
