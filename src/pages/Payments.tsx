@@ -4,7 +4,7 @@ import { ROUTES } from '../routes/routes';
 import { FLAGS } from '../core/env';
 import { useApp, PaymentsFilterType } from '../context/AppContext';
 import DefaultAvatar from '../components/DefaultAvatar';
-import { CheckCircle2, Wallet, Clock, AlertTriangle, Check, Send, X, Smartphone, Banknote, IndianRupee, AlertCircle, Info, PieChart, Users, ChevronRight, Search, Calendar } from 'lucide-react';
+import { CheckCircle2, Wallet, Clock, AlertTriangle, Check, Send, X, Smartphone, Banknote, IndianRupee, AlertCircle, Info, PieChart, Users, ChevronRight, Search, Calendar, ArrowLeft } from 'lucide-react';
 import { cn, formatDate, getNamesFromIds, getTodayIST, formatTimeIST, convertToIST, isSecurityDepositPayment } from '../lib/utils';
 import { Resident } from '../data/mock';
 import { toast } from 'sonner';
@@ -22,8 +22,8 @@ export default function Payments() {
   const navigate = useNavigate();
   const { floors, residents, pastResidents, markAsPaid, markReminderSent, activePaymentsFilter: filter, setActivePaymentsFilter: setFilter, setGlobalSelectedResidentId, hostelProfile, isDemoMode, sharingRentMap } = useApp();
   const [showHistory, setShowHistory] = useState(false);
-  const [historyTimeFilter, setHistoryTimeFilter] = useState<'Today' | 'Monthly' | 'Yearly'>('Today');
-  const [historyPaymentFilter, setHistoryPaymentFilter] = useState<'Rent' | 'Security Deposits'>('Rent');
+  const [historyTimeFilter, setHistoryTimeFilter] = useState<'All' | 'Today' | 'Monthly' | 'Yearly'>('All');
+  const [historyPaymentFilter, setHistoryPaymentFilter] = useState<'All' | 'Rent' | 'Security Deposits'>('All');
   const [historySearchQuery, setHistorySearchQuery] = useState('');
   const [selectedHistoryMonth, setSelectedHistoryMonth] = useState(() => {
     const now = convertToIST(new Date());
@@ -313,7 +313,7 @@ export default function Payments() {
 
     if (historyPaymentFilter === 'Rent') {
       base = base.filter(payment => payment.title !== 'Security Deposit');
-    } else {
+    } else if (historyPaymentFilter === 'Security Deposits') {
       base = base.filter(payment => payment.title === 'Security Deposit');
     }
 
@@ -354,11 +354,13 @@ export default function Payments() {
   const totalHistoryAmount = filteredHistoryTransactions.reduce((acc, p) => acc + p.amount, 0);
   const isSecurityDepositHistory = historyPaymentFilter === 'Security Deposits';
 
-  const historyTimeLabel = historyTimeFilter === 'Today'
-    ? 'Today'
-    : historyTimeFilter === 'Monthly'
-      ? historyMonthOptions.find(option => option.value === selectedHistoryMonth)?.label || 'Month'
-      : historyYearOptions.find(option => option.value === selectedHistoryYear)?.label || 'Year';
+  const historyTimeLabel = historyTimeFilter === 'All'
+    ? 'All'
+    : historyTimeFilter === 'Today'
+      ? 'Today'
+      : historyTimeFilter === 'Monthly'
+        ? historyMonthOptions.find(option => option.value === selectedHistoryMonth)?.label || 'Month'
+        : historyYearOptions.find(option => option.value === selectedHistoryYear)?.label || 'Year';
   
   // KPI counts
   const dueTodayCount = pendingCount;
@@ -400,8 +402,17 @@ export default function Payments() {
                 : "bg-white border border-gray-200 hover:border-gray-300 text-gray-700"
             )}
           >
-            <Clock className="w-4 h-4" />
-            {showHistory ? 'Back to Overview' : 'Payment History'}
+            {showHistory ? (
+              <>
+                <ArrowLeft className="w-4 h-4" />
+                Go Back
+              </>
+            ) : (
+              <>
+                <Clock className="w-4 h-4" />
+                Payment History
+              </>
+            )}
           </button>
           
           {!showHistory && dueResidents.length > 0 && (
@@ -741,14 +752,37 @@ export default function Payments() {
           </>
         ) : (
           <div className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="p-4 sm:p-6 border-b border-gray-100 bg-gray-50/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div className="p-4 sm:p-6 border-b border-gray-100 bg-gray-50/50 flex flex-col md:flex-row justify-between items-start gap-4">
               <div>
                 <h3 className="text-lg sm:text-xl font-bold text-gray-900">Transaction History</h3>
-                <p className="text-sm text-gray-500">Chronological list of all payments received</p>
+                
+
+                <div className="mt-3 bg-white p-1 rounded-xl border border-gray-200 flex gap-1 overflow-x-auto no-scrollbar">
+                  {([
+                    { value: 'All' as const, label: 'All Payments', icon: Wallet },
+                    { value: 'Rent' as const, label: 'Rent Payments', icon: Wallet },
+                    { value: 'Security Deposits' as const, label: 'Security Deposits', icon: Banknote },
+                  ]).map(option => {
+                    const Icon = option.icon;
+                    return (
+                      <button
+                        key={option.value}
+                        onClick={() => setHistoryPaymentFilter(option.value)}
+                        className={cn(
+                          "px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5",
+                          historyPaymentFilter === option.value ? "bg-blue-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
+                        )}
+                      >
+                        <Icon className="w-3.5 h-3.5" />
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
               
-              <div className="flex flex-col gap-3 w-full md:w-auto md:min-w-[520px]">
-                <div className="flex flex-col lg:flex-row gap-3 lg:items-center">
+              <div className="flex flex-col gap-3 w-full md:w-auto ml-auto">
+                <div className="flex flex-col lg:flex-row gap-3 lg:items-center justify-end">
                   <div className="relative w-full lg:w-[260px]">
                     <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                     <input
@@ -759,50 +793,40 @@ export default function Payments() {
                     />
                   </div>
 
-                  <div className="bg-white p-1 rounded-xl border border-gray-200 flex gap-1 overflow-x-auto no-scrollbar">
-                    {(['Today', 'Monthly', 'Yearly'] as const).map(f => (
-                      <button
-                        key={f}
-                        onClick={() => setHistoryTimeFilter(f)}
-                        className={cn(
-                          "px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap",
-                          historyTimeFilter === f ? "bg-blue-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
-                        )}
-                      >
-                        {f}
-                      </button>
-                    ))}
+                  <div className="relative w-full sm:w-max">
+                    <select
+                      value={historyTimeFilter}
+                      onChange={(e) => setHistoryTimeFilter(e.target.value as 'All' | 'Today' | 'Monthly' | 'Yearly')}
+                      className="appearance-none h-11 min-w-[140px] rounded-xl border border-gray-200 bg-white pl-4 pr-12 text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                    >
+                      <option value="All">All</option>
+                      <option value="Today">Today</option>
+                      <option value="Monthly">Monthly</option>
+                      <option value="Yearly">Yearly</option>
+                    </select>
+                    <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-500">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </div>
                   </div>
 
-                  <div className="bg-white p-1 rounded-xl border border-gray-200 flex gap-1 overflow-x-auto no-scrollbar">
-                    {([
-                      { value: 'Rent' as const, label: 'Rent Payments', icon: Wallet },
-                      { value: 'Security Deposits' as const, label: 'Security Deposits', icon: Banknote },
-                    ]).map(option => {
-                      const Icon = option.icon;
-                      return (
-                        <button
-                          key={option.value}
-                          onClick={() => setHistoryPaymentFilter(option.value)}
-                          className={cn(
-                            "px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5",
-                            historyPaymentFilter === option.value ? "bg-blue-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
-                          )}
-                        >
-                          <Icon className="w-3.5 h-3.5" />
-                          {option.label}
-                        </button>
-                      );
-                    })}
+                  <div className="bg-white px-4 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 whitespace-nowrap">
+                    <div>Total: ₹{totalHistoryAmount.toLocaleString('en-IN')}</div>
+                    {isSecurityDepositHistory && (
+                      <div className="mt-1 pt-1 border-t border-gray-100 text-[11px] font-medium text-gray-500">
+                        Expected: ₹{expectedTotalSecurityDeposit.toLocaleString('en-IN')}
+                      </div>
+                    )}
                   </div>
+                </div>
 
+                <div className="flex flex-col lg:flex-row gap-3 lg:items-center justify-end">
                   {historyTimeFilter === 'Monthly' && (
                     <div className="relative">
                       <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                       <select
                         value={selectedHistoryMonth}
                         onChange={(e) => setSelectedHistoryMonth(e.target.value)}
-                        className="h-11 min-w-[170px] rounded-xl border border-gray-200 bg-white pl-9 pr-9 text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                        className="appearance-none h-11 min-w-[170px] rounded-xl border border-gray-200 bg-white pl-9 pr-9 text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
                       >
                         {historyMonthOptions.map(option => (
                           <option key={option.value} value={option.value}>{option.label}</option>
@@ -817,21 +841,12 @@ export default function Payments() {
                       <select
                         value={selectedHistoryYear}
                         onChange={(e) => setSelectedHistoryYear(e.target.value)}
-                        className="h-11 min-w-[140px] rounded-xl border border-gray-200 bg-white pl-9 pr-9 text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                        className="appearance-none h-11 min-w-[140px] rounded-xl border border-gray-200 bg-white pl-9 pr-9 text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
                       >
                         {historyYearOptions.map(option => (
                           <option key={option.value} value={option.value}>{option.label}</option>
                         ))}
                       </select>
-                    </div>
-                  )}
-                </div>
-
-                <div className="bg-white px-4 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 whitespace-nowrap text-center w-full md:w-auto">
-                  <div>{isSecurityDepositHistory ? 'Collected' : 'Total'}: ₹{totalHistoryAmount.toLocaleString('en-IN')} · {historyTimeLabel}</div>
-                  {isSecurityDepositHistory && (
-                    <div className="mt-1 pt-1 border-t border-gray-100 text-[11px] font-medium text-gray-500">
-                      Expected: ₹{expectedTotalSecurityDeposit.toLocaleString('en-IN')}
                     </div>
                   )}
                 </div>

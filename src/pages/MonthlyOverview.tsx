@@ -85,9 +85,32 @@ function getTrendColor(tone: TrendTone) {
   return 'text-gray-500';
 }
 
+type CardTone = 'slate' | 'emerald' | 'amber' | 'rose' | 'sky' | 'violet' | 'teal' | 'indigo';
+
+function getCardStyles(tone: CardTone) {
+  const styles: Record<CardTone, { cardBg: string; iconClassName: string }> = {
+    slate: { cardBg: 'bg-slate-50 border-slate-200', iconClassName: 'bg-slate-600 text-white' },
+    emerald: { cardBg: 'bg-emerald-50 border-emerald-200', iconClassName: 'bg-emerald-600 text-white' },
+    amber: { cardBg: 'bg-amber-50 border-amber-200', iconClassName: 'bg-amber-600 text-white' },
+    rose: { cardBg: 'bg-rose-50 border-rose-200', iconClassName: 'bg-rose-600 text-white' },
+    sky: { cardBg: 'bg-sky-50 border-sky-200', iconClassName: 'bg-sky-600 text-white' },
+    violet: { cardBg: 'bg-violet-50 border-violet-200', iconClassName: 'bg-violet-600 text-white' },
+    teal: { cardBg: 'bg-teal-50 border-teal-200', iconClassName: 'bg-teal-600 text-white' },
+    indigo: { cardBg: 'bg-indigo-50 border-indigo-200', iconClassName: 'bg-indigo-600 text-white' },
+  };
+
+  return styles[tone];
+}
+
 export default function MonthlyOverview() {
   const navigate = useNavigate();
   const { floors, residents, pastResidents, activities, joinRequests, rejectJoinRequest, markAsPaid, setActiveBuildingFilter, setActivePaymentsFilter, hostelProfile } = useApp();
+  const [liveNow, setLiveNow] = React.useState(() => new Date());
+
+  React.useEffect(() => {
+    const timer = window.setInterval(() => setLiveNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   // Metrics Logic
   let occupiedBeds = 0;
@@ -107,7 +130,7 @@ export default function MonthlyOverview() {
   const totalBeds = Math.max(hostelProfile?.total_beds || 0, configuredBedsCount);
   const vacantBeds = configuredBedsCount - occupiedBeds - reservedBeds;
 
-  const now = new Date();
+  const now = liveNow;
   const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const previousMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
@@ -249,11 +272,10 @@ export default function MonthlyOverview() {
     navigate(ROUTES.payments.path);
   };
 
-  // FIX: Security deposit tracking should reflect actual deposit collections
-  // Count only deposits marked as paid as held
-  const totalSecurityDepositsHeld = residents.reduce((sum, r) => {
-    const deposit = (r.isDepositPaid ? r.securityDeposit : 0) || 0;
-    return sum + deposit;
+  const defaultSecurityDeposit = Number(hostelProfile?.security_deposit || 0);
+  const totalExpectedDeposit = residents.reduce((sum, resident) => {
+    const expectedDeposit = resident.securityDeposit ?? defaultSecurityDeposit;
+    return sum + (expectedDeposit || 0);
   }, 0);
 
   const depositsCollectedThisMonth = residents.reduce((sum, r) => {
@@ -267,7 +289,10 @@ export default function MonthlyOverview() {
   }, 0);
 
   // Placeholder for deposits refunded - no refund tracking in current schema
-  const depositsRefundedThisMonth = 0; // Placeholder
+  const depositPendingCount = residents.filter(resident => {
+    const expectedDeposit = resident.securityDeposit ?? defaultSecurityDeposit;
+    return expectedDeposit > 0 && !resident.isDepositPaid;
+  }).length;
 
   const tabItems = [
     { id: 'all', label: 'All' },
@@ -288,6 +313,7 @@ export default function MonthlyOverview() {
     trendColor: string;
     onClick?: () => void;
     categories: TabId[];
+    tone: CardTone;
   };
 
   const monthlyOverviewCards: OverviewCard[] = [
@@ -299,6 +325,7 @@ export default function MonthlyOverview() {
       trendColor: getTrendColor(revenueTrend.tone),
       onClick: () => handleNavigatePayments('Paid'),
       categories: ['all', 'payments'],
+      tone: 'emerald',
     },
     {
       title: 'Outstanding Dues',
@@ -308,6 +335,7 @@ export default function MonthlyOverview() {
       trendColor: getTrendColor(duesTrend.tone),
       onClick: () => handleNavigatePayments('Unpaid'),
       categories: ['all', 'payments'],
+      tone: 'amber',
     },
     {
       title: 'Occupancy Rate',
@@ -317,6 +345,7 @@ export default function MonthlyOverview() {
       trendColor: getTrendColor(occupancyTrend.tone),
       onClick: () => handleNavigateBuilding('occupied'),
       categories: ['all', 'occupancy'],
+      tone: 'sky',
     },
     {
       title: 'Late Payments',
@@ -326,23 +355,26 @@ export default function MonthlyOverview() {
       trendColor: getTrendColor(lateTrend.tone),
       onClick: () => handleNavigatePayments('Late'),
       categories: ['all', 'payments'],
+      tone: 'rose',
     },
     {
       title: 'Active Residents',
-      value: `${residents.length}`,
+      value: `${occupiedBeds}`,
       icon: Users,
-      trend: 'Current active residents',
-      trendColor: 'text-gray-500',
+      trend: 'Live occupied beds',
+      trendColor: 'text-emerald-600',
       categories: ['all', 'occupancy'],
+      tone: 'emerald',
     },
     {
       title: 'Empty Beds',
       value: `${vacantBeds}`,
       icon: PieChart,
       trend: 'Available beds right now',
-      trendColor: 'text-gray-500',
+      trendColor: 'text-slate-500',
       onClick: () => handleNavigateBuilding('vacant'),
       categories: ['all', 'occupancy'],
+      tone: 'slate',
     },
     {
       title: 'New Residents This Month',
@@ -352,8 +384,9 @@ export default function MonthlyOverview() {
       }).length}`,
       icon: UserPlus,
       trend: 'Started this month',
-      trendColor: 'text-gray-500',
+      trendColor: 'text-sky-600',
       categories: ['all'],
+      tone: 'sky',
     },
     {
       title: 'Vacated Residents This Month',
@@ -363,8 +396,9 @@ export default function MonthlyOverview() {
       }).length}`,
       icon: LogOut,
       trend: 'Left this month',
-      trendColor: 'text-gray-500',
+      trendColor: 'text-violet-600',
       categories: ['all'],
+      tone: 'violet',
     },
     {
       title: 'Beds Becoming Vacant',
@@ -374,8 +408,9 @@ export default function MonthlyOverview() {
       }).length}`,
       icon: BedDouble,
       trend: 'Planning for vacancies this month',
-      trendColor: 'text-gray-500',
+      trendColor: 'text-indigo-600',
       categories: ['all', 'occupancy'],
+      tone: 'indigo',
     },
     {
       title: 'Collection Efficiency',
@@ -385,30 +420,34 @@ export default function MonthlyOverview() {
       trendColor: monthlyStats.collectionEfficiency >= 80 ? 'text-emerald-600' : 
                   monthlyStats.collectionEfficiency >= 50 ? 'text-amber-600' : 'text-rose-600',
       categories: ['all', 'payments'],
+      tone: monthlyStats.collectionEfficiency >= 80 ? 'emerald' : monthlyStats.collectionEfficiency >= 50 ? 'amber' : 'rose',
     },
     {
-      title: 'Total Security Deposits Held',
-      value: `₹${totalSecurityDepositsHeld.toLocaleString('en-IN')}`,
+      title: 'Total Expected Deposit',
+      value: `₹${totalExpectedDeposit.toLocaleString('en-IN')}`,
       icon: Shield,
-      trend: 'Sum of active residents deposits',
-      trendColor: 'text-gray-500',
+      trend: 'Expected from all active residents',
+      trendColor: 'text-teal-600',
       categories: ['all', 'deposits'],
+      tone: 'teal',
     },
     {
       title: 'Deposits Collected This Month',
       value: `₹${depositsCollectedThisMonth.toLocaleString('en-IN')}`,
       icon: Shield,
       trend: 'From new residents this month',
-      trendColor: 'text-gray-500',
+      trendColor: 'text-emerald-600',
       categories: ['all', 'deposits'],
+      tone: 'emerald',
     },
     {
-      title: 'Deposits Refunded This Month',
-      value: depositsRefundedThisMonth > 0 ? `₹${depositsRefundedThisMonth.toLocaleString('en-IN')}` : 'No refunds tracked',
+      title: 'Deposits Pending',
+      value: `${depositPendingCount}`,
       icon: Shield,
-      trend: 'Refund tracking not implemented',
-      trendColor: 'text-gray-500',
+      trend: 'Live unpaid deposits',
+      trendColor: 'text-amber-600',
       categories: ['all', 'deposits'],
+      tone: 'amber',
     },
   ];
 
@@ -429,7 +468,7 @@ export default function MonthlyOverview() {
           </button>
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight leading-tight">Monthly Overview</h1>
-            <p className="text-sm sm:text-base text-gray-500">Operational month-to-month metrics for your hostel.</p>
+            <p className="text-sm sm:text-base text-gray-500">Live operational metrics for your hostel, updating every minute.</p>
           </div>
         </div>
 
@@ -459,6 +498,9 @@ export default function MonthlyOverview() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-4">
         {filteredCards.map((card) => (
+          (() => {
+            const styles = getCardStyles(card.tone);
+            return (
           <KpiCard
             key={card.title}
             title={card.title}
@@ -466,10 +508,12 @@ export default function MonthlyOverview() {
             icon={card.icon}
             trend={card.trend}
             trendColor={card.trendColor}
-            className="bg-white text-gray-600"
-            cardBg="bg-white border-gray-100"
+            className={styles.iconClassName}
+            cardBg={styles.cardBg}
             onClick={card.onClick}
           />
+            );
+          })()
         ))}
       </div>
     </div>

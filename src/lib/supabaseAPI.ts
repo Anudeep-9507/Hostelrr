@@ -386,6 +386,7 @@ export async function fetchHostelData(userId: string) {
     let icon = 'CheckCircle';
     if (a.action.includes('resident')) icon = 'UserPlus';
     if (a.action.includes('payment')) icon = 'IndianRupee';
+    if (a.action.includes('deposit')) icon = 'IndianRupee';
     if (a.action.includes('vacate') || a.action === 'resident_vacated') icon = 'LogOut';
     
     // basic time ago
@@ -412,6 +413,9 @@ export async function fetchHostelData(userId: string) {
     } else if (a.action === 'payment_recorded') {
       const { name } = getNames(m.resident_id);
       text = `Payment of ₹${m.amount} received from ${name}`;
+    } else if (a.action === 'deposit_paid') {
+      const { name } = getNames(a.entity_id);
+      text = `Security Deposit of ₹${m.amount} received from ${name}`;
     } else if (a.action === 'resident_vacated') {
       const { name } = getNames(a.entity_id);
       text = `${name} vacated their bed`;
@@ -794,6 +798,16 @@ export async function editResidentDb(residentId: string, updatedData: any) {
   if (updatedData.depositPaidDate !== undefined) updatePayload.deposit_paid_at = normalizeIstTimestamp(updatedData.depositPaidDate);
   if (updatedData.vacatingDate !== undefined) updatePayload.vacating_date = updatedData.vacatingDate || null;
 
+  // Get resident data to fetch hostel_id for activity logging
+  const { data: residentData, error: fetchError } = await supabase
+    .from('residents')
+    .select('hostel_id, name, security_deposit')
+    .eq('id', residentId)
+    .single();
+  
+  if (fetchError) throw fetchError;
+  if (!residentData) throw new Error('Resident not found');
+
   const { data, error } = await supabase
     .from('residents')
     .update(updatePayload)
@@ -801,6 +815,22 @@ export async function editResidentDb(residentId: string, updatedData: any) {
     .select()
     .single();
   if (error) throw error;
+
+  // Log activity if security deposit was marked as paid
+  if (updatedData.isDepositPaid === true) {
+    await supabase.from('activity_logs').insert({
+      hostel_id: residentData.hostel_id,
+      action: 'deposit_paid',
+      entity_type: 'resident',
+      entity_id: residentId,
+      metadata: {
+        resident_name: residentData.name,
+        amount: residentData.security_deposit,
+        date: normalizeIstTimestamp(updatedData.depositPaidDate)
+      }
+    });
+  }
+
   return data;
 }
 

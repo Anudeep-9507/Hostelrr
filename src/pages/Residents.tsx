@@ -737,11 +737,11 @@ export default function Residents() {
               </div>
               <div className="flex items-center gap-1">
                 {('paymentStatus' in selectedResident) && (
-                  <button 
+                  <button
                     onClick={() => setResidentToEdit(selectedResident as Resident)}
-                    className="min-h-10 min-w-10 p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-600"
+                    className="px-3 py-1.5 text-[13px] font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 hover:text-gray-900 rounded-lg transition-all shadow-sm"
                   >
-                    <Edit className="w-5 h-5" />
+                    Edit
                   </button>
                 )}
                 <button 

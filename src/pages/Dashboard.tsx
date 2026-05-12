@@ -73,6 +73,7 @@ function humanizeActivityAction(action?: string) {
   const overrides: Record<string, string> = {
     resident_added: 'Resident added',
     payment_recorded: 'Payment recorded',
+    deposit_paid: 'Security deposit paid',
     resident_vacated: 'Resident vacated',
     reminder_sent: 'Reminder sent',
     complaint_resolved: 'Complaint resolved',
@@ -619,7 +620,7 @@ export default function Dashboard() {
                          }}
                          className="w-full min-h-11 bg-[#1D4ED8] hover:bg-[#1e40af] text-white text-sm font-semibold py-2.5 rounded-xl transition-colors shadow-sm"
                        >
-                         Review & Assign
+                         Check & Add
                        </button>
                        <div className="grid grid-cols-2 gap-2 sm:flex">
                          <a href={`tel:${req.phone}`} className="flex min-h-10 items-center justify-center gap-1.5 px-3 py-2 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 rounded-xl text-xs font-bold transition-colors shadow-sm sm:flex-1">

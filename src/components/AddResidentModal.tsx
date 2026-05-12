@@ -255,7 +255,7 @@ export default function AddResidentModal({
         <div className="flex justify-between items-center p-6 pb-4 border-b border-gray-100 shrink-0">
           <div>
             <h2 className="text-2xl font-bold text-gray-900">
-              {isReAdd ? 'Re-add Resident' : isJoinRequest ? 'Approve & Assign' : 'Add Resident'}
+              {isReAdd ? 'Re-add Resident' : isJoinRequest ? 'Check & Add' : 'Add Resident'}
             </h2>
             <p className="text-xs text-gray-500 mt-1"><span className="text-red-500">*</span> indicates a mandatory field</p>
           </div>
@@ -560,7 +560,7 @@ export default function AddResidentModal({
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
-                      This date will be considered for collecting the payments.
+                      This date will be due date.
                       <div className="absolute -bottom-3.5 left-2 w-2 h-2 bg-gray-900 rotate-45 border-r border-b border-gray-800"></div>
                     </div>
                   </motion.div>
@@ -738,7 +738,7 @@ export default function AddResidentModal({
               disabled={!selectedBedId}
               className="w-full bg-[#1D4ED8] hover:bg-[#1e40af] disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-3.5 rounded-xl text-base font-semibold shadow-sm transition-colors"
             >
-              {isReAdd ? 'Confirm Re-add' : isJoinRequest ? 'Approve Request' : 'Add Resident'}
+              {isReAdd ? 'Confirm Re-add' : isJoinRequest ? 'Confirm Add' : 'Add Resident'}
             </button>
           </div>
         </form>
