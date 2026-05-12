@@ -293,6 +293,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isOnboardingComplete, isDemoMode]);
 
+  // Listen for join request refresh events (e.g., after new submission from JoinForm)
+  React.useEffect(() => {
+    const handleRefreshJoinRequests = () => {
+      if (isOnboardingComplete && !isDemoMode) {
+        syncStateWithDb();
+      }
+    };
+
+    window.addEventListener('refresh-join-requests', handleRefreshJoinRequests);
+    return () => window.removeEventListener('refresh-join-requests', handleRefreshJoinRequests);
+  }, [isOnboardingComplete, isDemoMode]);
+
   const completeOnboarding = async (data: any) => {
     // Attempt saving to Supabase
     try {

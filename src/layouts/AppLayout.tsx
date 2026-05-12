@@ -287,11 +287,6 @@ export default function AppLayout() {
             </button>
             <div className="hidden sm:flex items-center gap-2 py-1.5 px-4 border border-gray-200 rounded-xl bg-gray-50/50 shadow-sm">
               <span className="font-semibold text-gray-800">{hostelDisplayName}</span>
-              {FLAGS.demoMode && (
-                <span className="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-semibold text-indigo-700">
-                  Demo Mode
-                </span>
-              )}
             </div>
           </div>
 

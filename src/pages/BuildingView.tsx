@@ -82,6 +82,9 @@ export default function BuildingView() {
   const [selectedLayoutId, setSelectedLayoutId] = useState<string>('');
   const [previewTemplateId, setPreviewTemplateId] = useState<string | null>(null);
 
+  const getDefaultLayoutId = (sharing: number) => `default_${sharing}`;
+  const isDefaultLayoutId = (layoutId: string | null) => layoutId?.startsWith('default_');
+
   React.useEffect(() => {
     if (!hostelProfile?.id) {
       setAllTemplates([]);
@@ -103,11 +106,16 @@ export default function BuildingView() {
 
   React.useEffect(() => {
     const currentSharing = isCustomSharing ? parseInt(customSharingValue) : parseInt(newRoomBeds);
+    if (isNaN(currentSharing) || currentSharing <= 0) {
+      setSelectedLayoutId('');
+      return;
+    }
+
     const templates = allTemplates.filter(t => t.sharing === currentSharing);
     if (templates.length > 0) {
       setSelectedLayoutId(templates[0].id);
     } else {
-      setSelectedLayoutId('');
+      setSelectedLayoutId(getDefaultLayoutId(currentSharing));
     }
   }, [newRoomBeds, customSharingValue, isCustomSharing, allTemplates]);
 
@@ -139,16 +147,17 @@ export default function BuildingView() {
 
   const { execute: executeSaveRoom, isLoading: isSavingRoom } = useAsyncAction(async () => {
     const bedsCount = isCustomSharing ? parseInt(customSharingValue) : parseInt(newRoomBeds);
-    
+    const layoutIdToSave = isDefaultLayoutId(selectedLayoutId) ? undefined : selectedLayoutId || undefined;
+
     if (isSetupMode && setupRoomId && addRoomFloorId) {
-      await updateRoomSetup(addRoomFloorId, setupRoomId, bedsCount, parseInt(newRoomRent || '0'), newRoomNumber, selectedLayoutId);
+      await updateRoomSetup(addRoomFloorId, setupRoomId, bedsCount, parseInt(newRoomRent || '0'), newRoomNumber, layoutIdToSave);
       toast.success(`Room ${newRoomNumber} set up successfully`);
     } else if (addRoomFloorId) {
       await addRoom(addRoomFloorId, {
         number: newRoomNumber,
         numBeds: bedsCount,
         baseRent: newRoomRent,
-        layoutId: selectedLayoutId
+        layoutId: layoutIdToSave
       });
       toast.success(`Room ${newRoomNumber} added successfully`);
     }
@@ -169,6 +178,9 @@ export default function BuildingView() {
     setNewRoomNumber(room.number);
     setNewRoomBeds('');
     setNewRoomRent('');
+    setSelectedLayoutId('');
+    setIsCustomSharing(false);
+    setCustomSharingValue('');
     setIsSetupMode(true);
     setIsAddRoomModalOpen(true);
   };
@@ -799,15 +811,16 @@ export default function BuildingView() {
                 {(() => {
                   const currentSharing = isCustomSharing ? parseInt(customSharingValue) : parseInt(newRoomBeds);
                   const templates = allTemplates.filter(t => t.sharing === currentSharing);
-                  if (templates.length === 0) return null;
+                  if (isNaN(currentSharing) || currentSharing <= 0) return null;
 
+                  const hasTemplates = templates.length > 0;
                   return (
                     <div className="space-y-3 pt-2">
                       <label className="text-sm font-medium text-gray-900 block">Select Layout Version</label>
                       <div className="grid grid-cols-2 gap-3">
-                        {templates.map((t, idx) => {
+                        {hasTemplates ? templates.map((t, idx) => {
                           const colorConfig = LAYOUT_COLORS.find(c => c.name === t.color) || LAYOUT_COLORS[0];
-                          const isSelected = selectedLayoutId === t.id || (selectedLayoutId === '' && idx === 0);
+                          const isSelected = selectedLayoutId === t.id;
                           return (
                             <button
                               key={t.id}
@@ -837,7 +850,25 @@ export default function BuildingView() {
                               </button>
                             </button>
                           )
-                        })}
+                        }) : (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedLayoutId(getDefaultLayoutId(currentSharing))}
+                            className={`flex items-center gap-3 p-3 rounded-2xl border-2 transition-all text-left ${
+                              selectedLayoutId === getDefaultLayoutId(currentSharing)
+                                ? 'bg-blue-50 border-blue-200 text-blue-800 ring-4 ring-blue-500/10'
+                                : 'border-gray-100 hover:border-gray-200 text-gray-600'
+                            }`}
+                          >
+                            <div className="w-8 h-8 rounded-full flex items-center justify-center bg-blue-100 text-blue-600">
+                              <span className="text-sm font-bold">D</span>
+                            </div>
+                            <div className="flex flex-col flex-1">
+                              <span className="text-xs font-bold uppercase tracking-wider">Default Layout</span>
+                              <span className="text-[10px] opacity-70 font-medium">Auto-generated for {currentSharing}-sharing</span>
+                            </div>
+                          </button>
+                        )}
                       </div>
                     </div>
                   );

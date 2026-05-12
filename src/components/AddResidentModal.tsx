@@ -483,20 +483,21 @@ export default function AddResidentModal({
             )}
 
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-gray-900 block">Name <span className="text-red-500">*</span></label>
+              <label className="text-sm font-medium text-gray-900 block">Name <span className="text-red-500">*</span>{isJoinRequest && <span className="text-xs text-gray-500 ml-2">(from request)</span>}</label>
               <input 
                 type="text"
                 name="name"
                 required
+                disabled={isJoinRequest}
                 defaultValue={reAddData?.name || ''}
                 placeholder="e.g. Aarav Sharma" 
-                className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400"
+                className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400 disabled:bg-gray-50 disabled:text-gray-600 disabled:cursor-not-allowed"
               />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-900 block">Phone No. <span className="text-red-500">*</span></label>
+                <label className="text-sm font-medium text-gray-900 block">Phone No. <span className="text-red-500">*</span>{isJoinRequest && <span className="text-xs text-gray-500 ml-2">(from request)</span>}</label>
                 <div className="flex">
                   <span className="inline-flex items-center px-4 rounded-l-xl border border-r-0 border-gray-200 bg-white text-gray-500 text-sm font-medium">
                     +91
@@ -505,6 +506,7 @@ export default function AddResidentModal({
                     type="tel"
                     name="phone"
                     required
+                    disabled={isJoinRequest}
                     inputMode="numeric"
                     pattern="\d{10}"
                     minLength={10}
@@ -512,12 +514,21 @@ export default function AddResidentModal({
                     title="Phone number must be exactly 10 digits"
                     defaultValue={(reAddData?.phone || '').replace(/\D/g, '').slice(-10)}
                     onInput={(e) => {
-                      const input = e.currentTarget;
-                      input.value = input.value.replace(/\D/g, '').slice(0, 10);
+                      if (!isJoinRequest) {
+                        const input = e.currentTarget;
+                        input.value = input.value.replace(/\D/g, '').slice(0, 10);
+                      }
                     }}
                     placeholder="98765 43210" 
-                    className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-r-xl px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400"
+                    className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-r-xl px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400 disabled:bg-gray-50 disabled:text-gray-600 disabled:cursor-not-allowed"
                   />
+                  {isJoinRequest && (
+                    <input
+                      type="hidden"
+                      name="phone"
+                      value={(reAddData?.phone || '').replace(/\D/g, '').slice(-10)}
+                    />
+                  )}
                 </div>
               </div>
             <div className="space-y-1.5 relative">
@@ -614,7 +625,7 @@ export default function AddResidentModal({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-900 block">Emergency Contact No.</label>
+                <label className="text-sm font-medium text-gray-900 block">Emergency Contact No.{isJoinRequest && <span className="text-xs text-gray-500 ml-2">(from request)</span>}</label>
                 <div className="flex">
                   <span className="inline-flex items-center px-4 rounded-l-xl border border-r-0 border-gray-200 bg-white text-gray-500 text-sm font-medium">
                     +91
@@ -622,6 +633,7 @@ export default function AddResidentModal({
                   <input 
                     type="tel"
                     name="emergencyPhone"
+                    disabled={isJoinRequest}
                     inputMode="numeric"
                     pattern="\d{10}"
                     minLength={10}
@@ -629,56 +641,62 @@ export default function AddResidentModal({
                     title="Emergency number must be exactly 10 digits"
                     defaultValue={(reAddData?.emergencyPhone || '').replace(/\D/g, '').slice(-10)}
                     onInput={(e) => {
-                      const input = e.currentTarget;
-                      input.value = input.value.replace(/\D/g, '').slice(0, 10);
+                      if (!isJoinRequest) {
+                        const input = e.currentTarget;
+                        input.value = input.value.replace(/\D/g, '').slice(0, 10);
+                      }
                     }}
                     placeholder="98765 43210" 
-                    className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-r-xl px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400"
+                    className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-r-xl px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400 disabled:bg-gray-50 disabled:text-gray-600 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-900 block">Aadhar No.</label>
+                <label className="text-sm font-medium text-gray-900 block">Aadhar No.{isJoinRequest && <span className="text-xs text-gray-500 ml-2">(from request)</span>}</label>
                 <input 
                   type="text"
                 name="aadhar"
+                disabled={isJoinRequest}
                 defaultValue={reAddData?.aadhar || ''}
                 placeholder="1234 5678 9012"
-                className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400"
+                className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400 disabled:bg-gray-50 disabled:text-gray-600 disabled:cursor-not-allowed"
               />
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-gray-900 block">Area & City</label>
+            <label className="text-sm font-medium text-gray-900 block">Area & City{isJoinRequest && <span className="text-xs text-gray-500 ml-2">(from request)</span>}</label>
             <input 
               type="text"
               name="areaAndCity"
+              disabled={isJoinRequest}
               defaultValue={reAddData?.areaAndCity || ''}
               placeholder="e.g. Sector 5, Bengaluru" 
-              className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400"
+              className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400 disabled:bg-gray-50 disabled:text-gray-600 disabled:cursor-not-allowed"
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-gray-900 block">State</label>
+              <label className="text-sm font-medium text-gray-900 block">State{isJoinRequest && <span className="text-xs text-gray-500 ml-2">(from request)</span>}</label>
               <input 
                 type="text"
                 name="state"
+                disabled={isJoinRequest}
                 defaultValue={reAddData?.state || ''}
                 placeholder="e.g. Karnataka" 
-                className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400"
+                className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400 disabled:bg-gray-50 disabled:text-gray-600 disabled:cursor-not-allowed"
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-gray-900 block">Country</label>
+              <label className="text-sm font-medium text-gray-900 block">Country{isJoinRequest && <span className="text-xs text-gray-500 ml-2">(from request)</span>}</label>
               <input 
                 type="text"
                 name="country"
+                disabled={isJoinRequest}
                 defaultValue={reAddData?.country || 'India'}
                 placeholder="e.g. India" 
-                className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400"
+                className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400 disabled:bg-gray-50 disabled:text-gray-600 disabled:cursor-not-allowed"
               />
             </div>
           </div>

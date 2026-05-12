@@ -61,7 +61,7 @@ export default function JoinForm() {
       }
 
       // Submit join request with file paths
-      await createJoinRequestDb({
+      const newRequestId = await createJoinRequestDb({
         hostelId,
         name: formData.get('name') as string,
         phone: `+91 ${formData.get('phone')}`,
@@ -77,6 +77,10 @@ export default function JoinForm() {
       });
 
       toast.success('Request sent successfully');
+      
+      // Trigger dashboard refresh to show new join request immediately
+      window.dispatchEvent(new CustomEvent('refresh-join-requests'));
+      
       setSubmitted(true);
     } catch (error: any) {
       const message = error?.message || 'Failed to submit joining request';
@@ -95,15 +99,9 @@ export default function JoinForm() {
             <CheckCircle2 className="w-10 h-10 text-green-600" />
           </div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Request Sent Successfully!</h2>
-          <p className="text-gray-600 mb-8">
+          <p className="text-gray-600">
             Your joining request for {hostelName} has been received. We will review your details and contact you shortly.
           </p>
-          <button 
-            onClick={() => navigate(ROUTES.dashboard.path)}
-            className="w-full bg-gray-900 hover:bg-gray-800 text-white font-semibold py-4 rounded-xl transition-colors"
-          >
-            Go to Dashboard
-          </button>
         </div>
       </div>
     );
