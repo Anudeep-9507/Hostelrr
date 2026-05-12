@@ -748,7 +748,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
           // Add beds
           if (sRoom.beds && sRoom.beds.length > 0) {
-            const newBeds = sRoom.beds.map((b: any) => ({
+            const sortedBeds = [...sRoom.beds].sort((a: any, b: any) =>
+              String(a.label).localeCompare(String(b.label), undefined, { numeric: true, sensitivity: 'base' })
+            );
+
+            const newBeds = sortedBeds.map((b: any) => ({
               hostel_id: sRoom.hostel_id,
               room_id: tRoom.id,
               label: b.label

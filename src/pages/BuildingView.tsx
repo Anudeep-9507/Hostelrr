@@ -480,9 +480,11 @@ export default function BuildingView() {
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {filteredRooms.map((room, idx) => {
+                      const labelSorter = (a: any, b: any) => String(a.name).replace(/^Bed\s+/i, '').localeCompare(String(b.name).replace(/^Bed\s+/i, ''), undefined, { numeric: true, sensitivity: 'base' });
+                      const sortedBeds = (room.beds || []).slice().sort(labelSorter);
                       const isSelected = selectedRoom?.id === room.id;
-                      const isEmpty = room.beds.length === 0;
-                      const allVacant = !isEmpty && room.beds.every(b => b.status === 'vacant');
+                      const isEmpty = sortedBeds.length === 0;
+                      const allVacant = !isEmpty && sortedBeds.every(b => b.status === 'vacant');
 
                       // Empty room (not yet set up) — match regular card style but with Set Up Room CTA
                       if (isEmpty) {
@@ -544,7 +546,7 @@ export default function BuildingView() {
                             if (!resolvedTemplate) {
                               return (
                                 <div className="flex flex-wrap gap-3 max-w-full">
-                                  {room.beds
+                                  {sortedBeds
                                     .filter(bed => isBedMatch(bed.status, filterStatus))
                                     .map((bed, bedIdx) => {
                                     const styles = getBedPillStyles(bed.status);
@@ -558,7 +560,7 @@ export default function BuildingView() {
                               );
                             }
 
-                            const hasValidTemplate = room.beds.every(bed => {
+                            const hasValidTemplate = sortedBeds.every(bed => {
                               const label = bed.name.replace(/^Bed\s+/i, '').trim();
                               return Boolean(resolvedTemplate.positions?.[label]);
                             });
@@ -566,7 +568,7 @@ export default function BuildingView() {
                             if (!hasValidTemplate) {
                               return (
                                 <div className="flex flex-wrap gap-3 max-w-full">
-                                  {room.beds
+                                  {sortedBeds
                                     .filter(bed => isBedMatch(bed.status, filterStatus))
                                     .map((bed, bedIdx) => {
                                     const styles = getBedPillStyles(bed.status);
@@ -593,7 +595,7 @@ export default function BuildingView() {
                                   )} />
                                 )}
 
-                                {room.beds.map((bed) => {
+                                {sortedBeds.map((bed) => {
                                   // Extract label from bed.name ('Bed A' → 'A') so
                                   // template position lookup is correct regardless of
                                   // DB fetch order — never use iteration index here.
@@ -660,7 +662,7 @@ export default function BuildingView() {
                           })()
                         ) : (
                           <div className="flex flex-wrap gap-3 max-w-full">
-                            {room.beds
+                                {sortedBeds
                               .filter(bed => isBedMatch(bed.status, filterStatus))
                               .map((bed, bedIdx) => {
                               const styles = getBedPillStyles(bed.status);

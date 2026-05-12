@@ -188,6 +188,7 @@ export async function fetchHostelData(userId: string) {
       .map((r: any) => {
         const roomBeds = (bedsData || [])
           .filter((b: any) => b.room_id === r.id)
+          .sort((a: any, b: any) => String(a.label).localeCompare(String(b.label), undefined, { numeric: true, sensitivity: 'base' }))
           .map((b: any) => {
             // Find active resident in this bed
             const resident = (residentsData || []).find((res: any) => res.bed_id === b.id);
@@ -894,26 +895,51 @@ export async function moveBedsDb(targetRoomId: string, bedIds: string[]) {
     throw new Error(`Cannot move occupied/reserved beds. Vacate residents first (${occupiedBeds.length} bed(s) blocked).`);
   }
 
-  const { data: existingBeds } = await supabase.from('beds').select('label').eq('room_id', targetRoomId);
-  const existingCount = existingBeds ? existingBeds.length : 0;
+  const sourceRoomIds = Array.from(new Set((movingBeds || []).map((b: any) => b.room_id).filter(Boolean)));
+  const { data: targetBeds } = await supabase.from('beds').select('id, label').eq('room_id', targetRoomId);
+  const { data: sourceBeds } = sourceRoomIds.length > 0
+    ? await supabase.from('beds').select('id, room_id, label').in('room_id', sourceRoomIds)
+    : { data: [] as any[] };
 
   // Clear layout_id for the target room because bed count changed
   await supabase.from('rooms').update({ layout_id: null }).eq('id', targetRoomId);
   
   // Clear layout_id for source rooms because their bed counts also changed
-  const sourceRoomIds = Array.from(new Set((movingBeds || []).map((b: any) => b.room_id)));
   for (const sId of sourceRoomIds) {
     if (sId) {
       await supabase.from('rooms').update({ layout_id: null }).eq('id', sId);
     }
   }
 
-  for (let i = 0; i < bedIds.length; i++) {
-    const newLabel = String.fromCharCode(65 + existingCount + i);
+  const labelSorter = (a: any, b: any) => String(a.label).localeCompare(String(b.label), undefined, { numeric: true, sensitivity: 'base' });
+  const movingBedMap = new Map((movingBeds || []).map((bed: any) => [bed.id, bed]));
+
+  const sortedTargetBeds = (targetBeds || []).slice().sort(labelSorter);
+  const sortedMovingBeds = bedIds
+    .map((bedId) => movingBedMap.get(bedId))
+    .filter(Boolean)
+    .sort(labelSorter);
+
+  const targetFinalBeds = [...sortedTargetBeds, ...sortedMovingBeds];
+
+  for (let i = 0; i < targetFinalBeds.length; i++) {
     await supabase.from('beds').update({
       room_id: targetRoomId,
-      label: newLabel
-    }).eq('id', bedIds[i]);
+      label: String.fromCharCode(65 + i)
+    }).eq('id', targetFinalBeds[i].id);
+  }
+
+  for (const sourceRoomId of sourceRoomIds) {
+    const remainingBeds = (sourceBeds || [])
+      .filter((bed: any) => bed.room_id === sourceRoomId && !bedIds.includes(bed.id))
+      .sort(labelSorter);
+
+    for (let i = 0; i < remainingBeds.length; i++) {
+      await supabase.from('beds').update({
+        room_id: sourceRoomId,
+        label: String.fromCharCode(65 + i)
+      }).eq('id', remainingBeds[i].id);
+    }
   }
 }
 
