@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { ROUTES } from '../routes/routes';
 import { BedDouble, Users, AlertCircle, IndianRupee, PieChart, CheckCircle, Clock, LogOut, UserPlus, Shield, ChevronLeft } from 'lucide-react';
-import { cn, formatDate, getNamesFromIds } from '../lib/utils';
+import { cn, formatDate, getNamesFromIds, isSecurityDepositPayment } from '../lib/utils';
 
 function KpiCard({ title, value, icon: Icon, trend, className, cardBg = "bg-white", onClick, trendColor }: any) {
   return (
@@ -148,6 +148,7 @@ export default function MonthlyOverview() {
     const totalCollectedByMonth = (monthKey: string) => {
       return activeResidents.reduce((total, resident) => {
         return total + (resident.paymentHistory || []).reduce((sum, payment) => {
+          if (isSecurityDepositPayment(payment)) return sum;
           if (isSuccessfulPayment(payment.status)) {
             const dateKey = getMonthKeyForDate(payment.date);
             if (dateKey === monthKey) {
@@ -274,10 +275,7 @@ export default function MonthlyOverview() {
   };
 
   const defaultSecurityDeposit = Number(hostelProfile?.security_deposit || 0);
-  const totalExpectedDeposit = activeResidents.reduce((sum, resident) => {
-    const expectedDeposit = resident.securityDeposit ?? defaultSecurityDeposit;
-    return sum + (expectedDeposit || 0);
-  }, 0);
+  const totalExpectedDeposit = occupiedBeds * defaultSecurityDeposit;
 
   const depositsCollectedThisMonth = activeResidents.reduce((sum, r) => {
     if (!r.isDepositPaid) return sum;

@@ -245,7 +245,7 @@ export default function Dashboard() {
   }, 0);
 
   const defaultSecurityDeposit = Number(hostelProfile?.security_deposit || 0);
-  const occupiedResidentsCount = activeResidents.length;
+  const occupiedResidentsCount = occupiedBeds;
   const expectedTotalSecurityDeposit = occupiedResidentsCount * defaultSecurityDeposit;
   const finalExpectedRevenue = expectedMonthlyRevenue + expectedTotalSecurityDeposit;
 
@@ -392,7 +392,7 @@ export default function Dashboard() {
                       <span className="text-sm font-bold text-emerald-800 uppercase tracking-wider">Total Expected</span>
                       <span className="text-2xl font-black text-emerald-700">₹{finalExpectedRevenue.toLocaleString('en-IN')}</span>
                     </div>
-                    <p className="text-xs text-emerald-600/80 font-medium">Sum of all rent and security deposits</p>
+                    <p className="text-xs text-emerald-600/80 font-medium">Sum of live rent and security deposit</p>
                   </div>
                 </div>
 

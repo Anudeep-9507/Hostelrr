@@ -197,6 +197,17 @@ export default function Payments() {
   const dueResidents = activeResidents.filter(r => (r.dueAmount || 0) > 0);
   const paidResidents = activeResidents.filter(r => (r.dueAmount || 0) === 0);
 
+  let occupiedBeds = 0;
+  floors.forEach(floor => {
+    floor.rooms.forEach(room => {
+      room.beds.forEach(bed => {
+        if (bed.status === 'occupied' || bed.status === 'payment_due') {
+          occupiedBeds += 1;
+        }
+      });
+    });
+  });
+
   const totalDueAmount = dueResidents.reduce((acc, curr) => acc + curr.dueAmount, 0);
 
   // Expected monthly rent = sum of actual monthly_rent for all occupied residents
@@ -205,7 +216,7 @@ export default function Payments() {
   }, 0);
 
   const defaultSecurityDeposit = Number(hostelProfile?.security_deposit || 0);
-  const occupiedResidentsCount = activeResidents.length;
+  const occupiedResidentsCount = occupiedBeds;
   const expectedTotalSecurityDeposit = occupiedResidentsCount * defaultSecurityDeposit;
   const finalExpectedRevenue = expectedMonthlyRevenue + expectedTotalSecurityDeposit;
 
@@ -551,15 +562,15 @@ export default function Payments() {
                     </div>
                 </div>
 
-                <div className="pt-2">
-                  <div className="p-5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100">
-                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between mb-1">
-                      <span className="text-sm font-bold text-emerald-800 uppercase tracking-wider">Total Expected</span>
-                      <span className="text-2xl font-black text-emerald-700">₹{finalExpectedRevenue.toLocaleString('en-IN')}</span>
+                  <div className="pt-2">
+                    <div className="p-5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100">
+                      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between mb-1">
+                        <span className="text-sm font-bold text-emerald-800 uppercase tracking-wider">Total Expected</span>
+                        <span className="text-2xl font-black text-emerald-700">₹{finalExpectedRevenue.toLocaleString('en-IN')}</span>
+                      </div>
+                      <p className="text-xs text-emerald-600/80 font-medium">Sum of live rent and security deposit</p>
                     </div>
-                    <p className="text-xs text-emerald-600/80 font-medium">Sum of all rent and security deposits</p>
                   </div>
-                </div>
                 
                 <button 
                   onClick={() => setIsRevenueInfoModalOpen(false)}
