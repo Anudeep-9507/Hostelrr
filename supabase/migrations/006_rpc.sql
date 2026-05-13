@@ -309,12 +309,12 @@ BEGIN
 
   -- ── FREE OLD BED ──────────────────────────────────────────────────────────
   UPDATE public.beds
-  SET status = 'vacant'
+  SET status = 'vacant'::public.bed_status
   WHERE id = v_resident.bed_id;
 
   -- ── OCCUPY NEW BED ────────────────────────────────────────────────────────
   UPDATE public.beds
-  SET status = 'occupied'
+  SET status = 'occupied'::public.bed_status
   WHERE id = p_new_bed_id;
 
   -- ── UPDATE RESIDENT ───────────────────────────────────────────────────────

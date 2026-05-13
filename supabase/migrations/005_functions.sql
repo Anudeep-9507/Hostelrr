@@ -199,7 +199,7 @@ BEGIN
   IF NEW.status = 'left' AND OLD.status <> 'left' THEN
     -- Free the old bed
     UPDATE public.beds
-    SET status = 'vacant'
+    SET status = 'vacant'::public.bed_status
     WHERE id = OLD.bed_id;
   END IF;
 

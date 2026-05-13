@@ -53,6 +53,8 @@ export interface Resident {
   areaAndCity?: string;
   state?: string;
   country?: string;
+  status?: 'active' | 'reserved' | 'left';
+  confirmedAt?: string;
 }
 
 export interface PastResident {

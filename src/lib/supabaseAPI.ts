@@ -313,6 +313,8 @@ export async function fetchHostelData(userId: string) {
       isDepositPaid: r.is_deposit_paid || false,
       depositPaidDate: r.deposit_paid_at || undefined,
       vacatingDate: r.vacating_date || undefined,
+        status: r.status || 'active',
+        confirmedAt: r.confirmed_at || undefined,
       paymentHistory: (paymentsData || [])
         .filter((p: any) => p.resident_id === r.id)
         .map((p: any) => {
@@ -701,7 +703,14 @@ export async function createHostelData(userId: string, data: any) {
   return hostel;
 }
 
-export async function addResidentDb(hostelId: string, roomId: string, bedId: string, residentData: any, isReservedOnly: boolean = false, oldResidentId?: string) {
+export async function addResidentDb(
+  hostelId: string,
+  roomId: string,
+  bedId: string,
+  residentData: any,
+  isReserved: boolean = false,
+  oldResidentId?: string
+) {
   // Archive previous record to prevent duplicates in history (Bug 3 fix)
   if (oldResidentId) {
     await supabase
@@ -718,6 +727,7 @@ export async function addResidentDb(hostelId: string, roomId: string, bedId: str
       .eq('status', 'left');
   }
 
+  // Call add_resident RPC with p_is_reserved parameter
   const { data, error } = await supabase.rpc('add_resident', {
     p_hostel_id: hostelId,
     p_room_id: roomId,
@@ -730,7 +740,8 @@ export async function addResidentDb(hostelId: string, roomId: string, bedId: str
     p_is_deposit_paid: residentData.isDepositPaid || false,
     p_stay_duration_days: residentData.stayTime ? parseInt(residentData.stayTime as string) : null,
     p_emergency_contact: residentData.emergencyPhone,
-    p_aadhar_number: residentData.aadhar
+    p_aadhar_number: residentData.aadhar,
+    p_is_reserved: isReserved  // Pass reserved status to RPC
   });
   if (error) throw error;
 
@@ -741,22 +752,30 @@ export async function addResidentDb(hostelId: string, roomId: string, bedId: str
       .eq('id', data as string);
     if (vacatingDateError) throw vacatingDateError;
   }
-  
-  if (isReservedOnly) {
-    const { error: bedError } = await supabase
-      .from('beds')
-      .update({ status: 'reserved' })
-      .eq('id', bedId);
-    if (bedError) {
-      // Cleanup: delete the resident if bed update fails
-      console.error('Failed to update bed status to reserved:', { bedId, residentId: data, error: bedError });
-      if (data) {
-        await supabase.from('residents').delete().eq('id', data as string);
-      }
-      throw new Error(`Could not reserve bed: ${bedError.message}`);
-    }
-  }
-  
+
+  return data;
+}
+
+/**
+ * Confirm a reserved resident: atomically transition to active and create first cycle.
+ * This RPC ensures:
+ * - resident.status: reserved → active
+ * - resident.confirmed_at = NOW()
+ * - bed.status: reserved → occupied
+ * - first payment cycle created in same transaction
+ */
+export async function confirmMoveInDb(
+  residentId: string,
+  confirmedDate?: string
+) {
+  const dateToConfirm = confirmedDate || new Date().toISOString().split('T')[0];
+
+  const { data, error } = await supabase.rpc('confirm_move_in', {
+    p_resident_id: residentId,
+    p_confirmed_date: dateToConfirm
+  });
+
+  if (error) throw error;
   return data;
 }
 

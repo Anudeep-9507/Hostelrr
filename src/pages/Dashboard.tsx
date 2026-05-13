@@ -188,13 +188,15 @@ export default function Dashboard() {
 
   const totalBeds = Math.max(hostelProfile?.total_beds || 0, configuredBedsCount);
   const vacantBeds = configuredBedsCount - occupiedBeds - reservedBeds;
+  const activeResidents = residents.filter(r => r.status !== 'reserved');
 
-  const dueResidents = residents.filter(r => (r.dueAmount || 0) > 0);
+  // Exclude reserved residents from due amounts
+  const dueResidents = residents.filter(r => r.status !== 'reserved' && (r.dueAmount || 0) > 0);
   const totalDueAmount = dueResidents.reduce((acc, curr) => acc + curr.dueAmount, 0);
 
   // Calculate this month's rent for KPI
   const now = new Date();
-  const thisMonthRevenue = residents.reduce((total, resident) => {
+  const thisMonthRevenue = activeResidents.reduce((total, resident) => {
     return total + (resident.paymentHistory || []).reduce((sum, payment) => {
       if (isSecurityDepositPayment(payment)) return sum;
       if (payment.status === 'paid' || payment.status === 'partial' || payment.status === 'partially_paid') {
@@ -238,12 +240,12 @@ export default function Dashboard() {
 
   // Expected = sum of monthlyRent for all currently OCCUPIED residents only
   // (resident.monthlyRent is set when resident is added and stored in DB)
-  const expectedMonthlyRevenue = residents.reduce((total, r) => {
+  const expectedMonthlyRevenue = activeResidents.reduce((total, r) => {
     return total + (r.monthlyRent || 0);
   }, 0);
 
   const defaultSecurityDeposit = Number(hostelProfile?.security_deposit || 0);
-  const occupiedResidentsCount = residents.length;
+  const occupiedResidentsCount = activeResidents.length;
   const expectedTotalSecurityDeposit = occupiedResidentsCount * defaultSecurityDeposit;
   const finalExpectedRevenue = expectedMonthlyRevenue + expectedTotalSecurityDeposit;
 
@@ -261,7 +263,7 @@ export default function Dashboard() {
     { name: 'Reserved', value: reservedBeds, color: '#3b82f6' },
   ];
 
-  const newResidentsThisMonth = residents.filter(r => {
+  const newResidentsThisMonth = activeResidents.filter(r => {
     if (!r.joinDate) return false;
     const d = new Date(r.joinDate);
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();

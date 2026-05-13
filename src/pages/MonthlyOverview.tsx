@@ -129,6 +129,7 @@ export default function MonthlyOverview() {
 
   const totalBeds = Math.max(hostelProfile?.total_beds || 0, configuredBedsCount);
   const vacantBeds = configuredBedsCount - occupiedBeds - reservedBeds;
+  const activeResidents = residents.filter(r => r.status !== 'reserved');
 
   const now = liveNow;
   const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -145,7 +146,7 @@ export default function MonthlyOverview() {
     };
 
     const totalCollectedByMonth = (monthKey: string) => {
-      return residents.reduce((total, resident) => {
+      return activeResidents.reduce((total, resident) => {
         return total + (resident.paymentHistory || []).reduce((sum, payment) => {
           if (isSuccessfulPayment(payment.status)) {
             const dateKey = getMonthKeyForDate(payment.date);
@@ -164,14 +165,14 @@ export default function MonthlyOverview() {
     // FIX: Outstanding dues = ALL unpaid balances (rent only), regardless of month
     // This includes carry-forward dues, old late balances, partial balances, etc.
     // Source of truth: dueAmount > 0, NOT payment status (deposit status is separate)
-    const outstandingTotal = residents.reduce((sum, resident) => {
+    const outstandingTotal = activeResidents.reduce((sum, resident) => {
       if (!resident.dueAmount || resident.dueAmount <= 0) return sum;
       return sum + resident.dueAmount;
     }, 0);
 
     // For trend comparison, calculate previous month's total outstanding at that time
     // (approximation: count residents who had dues in previous month by checking dueDate)
-    const outstandingPreviousApprox = residents.reduce((sum, resident) => {
+    const outstandingPreviousApprox = activeResidents.reduce((sum, resident) => {
       if (!resident.dueAmount || resident.dueAmount <= 0) return sum;
       const dateKey = getMonthKeyForDate(resident.dueDate);
       if (dateKey === previousMonthKey) {
@@ -181,12 +182,12 @@ export default function MonthlyOverview() {
     }, 0);
 
     // FIX: Late payments = count of ALL overdue cycles, regardless of month
-    const lateCurrent = residents.reduce((count, resident) => {
+    const lateCurrent = activeResidents.reduce((count, resident) => {
       return resident.paymentStatus === 'late' ? count + 1 : count;
     }, 0);
 
     // For trend comparison, use previous month's data as approximation
-    const latePreviousApprox = residents.reduce((count, resident) => {
+    const latePreviousApprox = activeResidents.reduce((count, resident) => {
       if (resident.paymentStatus !== 'late') return count;
       const dateKey = getMonthKeyForDate(resident.dueDate);
       if (dateKey === previousMonthKey) return count + 1;
@@ -194,7 +195,7 @@ export default function MonthlyOverview() {
     }, 0);
 
     const activeAtMonthEnd = (endDate: Date) => {
-      const activeCurrent = residents.filter(resident => {
+      const activeCurrent = activeResidents.filter(resident => {
         const joinDate = parseDate(resident.joinDate);
         return joinDate && joinDate <= endDate;
       }).length;
@@ -221,7 +222,7 @@ export default function MonthlyOverview() {
       // Expected: total amount from all active cycles for current residents
       // Use paymentHistory as proxy for active cycles in current month
       let currentMonthExpected = 0;
-      residents.forEach(resident => {
+      activeResidents.forEach(resident => {
         if (!resident.dueAmount || !['due', 'late', 'partially_paid', 'paid'].includes(resident.paymentStatus)) {
           // Calculate expected from monthly rent
           currentMonthExpected += resident.monthlyRent || 0;
@@ -255,7 +256,7 @@ export default function MonthlyOverview() {
       latePrevious: latePreviousApprox,
       collectionEfficiency,
     };
-  }, [residents, pastResidents, totalBeds, occupiedBeds, currentMonthStart, previousMonthStart, previousMonthEnd]);
+  }, [activeResidents, pastResidents, totalBeds, occupiedBeds, currentMonthStart, previousMonthStart, previousMonthEnd]);
 
   const revenueTrend = getTrendText(monthlyStats.collectCurrent, monthlyStats.collectPrevious, true);
   const duesTrend = getTrendText(monthlyStats.outstandingCurrent, monthlyStats.outstandingPrevious, false);
@@ -273,12 +274,12 @@ export default function MonthlyOverview() {
   };
 
   const defaultSecurityDeposit = Number(hostelProfile?.security_deposit || 0);
-  const totalExpectedDeposit = residents.reduce((sum, resident) => {
+  const totalExpectedDeposit = activeResidents.reduce((sum, resident) => {
     const expectedDeposit = resident.securityDeposit ?? defaultSecurityDeposit;
     return sum + (expectedDeposit || 0);
   }, 0);
 
-  const depositsCollectedThisMonth = residents.reduce((sum, r) => {
+  const depositsCollectedThisMonth = activeResidents.reduce((sum, r) => {
     if (!r.isDepositPaid) return sum;
     const paymentDate = parseDate(r.depositPaidDate || r.joinDate);
     if (!paymentDate) return sum;
@@ -289,7 +290,7 @@ export default function MonthlyOverview() {
   }, 0);
 
   // Placeholder for deposits refunded - no refund tracking in current schema
-  const depositPendingCount = residents.filter(resident => {
+  const depositPendingCount = activeResidents.filter(resident => {
     const expectedDeposit = resident.securityDeposit ?? defaultSecurityDeposit;
     return expectedDeposit > 0 && !resident.isDepositPaid;
   }).length;
@@ -378,7 +379,7 @@ export default function MonthlyOverview() {
     },
     {
       title: 'New Residents This Month',
-      value: `${residents.filter(r => {
+        value: `${activeResidents.filter(r => {
         const joinDate = parseDate(r.joinDate);
         return joinDate && joinDate.getFullYear() === now.getFullYear() && joinDate.getMonth() === now.getMonth();
       }).length}`,
@@ -402,7 +403,7 @@ export default function MonthlyOverview() {
     },
     {
       title: 'Beds Becoming Vacant',
-      value: `${residents.filter(r => {
+        value: `${activeResidents.filter(r => {
         const vacateDate = parseDate(r.vacatingDate);
         return vacateDate && vacateDate.getFullYear() === now.getFullYear() && vacateDate.getMonth() === now.getMonth();
       }).length}`,

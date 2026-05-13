@@ -13,7 +13,7 @@ SET search_path = public
 AS $$
 BEGIN
   UPDATE public.beds
-  SET status = 'occupied'
+  SET status = 'occupied'::public.bed_status
   WHERE id = NEW.bed_id;
 
   RETURN NEW;

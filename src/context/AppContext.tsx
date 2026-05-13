@@ -17,7 +17,8 @@ interface AppContextType {
   markAsPaid: (residentId: string, method?: 'UPI' | 'Cash', partialAmount?: number, paymentDate?: string) => void;
   markReminderSent: (residentId: string) => void;
   vacateResident: (residentId: string) => void;
-  addResident: (residentData: any, isReservedOnly?: boolean) => void;
+  addResident: (residentData: any, isReserved?: boolean) => void;
+  confirmMoveIn: (residentId: string, confirmedDate?: string) => void;
   editResident: (residentId: string, updatedData: any) => void;
   removeJoinRequest: (requestId: string) => void;
   approveJoinRequest: (params: {
@@ -515,7 +516,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const addResident = (residentData: any, isReservedOnly?: boolean) => {
+  const addResident = (residentData: any, isReserved?: boolean) => {
     const hostelId = hostelProfile?.id;
     if (!hostelId) {
       console.error('addResident: hostelProfile.id is null — cannot create resident');
@@ -524,7 +525,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // DB sync
     import('../lib/supabaseAPI').then(async ({ addResidentDb }) => {
       try {
-        const newResidentId = await addResidentDb(hostelId, residentData.roomId, residentData.bedId, residentData, isReservedOnly, residentData.oldResidentId);
+        const newResidentId = await addResidentDb(hostelId, residentData.roomId, residentData.bedId, residentData, isReserved, residentData.oldResidentId);
 
         if (newResidentId) {
           setResidents(prev => {
@@ -570,12 +571,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             ...floor,
             rooms: floor.rooms.map(room => ({
               ...room,
-              beds: room.beds.map(bed => bed.id === residentData.bedId ? { ...bed, status: isReservedOnly ? 'reserved' : 'occupied', residentId: newResidentId } : bed)
+              beds: room.beds.map(bed => bed.id === residentData.bedId ? { ...bed, status: isReserved ? 'reserved' : 'occupied', residentId: newResidentId } : bed)
             }))
           })));
         }
 
-        toast.success(isReservedOnly ? 'Bed reserved successfully' : 'Resident added successfully');
+        toast.success(isReserved ? 'Bed reserved successfully' : 'Resident added successfully');
         await syncStateWithDb();
       } catch (e: any) {
         console.error(e);
@@ -585,6 +586,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         });
       }
     });
+  };
+
+  /**
+   * Confirm a reserved resident: atomically transition to active and create first cycle.
+   */
+  const confirmMoveIn = async (residentId: string, confirmedDate?: string) => {
+    const { confirmMoveInDb } = await import('../lib/supabaseAPI');
+    try {
+      await confirmMoveInDb(residentId, confirmedDate);
+      await syncStateWithDb();
+    } catch (e: any) {
+      console.error(e);
+      const msg = (e && (e.message || e.error)) || (typeof e === 'string' ? e : JSON.stringify(e));
+      toast.error(msg || 'Failed to confirm resident move-in');
+    }
   };
 
   const editResident = (residentId: string, updatedData: any) => {
@@ -839,7 +855,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   return (
     <AppContext.Provider value={{ 
       floors, residents, pastResidents, activities, joinRequests,
-      markAsPaid, markReminderSent, vacateResident, addResident, editResident, removeJoinRequest, approveJoinRequest, rejectJoinRequest, addJoinRequest,
+      markAsPaid, markReminderSent, vacateResident, addResident, confirmMoveIn, editResident, removeJoinRequest, approveJoinRequest, rejectJoinRequest, addJoinRequest,
       activeBuildingFilter, setActiveBuildingFilter,
       activePaymentsFilter, setActivePaymentsFilter,
       globalSelectedResidentId, setGlobalSelectedResidentId,

@@ -20,7 +20,7 @@ export const WhatsAppIcon = ({ className }: { className?: string }) => (
 );
 
 export default function Residents() {
-  const { residents, pastResidents, floors, hostelProfile, globalSelectedResidentId, setGlobalSelectedResidentId, vacateResident, addResident, editResident, markAsPaid, markReminderSent, isDemoMode } = useApp();
+  const { residents, pastResidents, floors, hostelProfile, globalSelectedResidentId, setGlobalSelectedResidentId, vacateResident, addResident, confirmMoveIn, editResident, markAsPaid, markReminderSent, isDemoMode } = useApp();
   const [viewMode, setViewMode] = useState<ViewMode>('all');
   const [currentSort, setCurrentSort] = useState('all');
   const [showHistory, setShowHistory] = useState(false);
@@ -32,12 +32,12 @@ export default function Residents() {
   const [isEditingFiles, setIsEditingFiles] = useState(false);
   const [isUploadingProfileDoc, setIsUploadingProfileDoc] = useState(false);
   const [residentToMarkDepositPaid, setResidentToMarkDepositPaid] = useState<Resident | null>(null);
-  const [showConfirmBedModal, setShowConfirmBedModal] = useState(false);
-  const [confirmRoomId, setConfirmRoomId] = useState<string | null>(null);
-  const [confirmBedId, setConfirmBedId] = useState<string | null>(null);
-  const [confirmJoinDate, setConfirmJoinDate] = useState<string>(getTodayIST());
   const [depositPaymentMethod, setDepositPaymentMethod] = useState<'UPI' | 'Cash'>('UPI');
   const [depositPaymentDate, setDepositPaymentDate] = useState<string>(getTodayIST());
+  
+  // Confirm Bed for reserved residents
+  const [residentToConfirmMoveIn, setResidentToConfirmMoveIn] = useState<Resident | null>(null);
+  const [confirmMoveInDate, setConfirmMoveInDate] = useState<string>(getTodayIST());
 
   const [residentToMarkPaid, setResidentToMarkPaid] = useState<Resident | null>(null);
   const [paidUsing, setPaidUsing] = useState<'UPI' | 'Cash'>('UPI');
@@ -66,6 +66,12 @@ export default function Residents() {
     await editResident(id, { isDepositPaid: true, depositPaidDate: date });
     toast.success('Security deposit marked as paid');
     setResidentToMarkDepositPaid(null);
+  });
+
+  const { execute: executeConfirmMoveIn, isLoading: isConfirmingMoveIn } = useAsyncAction(async (id: string, date: string) => {
+    await confirmMoveIn(id, date);
+    setResidentToConfirmMoveIn(null);
+    setSelectedResident(null);
   });
 
   const openWhatsAppReminder = (resident: Resident, message: string) => {
@@ -316,6 +322,9 @@ export default function Residents() {
   }
 
   const getStatusPill = (resident: Resident) => {
+    if (resident.status === 'reserved') {
+      return null;
+    }
     if (resident.paymentStatus === 'paid') {
       return <span className="bg-[#28A745] text-white px-3 py-1 text-xs font-bold rounded-full">Paid</span>;
     }
@@ -807,27 +816,22 @@ export default function Residents() {
                 </a>
               </div>
 
-              {/* Confirm bed for reserved residents */}
-              {('paymentStatus' in selectedResident) && selectedBedStatus === 'reserved' && (
-                <div className="pt-3">
-                  <button
-                    onClick={() => {
-                      setConfirmRoomId(selectedResident.roomId || null);
-                      setConfirmBedId(selectedResident.bedId || null);
-                      setConfirmJoinDate(selectedResident.joinDate || getTodayIST());
-                      setShowConfirmBedModal(true);
-                    }}
-                    className="w-full min-h-11 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
-                  >
-                    Confirm Bed
-                  </button>
-                </div>
+              {('paymentStatus' in selectedResident) && (selectedResident as Resident).status === 'reserved' && (
+                <button
+                  onClick={() => setResidentToConfirmMoveIn(selectedResident as Resident)}
+                  className="min-h-11 w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-colors shadow-sm"
+                >
+                  Confirm Bed
+                </button>
               )}
 
               {/* Status Section */}
               {('paymentStatus' in selectedResident) && (
                 <div className="space-y-3">
                   <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Status</h4>
+
+                  {selectedResident.status !== 'reserved' && (
+                    <>
                   
                   {/* Dues Card */}
                   <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -863,6 +867,9 @@ export default function Residents() {
                         </div>
                       )}
                   </div>
+
+                    </>
+                  )}
 
                   {/* Security Deposit Card */}
                   {('securityDeposit' in selectedResident && selectedResident.securityDeposit) && (
@@ -987,90 +994,6 @@ export default function Residents() {
                       <span className="text-sm font-semibold text-gray-900">{(selectedResident as any).country || 'India'}</span>
                     </div>
                   </div>
-
-                  {/* Confirm Bed Modal */}
-                  <AnimatePresence>
-                    {showConfirmBedModal && selectedResident && (
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/40"
-                      >
-                        <motion.div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-md max-h-[calc(100dvh-1.5rem)] overflow-y-auto p-5 sm:p-6">
-                          <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-bold">Confirm Bed</h3>
-                            <button onClick={() => setShowConfirmBedModal(false)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full"><X className="w-4 h-4" /></button>
-                          </div>
-
-                          <div className="space-y-3">
-                            <div>
-                              <label className="text-xs text-gray-500">Select Room</label>
-                              <select value={confirmRoomId || ''} onChange={(e) => { setConfirmRoomId(e.target.value); setConfirmBedId(null); }} className="w-full mt-1 p-3 border rounded-xl">
-                                <option value="">Choose room</option>
-                                {floors.flatMap(f => f.rooms).map(r => (
-                                  <option key={r.id} value={r.id}>Room {r.number} — {r.beds.length} beds</option>
-                                ))}
-                              </select>
-                            </div>
-
-                            <div>
-                              <label className="text-xs text-gray-500">Select Bed</label>
-                              <select value={confirmBedId || ''} onChange={(e) => setConfirmBedId(e.target.value)} className="w-full mt-1 p-3 border rounded-xl">
-                                <option value="">Choose bed</option>
-                                {confirmRoomId && (() => {
-                                  const room = floors.flatMap(f => f.rooms).find(r => r.id === confirmRoomId);
-                                  if (!room) return null;
-                                  return room.beds.map(b => (
-                                    <option key={b.id} value={b.id}>{b.name} — {b.status}</option>
-                                  ));
-                                })()}
-                              </select>
-                            </div>
-
-                            <div>
-                              <label className="text-xs text-gray-500">Joining Date</label>
-                              <input 
-                                type="date" 
-                                value={confirmJoinDate} 
-                                onChange={(e) => setConfirmJoinDate(e.target.value)} 
-                                className="w-full mt-1 p-3 border rounded-xl"
-                              />
-                            </div>
-
-                            <div className="flex flex-col-reverse sm:flex-row sm:items-center gap-2 pt-2">
-                              <button
-                                onClick={async () => {
-                                  if (!confirmRoomId || !confirmBedId || !selectedResident) return;
-                                  // Build resident payload and call addResident with oldResidentId
-                                  const payload: any = {
-                                    name: selectedResident.name,
-                                    phone: selectedResident.phone,
-                                    emergencyPhone: (selectedResident as any).emergencyPhone || '',
-                                    aadhar: (selectedResident as any).aadhar,
-                                    rent: (selectedResident as any).monthlyRent || (selectedResident as any).dueAmount || 0,
-                                    securityDeposit: (selectedResident as any).securityDeposit || 0,
-                                    isDepositPaid: (selectedResident as any).isDepositPaid || false,
-                                    roomId: confirmRoomId,
-                                    bedId: confirmBedId,
-                                    joinDate: confirmJoinDate || (selectedResident as any).joinDate || getTodayIST(),
-                                    oldResidentId: selectedResident.id
-                                  };
-                                  addResident(payload, false);
-                                  setShowConfirmBedModal(false);
-                                  setSelectedResident(null);
-                                }}
-                                className="w-full sm:w-auto min-h-11 bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700"
-                              >
-                                Confirm
-                              </button>
-                              <button onClick={() => setShowConfirmBedModal(false)} className="w-full sm:w-auto min-h-11 px-4 py-2 rounded-xl border">Cancel</button>
-                            </div>
-                          </div>
-                        </motion.div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
 
                   {/* Documents Section */}
                   <div className="space-y-3 pt-4 border-t border-gray-100">
@@ -1309,8 +1232,75 @@ export default function Residents() {
       </AnimatePresence>
 
       <AnimatePresence>
+        {residentToConfirmMoveIn && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 bg-gray-900/40 backdrop-blur-sm"
+                    >
+                      <motion.div 
+                        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                        className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-md max-h-[calc(100dvh-1.5rem)] overflow-hidden flex flex-col relative"
+                      >
+                        <button 
+                          onClick={() => setResidentToConfirmMoveIn(null)}
+                          className="absolute top-4 right-4 p-2 bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-900 rounded-full transition-colors z-50"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+              
+                        <div className="p-5 sm:p-6 pb-0">
+                          <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-4">
+                            <CheckCircle2 className="w-6 h-6" />
+                          </div>
+                          <h3 className="text-xl font-bold text-gray-900 mb-2">Confirm Bed?</h3>
+                          <p className="text-gray-500 text-[15px] leading-relaxed">
+                            Confirm that <strong>{residentToConfirmMoveIn.name}</strong> has moved into <strong>{getNamesFromIds(floors, residentToConfirmMoveIn.roomId, residentToConfirmMoveIn.bedId).roomName} {getNamesFromIds(floors, residentToConfirmMoveIn.roomId, residentToConfirmMoveIn.bedId).bedName}</strong>. This will activate billing and create the first payment cycle.
+                          </p>
+                        </div>
+
+                        <div className="p-4 sm:p-6 bg-blue-50 border-t border-blue-100 space-y-3 mt-2">
+                          <div className="space-y-1.5">
+                            <label className="text-sm font-medium text-gray-900 block">Move-In Date</label>
+                            <input 
+                              type="date" 
+                              value={confirmMoveInDate}
+                              onChange={(e) => setConfirmMoveInDate(e.target.value)}
+                              className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="p-4 sm:p-6 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3">
+                          <button 
+                            onClick={() => setResidentToConfirmMoveIn(null)}
+                            className="w-full sm:w-auto min-h-11 px-5 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors"
+                          >
+                            Cancel
+                          </button>
+                          <button 
+                            onClick={() => {
+                              if (isConfirmingMoveIn || !residentToConfirmMoveIn || residentToConfirmMoveIn.status !== 'reserved') return;
+                              executeConfirmMoveIn(residentToConfirmMoveIn.id, confirmMoveInDate);
+                            }}
+                            disabled={isConfirmingMoveIn || !residentToConfirmMoveIn || residentToConfirmMoveIn.status !== 'reserved'}
+                            className="w-full sm:w-auto min-h-11 justify-center px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
+                          >
+                            {isConfirmingMoveIn ? 'Confirming...' : 'Confirm Bed'}
+                          </button>
+                        </div>
+                      </motion.div>
+                    </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
         {residentToEdit && (
-          <motion.div
+          <>
+            <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -1546,6 +1536,7 @@ export default function Residents() {
               </form>
             </motion.div>
           </motion.div>
+          </>
         )}
       </AnimatePresence>
 

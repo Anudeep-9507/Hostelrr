@@ -186,24 +186,25 @@ export default function Payments() {
     return [...history, ...mock].sort((a: any, b: any) => getTransactionDateForSort(b.date).getTime() - getTransactionDateForSort(a.date).getTime());
   };
 
-  const dueResidents = residents.filter(r => (r.dueAmount || 0) > 0);
-  const paidResidents = residents.filter(r => (r.dueAmount || 0) === 0);
+  const activeResidents = residents.filter(r => r.status !== 'reserved');
+  const dueResidents = activeResidents.filter(r => (r.dueAmount || 0) > 0);
+  const paidResidents = activeResidents.filter(r => (r.dueAmount || 0) === 0);
 
   const totalDueAmount = dueResidents.reduce((acc, curr) => acc + curr.dueAmount, 0);
 
   // Expected monthly rent = sum of actual monthly_rent for all occupied residents
-  const expectedMonthlyRevenue = residents.reduce((total, r) => {
+  const expectedMonthlyRevenue = activeResidents.reduce((total, r) => {
     return total + (r.monthlyRent || 0);
   }, 0);
 
   const defaultSecurityDeposit = Number(hostelProfile?.security_deposit || 0);
-  const occupiedResidentsCount = residents.length;
+  const occupiedResidentsCount = activeResidents.length;
   const expectedTotalSecurityDeposit = occupiedResidentsCount * defaultSecurityDeposit;
   const finalExpectedRevenue = expectedMonthlyRevenue + expectedTotalSecurityDeposit;
 
   const now = new Date();
   const istNow = convertToIST(now);
-  const thisMonthRevenue = residents.reduce((total, r) => {
+  const thisMonthRevenue = activeResidents.reduce((total, r) => {
     const historyRevenue = (r.paymentHistory || []).reduce((sum, h) => {
       if (isSecurityDepositPayment(h)) return sum;
       if (h.status === 'paid' || h.status === 'partial') {
@@ -222,13 +223,13 @@ export default function Payments() {
   // Logic for subsets
   const pendingCount = dueResidents.filter(r => r.paymentStatus === 'due').length;
   const lateCount = dueResidents.filter(r => r.paymentStatus === 'late').length;
-  const partiallyPaidCount = residents.filter(r => r.paymentStatus === 'partially_paid').length;
+  const partiallyPaidCount = activeResidents.filter(r => r.paymentStatus === 'partially_paid').length;
   const unpaidCount = dueResidents.length;
   const paidCount = paidResidents.length;
-  const allCount = residents.length;
+  const allCount = activeResidents.length;
 
   const allPaymentsTransactions = useMemo(() => {
-    const activeHistory = residents.flatMap(r => {
+    const currentHistory = residents.flatMap(r => {
       const history = (r.paymentHistory || []).map(p => ({ ...p, residentName: r.name, residentId: r.id, roomId: r.roomId, bedId: r.bedId }));
       if (r.securityDeposit && r.isDepositPaid) {
         history.push({
@@ -268,7 +269,7 @@ export default function Payments() {
       return history;
     });
     
-    return [...activeHistory, ...pastHistory].sort((a, b) => getTransactionDateForSort(b.date).getTime() - getTransactionDateForSort(a.date).getTime());
+    return [...currentHistory, ...pastHistory].sort((a, b) => getTransactionDateForSort(b.date).getTime() - getTransactionDateForSort(a.date).getTime());
   }, [residents, pastResidents]);
 
   const historyMonthOptions = useMemo(() => {
@@ -378,7 +379,7 @@ export default function Payments() {
     return <span className="bg-[#F89C1E] text-white px-3 py-1 text-xs font-bold rounded-full text-gray-900">Pending</span>;
   };
 
-  const filteredResidents = residents.filter(r => {
+  const filteredResidents = activeResidents.filter(r => {
     if (filter === 'All') return true;
     if (filter === 'Paid') return r.paymentStatus === 'paid';
     if (filter === 'Unpaid') return r.paymentStatus === 'due' || r.paymentStatus === 'late' || r.paymentStatus === 'partially_paid';
