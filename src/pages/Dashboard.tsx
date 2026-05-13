@@ -21,7 +21,7 @@ function KpiCard({ title, value, icon: Icon, trend, className, cardBg = "bg-whit
       onClick={onClick}
       style={style}
       className={cn(
-        "rounded-2xl p-4 md:p-5 border shadow-sm flex flex-col justify-between h-full min-h-[124px] md:min-h-[140px] transition-all relative overflow-hidden min-w-0", 
+        "rounded-2xl p-3.5 sm:p-4 md:p-5 border shadow-sm flex flex-col justify-between h-full min-h-[108px] sm:min-h-[120px] md:min-h-[140px] transition-all relative overflow-hidden min-w-0", 
         cardBg,
         !cardBg.includes('border-') && "border-gray-100",
         onClick ? "cursor-pointer hover:shadow-md hover:scale-[1.02] active:scale-[0.98]" : ""
@@ -29,19 +29,19 @@ function KpiCard({ title, value, icon: Icon, trend, className, cardBg = "bg-whit
     >
       <div className="flex justify-between items-start gap-3 relative z-10 mb-2">
         <div className="flex min-w-0 flex-col">
-          <span className="text-gray-500 font-medium text-sm leading-tight pr-2">{title}</span>
+          <span className="text-gray-500 font-medium text-[11px] sm:text-sm leading-tight pr-2">{title}</span>
           {trend && (
-            <p className={cn("text-xs font-medium mt-1 min-w-0", trendColor || "text-gray-500")}>
+            <p className={cn("text-[10px] sm:text-xs font-medium mt-1 min-w-0", trendColor || "text-gray-500")}>
               {trend}
             </p>
           )}
         </div>
         <div className={cn("p-2 rounded-lg shrink-0", className)}>
-          <Icon className="w-5 h-5" />
+          <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
         </div>
       </div>
       <div className="mt-auto w-full relative z-10">
-        <h3 className="text-2xl md:text-[28px] font-bold text-gray-900 tracking-tight leading-tight md:leading-none mb-1.5 break-words">{value}</h3>
+        <h3 className="text-xl sm:text-2xl md:text-[28px] font-bold text-gray-900 tracking-tight leading-tight md:leading-none mb-1 break-words">{value}</h3>
       </div>
     </div>
   );
@@ -279,49 +279,51 @@ export default function Dashboard() {
       </div>
 
       {/* KPI Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
         <KpiCard title="Total Beds" value={totalBeds} icon={BedDouble} className="bg-white text-gray-600" cardBg="bg-gray-50 border-gray-200" onClick={() => handleNavigateBuilding('all')} trendColor="text-gray-500" />
         <KpiCard title="Occupied Beds" value={occupiedBeds} icon={Users} trend={newResidentsThisMonth > 0 ? `+${newResidentsThisMonth} this month` : "No new joins this month"} className="bg-white text-green-600" cardBg="bg-green-50 border-green-200" onClick={() => handleNavigateBuilding('occupied')} trendColor="text-green-600" />
         <KpiCard title="Vacant Beds" value={vacantBeds} icon={PieChart} className="bg-white text-red-600" cardBg="bg-red-50 border-red-200" onClick={() => handleNavigateBuilding('vacant')} trendColor="text-red-600" />
         <KpiCard title="Pending Payments" value={`₹${totalDueAmount.toLocaleString('en-IN')}`} icon={AlertCircle} className="bg-white text-orange-600" cardBg="bg-orange-50 border-orange-200" onClick={() => handleNavigatePayments('Unpaid')} trendColor="text-orange-600" />
-        <KpiCard
-          title="This Month's Rent"
-          value={thisMonthRevenue > 0 ? `₹${thisMonthRevenue.toLocaleString('en-IN')}` : '₹0'}
-          icon={IndianRupee}
-          trend={
-            <div className="space-y-1">
-              <div className="flex min-w-0 items-center gap-1">
-                <span>Expected: ₹{expectedMonthlyRevenue.toLocaleString('en-IN')}</span>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setIsRevenueInfoModalOpen(true);
-                    }}
-                    className="w-5 h-5 md:w-4 md:h-4 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center hover:bg-gray-200 transition-all shadow-sm active:scale-90 shrink-0"
-                    aria-label="Open expected rent breakdown"
-                  >
-                    <ChevronRight className="w-3 h-3" />
-                  </button>
+        <div className="col-span-2 lg:col-span-1">
+          <KpiCard
+            title="This Month's Rent"
+            value={thisMonthRevenue > 0 ? `₹${thisMonthRevenue.toLocaleString('en-IN')}` : '₹0'}
+            icon={IndianRupee}
+            trend={
+              <div className="space-y-1">
+                <div className="flex min-w-0 items-center gap-1">
+                  <span>Expected: ₹{expectedMonthlyRevenue.toLocaleString('en-IN')}</span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsRevenueInfoModalOpen(true);
+                      }}
+                      className="w-5 h-5 md:w-4 md:h-4 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center hover:bg-gray-200 transition-all shadow-sm active:scale-90 shrink-0"
+                      aria-label="Open expected rent breakdown"
+                    >
+                      <ChevronRight className="w-3 h-3" />
+                    </button>
+                </div>
               </div>
-            </div>
-          }
-          className="bg-white text-emerald-600"
-          cardBg="bg-emerald-50 border-emerald-200"
-          onClick={() => handleNavigatePayments('Paid')}
-          trendColor="text-emerald-600"
-        />
+            }
+            className="bg-white text-emerald-600"
+            cardBg="bg-emerald-50 border-emerald-200"
+            onClick={() => handleNavigatePayments('Paid')}
+            trendColor="text-emerald-600"
+          />
+        </div>
       </div>
 
       <div className="mt-2">
         <button
           type="button"
           onClick={() => navigate(ROUTES.monthlyOverview.path)}
-          className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 active:scale-[0.98]"
+          className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-2.5 py-1.5 text-xs sm:text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 active:scale-[0.98]"
         >
-          <PieChart className="w-4 h-4 text-gray-500" />
+          <PieChart className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-500" />
           <span>Monthly Overview</span>
-          <ChevronRight className="w-4 h-4 text-gray-400" />
+          <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400" />
         </button>
       </div>
 
@@ -648,7 +650,7 @@ export default function Dashboard() {
           </div>
 
           {/* Activity */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col h-full">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
             <div className="p-4 md:p-5 border-b border-gray-100 flex justify-between items-center gap-3 bg-gray-50/50">
               <h3 className="text-lg font-bold text-gray-900">Activity</h3>
               <button 

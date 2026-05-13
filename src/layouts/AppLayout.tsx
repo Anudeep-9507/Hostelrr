@@ -178,7 +178,7 @@ export default function AppLayout() {
           </div>
         </div>
 
-        <nav className="flex-1 px-4 space-y-1 mt-4 overflow-y-auto">
+        <nav className="flex-1 px-4 space-y-1 mt-4">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -298,7 +298,7 @@ export default function AppLayout() {
       </aside>
 
       {/* Main Content */}
-      <main className={cn("flex-1 flex h-dvh flex-col overflow-hidden relative transition-all duration-300 w-full min-w-0", isSidebarCollapsed ? "md:ml-20" : "md:ml-64")}>
+      <main className={cn("flex-1 flex flex-col overflow-hidden relative transition-all duration-300 w-full min-w-0", isSidebarCollapsed ? "md:ml-20" : "md:ml-64")}>
         {/* Top Navbar */}
         <header className="h-14 md:h-16 bg-white border-b border-gray-200 flex items-center justify-between gap-2 px-3 md:px-8 sticky top-0 z-20">
           <div className="flex items-center gap-2 md:gap-4 shrink-0">
@@ -445,7 +445,10 @@ export default function AppLayout() {
           {navItems.map((item) => {
             const isHistorySlot = item.id === 'settings';
             const Icon = isHistorySlot ? History : item.icon;
-            const isActive = isHistorySlot ? location.pathname === ROUTES.payments.path : activeTab === item.id;
+            const paymentsView = (location.state as any)?.paymentsView;
+            const isHistoryActive = isHistorySlot && location.pathname === ROUTES.payments.path && paymentsView === 'history';
+            const isPaymentsActive = item.id === 'payments' && location.pathname === ROUTES.payments.path && paymentsView !== 'history';
+            const isActive = isHistorySlot ? isHistoryActive : (item.id === 'payments' ? isPaymentsActive : activeTab === item.id);
             const badgeCount = item.id === 'dashboard' ? joinRequests.length : 0;
 
             return (
@@ -453,7 +456,9 @@ export default function AppLayout() {
                 key={item.id}
                 onClick={() => {
                   if (isHistorySlot) {
-                    navigate(ROUTES.payments.path, { state: { openHistory: true } });
+                    navigate(ROUTES.payments.path, { state: { paymentsView: 'history' } });
+                  } else if (item.id === 'payments') {
+                    navigate(ROUTES.payments.path, { state: { paymentsView: 'payments' } });
                   } else {
                     navigate(TAB_TO_ROUTE[item.id] || ROUTES.dashboard.path);
                   }
