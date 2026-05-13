@@ -191,7 +191,7 @@ export default function Payments() {
 
   const totalDueAmount = dueResidents.reduce((acc, curr) => acc + curr.dueAmount, 0);
 
-  // Expected monthly revenue = sum of actual monthly_rent for all occupied residents
+  // Expected monthly rent = sum of actual monthly_rent for all occupied residents
   const expectedMonthlyRevenue = residents.reduce((total, r) => {
     return total + (r.monthlyRent || 0);
   }, 0);
@@ -438,9 +438,9 @@ export default function Payments() {
           </div>
 
           <div onClick={() => setFilter('Paid')} className="bg-green-50 rounded-2xl p-4 md:p-5 border border-green-200 shadow-sm flex flex-col justify-between min-h-[120px] md:min-h-[140px] cursor-pointer hover:shadow-md transition-all">
-            <div className="flex justify-between items-start mb-2">
+                <div className="flex justify-between items-start mb-2">
               <div>
-                <span className="text-gray-500 font-medium text-sm">This Month Revenue</span>
+                <span className="text-gray-500 font-medium text-sm">This Month's Rent</span>
                 <div className="text-xs text-green-600 font-medium mt-1 space-y-1">
                   <div className="flex items-center gap-1">
                     <span>Exp: ₹{expectedMonthlyRevenue.toLocaleString('en-IN')}</span>
@@ -451,7 +451,7 @@ export default function Payments() {
                         setIsRevenueInfoModalOpen(true);
                       }}
                       className="w-4 h-4 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center hover:bg-gray-200 transition-all shadow-sm active:scale-90"
-                      aria-label="Open expected revenue breakdown"
+                      aria-label="Open expected rent breakdown"
                     >
                       <ChevronRight className="w-3 h-3" />
                     </button>
@@ -509,9 +509,9 @@ export default function Payments() {
                   <div className="p-2 bg-white/20 rounded-xl backdrop-blur-md">
                     <PieChart className="w-5 h-5 text-white" />
                   </div>
-                  <h3 className="text-lg font-bold">Revenue Projections</h3>
+                  <h3 className="text-lg font-bold">Rent Projections</h3>
                 </div>
-                <p className="text-blue-100 text-sm">Monthly expected earnings overview</p>
+                <p className="text-blue-100 text-sm">Monthly expected rent overview</p>
               </div>
 
               <div className="p-6 space-y-5">

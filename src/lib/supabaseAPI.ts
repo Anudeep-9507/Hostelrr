@@ -140,8 +140,10 @@ export async function fetchHostelData(userId: string) {
   const { data: residentsData, error: residentsError } = await supabase
     .from('residents')
     .select('*')
-    .eq('hostel_id', hostelId)
-    .eq('status', 'active');
+    .eq('hostel_id', hostelId);
+
+  const currentResidentsData = (residentsData || []).filter((r: any) => r.status !== 'left' && r.status !== 'archived');
+  const activeResidentsData = currentResidentsData.filter((r: any) => r.status === 'active');
 
   // 6. Get Payment Cycles
   const { data: cyclesData } = await supabase
@@ -190,8 +192,8 @@ export async function fetchHostelData(userId: string) {
           .filter((b: any) => b.room_id === r.id)
           .sort((a: any, b: any) => String(a.label).localeCompare(String(b.label), undefined, { numeric: true, sensitivity: 'base' }))
           .map((b: any) => {
-            // Find active resident in this bed
-            const resident = (residentsData || []).find((res: any) => res.bed_id === b.id);
+            // Find current resident in this bed
+            const resident = currentResidentsData.find((res: any) => res.bed_id === b.id);
             
             let displayStatus = b.status;
             if (resident && displayStatus === 'occupied') {
@@ -234,10 +236,11 @@ export async function fetchHostelData(userId: string) {
     email: hostel.owner?.email,
   };
 
-  const mappedResidents = await Promise.all((residentsData || []).map(async (r: any) => {
-    const resCycles = (cyclesData || []).filter((c: any) => c.resident_id === r.id);
-    let paymentStatus: 'paid' | 'due' | 'partially_paid' | 'late' = 'paid';
-    let dueAmount = 0;
+  const residentsPromises = currentResidentsData.map(async (r: any) => {
+    try {
+      const resCycles = (cyclesData || []).filter((c: any) => c.resident_id === r.id);
+      let paymentStatus: 'paid' | 'due' | 'partially_paid' | 'late' = 'paid';
+      let dueAmount = 0;
     
     // Sort cycles by date descending, find earliest due cycle
     const pendingCycles = resCycles.filter((c: any) => ['pending', 'late', 'partial'].includes(c.status));
@@ -327,7 +330,17 @@ export async function fetchHostelData(userId: string) {
         .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()),
       createdAt: r.created_at,
     };
-  }));
+    } catch (error) {
+      console.error(`Failed to map resident ${r.id}:`, error);
+      return null;
+    }
+  });
+
+  const results = await Promise.allSettled(residentsPromises);
+  const mappedResidents = results
+    .filter((r) => r.status === 'fulfilled' && r.value !== null)
+    .map((r) => r.status === 'fulfilled' ? r.value : null)
+    .filter((r) => r !== null);
 
   // Deduplicate past residents by phone number, keeping only the most recent stay (Bug 3 fix)
   const uniquePastResidents: any[] = [];
@@ -340,8 +353,8 @@ export async function fetchHostelData(userId: string) {
 
   for (const r of sortedRawPast) {
     if (!r.phone || !seenPhones.has(r.phone)) {
-      // Also ensure they aren't currently active
-      const isActive = (residentsData || []).some((active: any) => active.phone === r.phone);
+      // Also ensure they aren't currently active or reserved
+      const isActive = currentResidentsData.some((active: any) => active.phone === r.phone);
       if (!isActive) {
         if (r.phone) seenPhones.add(r.phone);
         uniquePastResidents.push(r);
@@ -734,7 +747,14 @@ export async function addResidentDb(hostelId: string, roomId: string, bedId: str
       .from('beds')
       .update({ status: 'reserved' })
       .eq('id', bedId);
-    if (bedError) console.error("Could not set bed as reserved:", bedError);
+    if (bedError) {
+      // Cleanup: delete the resident if bed update fails
+      console.error('Failed to update bed status to reserved:', { bedId, residentId: data, error: bedError });
+      if (data) {
+        await supabase.from('residents').delete().eq('id', data as string);
+      }
+      throw new Error(`Could not reserve bed: ${bedError.message}`);
+    }
   }
   
   return data;
@@ -880,8 +900,15 @@ export async function updateRoomSetupDb(roomId: string, roomData: any, bedsData:
 
   // Remove beds
   if (bedsData.bedsToRemove.length > 0) {
-    const { error: delErr } = await supabase.from('beds').delete().in('id', bedsData.bedsToRemove);
-    if (delErr) console.error('delErr:', delErr);
+    const { data: deletedBeds, error: delErr } = await supabase
+      .from('beds')
+      .delete()
+      .in('id', bedsData.bedsToRemove)
+      .select('id');
+    if (delErr) throw delErr;
+    if ((deletedBeds?.length || 0) !== bedsData.bedsToRemove.length) {
+      throw new Error(`Removed ${deletedBeds?.length || 0} of ${bedsData.bedsToRemove.length} bed(s)`);
+    }
   }
 
   // Add beds
@@ -900,7 +927,7 @@ export async function updateRoomSetupDb(roomId: string, roomData: any, bedsData:
         label: String.fromCharCode(65 + existingCount + idx),
       }));
       const { error: insErr } = await supabase.from('beds').insert(bedsToInsert);
-      if (insErr) console.error('updateRoomSetupDb: insertError', insErr);
+      if (insErr) throw insErr;
     }
   }
 }

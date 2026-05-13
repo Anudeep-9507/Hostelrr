@@ -179,6 +179,7 @@ export default function AddResidentModal({
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const isReservedOnly = formData.get('reserved') === 'yes';
+    const selectedBed = availableBeds.find(bed => bed.id === selectedBedId);
     const normalizePhone = (value: FormDataEntryValue | null) => {
       const digits = String(value ?? '').replace(/\D/g, '');
       return digits.length > 10 ? digits.slice(-10) : digits;
@@ -204,7 +205,7 @@ export default function AddResidentModal({
     };
 
     // Client-side validations to avoid RPC errors
-    if (!selectedRoomId || !selectedBedId) {
+    if (!selectedRoomId || !selectedBedId || !selectedBed) {
       import('sonner').then(({ toast }) => {
         toast.error('No vacant bed selected');
       });
@@ -560,7 +561,7 @@ export default function AddResidentModal({
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
-                      This date will be due date.
+                      This date will be due date
                       <div className="absolute -bottom-3.5 left-2 w-2 h-2 bg-gray-900 rotate-45 border-r border-b border-gray-800"></div>
                     </div>
                   </motion.div>

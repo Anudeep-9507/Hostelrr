@@ -166,8 +166,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const result = await fetchHostelData(userId);
           if (result.hostel) {
             setHostelProfile(result.hostel);
-            setFloors(result.floors);
-            setResidents(result.residents);
+            setFloors(result.floors || []);
+            setResidents(result.residents || []);
             setActivities(result.activities || []);
             setJoinRequests(result.joinRequests || []);
             setIsOnboardingComplete(true);
@@ -288,8 +288,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (session && session.user) {
         const result = await fetchHostelData(session.user.id);
         if (result.hostel) {
-          setFloors(result.floors);
-          setResidents(result.residents);
+          setFloors(result.floors || []);
+          setResidents(result.residents || []);
           setPastResidents(result.pastResidents || []);
           setActivities(result.activities || []);
           setJoinRequests(result.joinRequests || []);
@@ -334,8 +334,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const result = await fetchHostelData(session.user.id);
         if (result.hostel) {
           setHostelProfile(result.hostel);
-          setFloors(result.floors);
-          setResidents(result.residents);
+          setFloors(result.floors || []);
+          setResidents(result.residents || []);
           setActivities(result.activities || []);
         }
       }
@@ -411,7 +411,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         emergencyPhone: localRequest.emergencyContact,
         aadhar: localRequest.aadharNumber,
         monthlyRent: params.monthlyRent,
-        stayTime: params.stayDurationDays,
+        stayTime: params.stayDurationDays ?? undefined,
         securityDeposit: params.securityDeposit ?? 0,
         isDepositPaid: params.isDepositPaid ?? false,
         photoPath: localRequest.photoPath,
@@ -524,10 +524,60 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // DB sync
     import('../lib/supabaseAPI').then(async ({ addResidentDb }) => {
       try {
-        await addResidentDb(hostelId, residentData.roomId, residentData.bedId, residentData, isReservedOnly, residentData.oldResidentId);
+        const newResidentId = await addResidentDb(hostelId, residentData.roomId, residentData.bedId, residentData, isReservedOnly, residentData.oldResidentId);
+
+        if (newResidentId) {
+          setResidents(prev => {
+            const nextResident: Resident = {
+              id: newResidentId,
+              name: residentData.name,
+              phone: residentData.phone,
+              roomId: residentData.roomId,
+              bedId: residentData.bedId,
+              joinDate: residentData.joinDate || new Date().toISOString().split('T')[0],
+              paymentStatus: 'due',
+              dueAmount: residentData.rent || 5000,
+              dueDate: residentData.vacatingDate || residentData.joinDate || new Date().toISOString().split('T')[0],
+              documentsComplete: false,
+              emergencyPhone: residentData.emergencyPhone,
+              aadhar: residentData.aadhar,
+              monthlyRent: residentData.rent || 5000,
+              stayTime: residentData.stayTime ?? undefined,
+              securityDeposit: residentData.securityDeposit || 0,
+              isDepositPaid: residentData.isDepositPaid || false,
+              vacatingDate: residentData.vacatingDate,
+              areaAndCity: residentData.areaAndCity,
+              state: residentData.state,
+              country: residentData.country,
+              createdAt: new Date().toISOString(),
+              paymentHistory: [],
+              photoUrl: undefined,
+              photoPath: undefined,
+              aadharDocumentUrl: undefined,
+              aadharDocumentPath: undefined,
+              hostelFormUrl: undefined,
+              hostelFormPath: undefined,
+            };
+
+            const withoutOld = residentData.oldResidentId
+              ? prev.filter(r => r.id !== residentData.oldResidentId)
+              : prev;
+
+            return [nextResident, ...withoutOld];
+          });
+
+          setFloors(prev => prev.map(floor => ({
+            ...floor,
+            rooms: floor.rooms.map(room => ({
+              ...room,
+              beds: room.beds.map(bed => bed.id === residentData.bedId ? { ...bed, status: isReservedOnly ? 'reserved' : 'occupied', residentId: newResidentId } : bed)
+            }))
+          })));
+        }
+
         toast.success(isReservedOnly ? 'Bed reserved successfully' : 'Resident added successfully');
         await syncStateWithDb();
-      } catch(e) { 
+      } catch (e: any) {
         console.error(e);
         import('sonner').then(({ toast }) => {
           const msg = (e && (e.message || e.error)) || (typeof e === 'string' ? e : JSON.stringify(e));
@@ -813,8 +863,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             fetchHostelData(session.user.id).then(result => {
               if (result.hostel) {
                 setHostelProfile(result.hostel);
-                setFloors(result.floors);
-                setResidents(result.residents);
+                setFloors(result.floors || []);
+                setResidents(result.residents || []);
                 setActivities(result.activities || []);
                 setJoinRequests(result.joinRequests || []);
                 setIsOnboardingComplete(true);

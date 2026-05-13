@@ -192,7 +192,7 @@ export default function Dashboard() {
   const dueResidents = residents.filter(r => (r.dueAmount || 0) > 0);
   const totalDueAmount = dueResidents.reduce((acc, curr) => acc + curr.dueAmount, 0);
 
-  // Calculate this month revenue for KPI
+  // Calculate this month's rent for KPI
   const now = new Date();
   const thisMonthRevenue = residents.reduce((total, resident) => {
     return total + (resident.paymentHistory || []).reduce((sum, payment) => {
@@ -283,7 +283,7 @@ export default function Dashboard() {
         <KpiCard title="Vacant Beds" value={vacantBeds} icon={PieChart} className="bg-white text-red-600" cardBg="bg-red-50 border-red-200" onClick={() => handleNavigateBuilding('vacant')} trendColor="text-red-600" />
         <KpiCard title="Pending Payments" value={`₹${totalDueAmount.toLocaleString('en-IN')}`} icon={AlertCircle} className="bg-white text-orange-600" cardBg="bg-orange-50 border-orange-200" onClick={() => handleNavigatePayments('Unpaid')} trendColor="text-orange-600" />
         <KpiCard
-          title="This Month Revenue"
+          title="This Month's Rent"
           value={thisMonthRevenue > 0 ? `₹${thisMonthRevenue.toLocaleString('en-IN')}` : '₹0'}
           icon={IndianRupee}
           trend={
@@ -297,7 +297,7 @@ export default function Dashboard() {
                       setIsRevenueInfoModalOpen(true);
                     }}
                     className="w-5 h-5 md:w-4 md:h-4 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center hover:bg-gray-200 transition-all shadow-sm active:scale-90 shrink-0"
-                    aria-label="Open expected revenue breakdown"
+                    aria-label="Open expected rent breakdown"
                   >
                     <ChevronRight className="w-3 h-3" />
                   </button>
@@ -350,9 +350,9 @@ export default function Dashboard() {
                   <div className="p-2 bg-white/20 rounded-xl backdrop-blur-md">
                     <PieChart className="w-5 h-5 text-white" />
                   </div>
-                  <h3 className="text-lg font-bold">Revenue Projections</h3>
+                  <h3 className="text-lg font-bold">Rent Projections</h3>
                 </div>
-                <p className="text-blue-100 text-sm">Monthly expected earnings overview</p>
+                <p className="text-blue-100 text-sm">Monthly expected rent overview</p>
               </div>
 
               <div className="p-6 space-y-5">
