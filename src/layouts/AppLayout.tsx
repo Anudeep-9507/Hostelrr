@@ -14,7 +14,8 @@ import {
   Menu,
   X,
   LogOut,
-  HelpCircle
+  HelpCircle,
+  History
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Toaster, toast } from 'sonner';
@@ -442,15 +443,20 @@ export default function AppLayout() {
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-gray-200 bg-white/95 px-1.5 pt-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur md:hidden">
         <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
           {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
+            const isHistorySlot = item.id === 'settings';
+            const Icon = isHistorySlot ? History : item.icon;
+            const isActive = isHistorySlot ? location.pathname === ROUTES.payments.path : activeTab === item.id;
             const badgeCount = item.id === 'dashboard' ? joinRequests.length : 0;
 
             return (
               <button
                 key={item.id}
                 onClick={() => {
-                  navigate(TAB_TO_ROUTE[item.id] || ROUTES.dashboard.path);
+                  if (isHistorySlot) {
+                    navigate(ROUTES.payments.path, { state: { openHistory: true } });
+                  } else {
+                    navigate(TAB_TO_ROUTE[item.id] || ROUTES.dashboard.path);
+                  }
                   setIsMobileMenuOpen(false);
                 }}
                 className={cn(
@@ -461,7 +467,7 @@ export default function AppLayout() {
                 )}
               >
                 <Icon className={cn("h-5 w-5 shrink-0", isActive ? "text-blue-600" : "text-gray-400")} />
-                <span className="max-w-full truncate leading-none">{item.label.replace(' & Beds', '')}</span>
+                <span className="max-w-full truncate leading-none">{isHistorySlot ? 'History' : item.label.replace(' & Beds', '')}</span>
                 {badgeCount > 0 && (
                   <span className="absolute right-3 top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[9px] font-bold leading-none text-white">
                     {badgeCount}

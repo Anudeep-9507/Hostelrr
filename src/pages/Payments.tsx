@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { ROUTES } from '../routes/routes';
 import { FLAGS } from '../core/env';
 import { useApp, PaymentsFilterType } from '../context/AppContext';
@@ -20,6 +20,7 @@ export const WhatsAppIcon = ({ className }: { className?: string }) => (
 
 export default function Payments() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { floors, residents, pastResidents, markAsPaid, markReminderSent, activePaymentsFilter: filter, setActivePaymentsFilter: setFilter, setGlobalSelectedResidentId, hostelProfile, isDemoMode, sharingRentMap } = useApp();
   const [showHistory, setShowHistory] = useState(false);
   const [historyTimeFilter, setHistoryTimeFilter] = useState<'All' | 'Today' | 'Monthly' | 'Yearly'>('All');
@@ -41,6 +42,12 @@ export default function Payments() {
   const [partialAmount, setPartialAmount] = useState<string>('');
   const [paymentDate, setPaymentDate] = useState<string>(getTodayIST());
   const [bulkReminderFilter, setBulkReminderFilter] = useState<'All' | 'Pending' | 'Late' | 'Partial'>('All');
+
+  React.useEffect(() => {
+    if ((location.state as any)?.openHistory) {
+      setShowHistory(true);
+    }
+  }, [location.state]);
 
   const { execute: executeMarkPaid, isLoading: isMarkingPaid } = useAsyncAction(async (id: string, method: 'UPI' | 'Cash', amount?: number, date?: string, name?: string, isPartial?: boolean) => {
     await markAsPaid(id, method, amount, date);
@@ -397,7 +404,7 @@ export default function Payments() {
           <button 
             onClick={() => setShowHistory(!showHistory)}
             className={cn(
-              "min-h-11 justify-center px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-sm flex items-center gap-2",
+              "min-h-9 sm:min-h-11 justify-center px-3 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all shadow-sm flex items-center gap-1.5 sm:gap-2",
               showHistory 
                 ? "bg-gray-800 hover:bg-gray-900 text-white" 
                 : "bg-white border border-gray-200 hover:border-gray-300 text-gray-700"
@@ -405,12 +412,12 @@ export default function Payments() {
           >
             {showHistory ? (
               <>
-                <ArrowLeft className="w-4 h-4" />
+                <ArrowLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 Go Back
               </>
             ) : (
               <>
-                <Clock className="w-4 h-4" />
+                <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 Payment History
               </>
             )}
@@ -758,7 +765,8 @@ export default function Payments() {
                 <h3 className="text-lg sm:text-xl font-bold text-gray-900">Transaction History</h3>
                 
 
-                <div className="mt-3 bg-white p-1 rounded-xl border border-gray-200 flex gap-1 overflow-x-auto no-scrollbar">
+                <div className="mt-3 w-full max-w-full overflow-x-auto no-scrollbar">
+                  <div className="inline-flex min-w-max bg-white p-1 rounded-xl border border-gray-200 gap-1">
                   {([
                     { value: 'All' as const, label: 'All Payments', icon: Wallet },
                     { value: 'Rent' as const, label: 'Rent Payments', icon: Wallet },
@@ -770,7 +778,7 @@ export default function Payments() {
                         key={option.value}
                         onClick={() => setHistoryPaymentFilter(option.value)}
                         className={cn(
-                          "px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5",
+                            "flex-none px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5",
                           historyPaymentFilter === option.value ? "bg-blue-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
                         )}
                       >
@@ -779,6 +787,7 @@ export default function Payments() {
                       </button>
                     );
                   })}
+                    </div>
                 </div>
               </div>
               

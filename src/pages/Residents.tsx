@@ -623,6 +623,11 @@ export default function Residents() {
     return 'unknown';
   };
   const selectedBedStatus = getSelectedBedStatus();
+  const depositFilterCounts = {
+    all: residents.length,
+    paid: residents.filter(r => r.isDepositPaid).length,
+    unpaid: residents.filter(r => !r.isDepositPaid).length,
+  };
 
   return (
     <div className="p-3 sm:p-4 md:p-8 max-w-7xl mx-auto md:h-[calc(100vh-64px)] overflow-x-hidden md:overflow-hidden flex flex-col relative w-full min-w-0">
@@ -697,9 +702,9 @@ export default function Residents() {
             >
               {viewMode === 'all' && (
                 <>
-                  <option value="all">Deposit: All</option>
-                  <option value="paid">Deposit: Paid</option>
-                  <option value="unpaid">Deposit: Unpaid</option>
+                  <option value="all">Deposit: All ({depositFilterCounts.all})</option>
+                  <option value="paid">Deposit: Paid ({depositFilterCounts.paid})</option>
+                  <option value="unpaid">Deposit: Unpaid ({depositFilterCounts.unpaid})</option>
                 </>
               )}
               {viewMode === 'floor' && (
@@ -842,12 +847,12 @@ export default function Residents() {
                      {selectedResident.paymentStatus === 'paid' ? (
                         <span className="text-sm font-bold text-green-600">Paid (₹{selectedResident.dueAmount > 0 ? selectedResident.dueAmount : 7500})</span>
                       ) : (
-                         <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center">
-                          <span className="text-sm font-bold text-red-600">₹{selectedResident.dueAmount}</span>
-                           <div className="flex flex-wrap items-center gap-2">
+                         <div className="flex w-full flex-col gap-3 sm:max-w-[320px] sm:items-end">
+                          <span className="text-sm font-bold text-red-600 self-start sm:self-auto">₹{selectedResident.dueAmount}</span>
+                          <div className="grid w-full grid-cols-2 gap-2">
                             <button
                               onClick={() => handleSendReminder(selectedResident as Resident)}
-                              className="min-h-9 bg-[#25D366] hover:bg-[#22c35e] text-white px-3 py-1.5 rounded-full text-[12px] font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                              className="h-11 min-w-0 w-full justify-center whitespace-nowrap bg-[#25D366] hover:bg-[#22c35e] text-white px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
                             >
                               <WhatsAppIcon className="w-3.5 h-3.5" /> Remind
                             </button>
@@ -859,7 +864,7 @@ export default function Residents() {
                                 setPartialAmount('');
                                 setPaymentDate(getTodayIST());
                               }}
-                              className="min-h-9 text-[#059669] bg-white border border-[#A7F3D0]/60 px-3 py-1.5 rounded-full text-[12px] font-semibold hover:bg-[#ECFDF5] transition-all flex items-center gap-1.5 shadow-sm"
+                              className="h-11 min-w-0 w-full justify-center whitespace-nowrap text-[#059669] bg-white border border-[#A7F3D0]/70 px-3 py-2 rounded-lg text-xs font-semibold hover:bg-[#ECFDF5] transition-all flex items-center gap-1.5 shadow-sm"
                             >
                               <CheckCircle2 className="w-3.5 h-3.5" /> Mark Paid
                             </button>
@@ -881,13 +886,13 @@ export default function Residents() {
                       {'isDepositPaid' in selectedResident && selectedResident.isDepositPaid ? (
                         <span className="text-sm font-bold text-green-600">Paid (₹{selectedResident.securityDeposit.toLocaleString('en-IN')})</span>
                       ) : (
-                        <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3">
-                          <span className="text-sm font-bold text-red-600">₹{selectedResident.securityDeposit.toLocaleString('en-IN')}</span>
-                          <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex w-full flex-col gap-3 sm:max-w-[320px] sm:items-end">
+                          <span className="text-sm font-bold text-red-600 self-start sm:self-auto">₹{selectedResident.securityDeposit.toLocaleString('en-IN')}</span>
+                          <div className="grid w-full grid-cols-2 gap-2">
                             <button
                               onClick={() => handleSendDepositReminder(selectedResident as Resident)}
                               disabled={isSendingReminder}
-                              className="min-h-9 bg-[#25D366] hover:bg-[#22c35e] disabled:opacity-60 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded-full text-[12px] font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                              className="h-11 min-w-0 w-full justify-center whitespace-nowrap bg-[#25D366] hover:bg-[#22c35e] disabled:opacity-60 disabled:cursor-not-allowed text-white px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
                             >
                               <WhatsAppIcon className="w-3.5 h-3.5" /> Remind
                             </button>
@@ -897,7 +902,7 @@ export default function Residents() {
                                 setDepositPaymentMethod('UPI');
                                 setDepositPaymentDate(getTodayIST());
                               }}
-                              className="min-h-9 text-[#059669] bg-white border border-[#A7F3D0]/60 px-3 py-1.5 rounded-full text-[12px] font-semibold hover:bg-[#ECFDF5] transition-all flex items-center gap-1.5 shadow-sm"
+                              className="h-11 min-w-0 w-full justify-center whitespace-nowrap text-[#059669] bg-white border border-[#A7F3D0]/70 px-3 py-2 rounded-lg text-xs font-semibold hover:bg-[#ECFDF5] transition-all flex items-center gap-1.5 shadow-sm"
                             >
                               <CheckCircle2 className="w-3.5 h-3.5" /> Mark Paid
                             </button>
