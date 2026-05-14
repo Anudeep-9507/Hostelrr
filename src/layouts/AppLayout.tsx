@@ -217,14 +217,19 @@ export default function AppLayout() {
           <X className="w-5 h-5" />
         </button>
 
-        <div className={cn("p-6 flex items-center transition-all", isSidebarCollapsed ? "md:justify-center" : "gap-2")}>
-          <div className="flex items-center gap-2 text-blue-600">
+        <div className={cn("flex flex-col transition-all", isSidebarCollapsed ? "md:items-center" : "gap-2")}>
+          <div className="flex items-center gap-2 text-blue-600 px-2 py-4">
             <img 
               src="https://res.cloudinary.com/dfkfysygf/image/upload/v1778354944/20260510_005330_xrv4xj.jpg" 
               alt="Hostelrr Logo" 
               className="w-10 h-10 shrink-0 rounded-lg object-cover"
             />
             <span className={cn("text-2xl font-bold tracking-tight transition-opacity", isSidebarCollapsed ? "md:hidden" : "block")}>Hostelrr</span>
+          </div>
+          <div className={cn("mx-2 px-3 py-2.5 border border-gray-200 rounded-lg transition-opacity", isSidebarCollapsed ? "md:hidden" : "block", "md:hidden")}>
+            <span className="text-base font-bold text-blue-900 block text-center truncate">
+              {hostelDisplayName}
+            </span>
           </div>
         </div>
 
@@ -364,7 +369,7 @@ export default function AppLayout() {
       {/* Main Content */}
       <main className={cn("flex-1 flex flex-col overflow-hidden relative transition-all duration-300 w-full min-w-0", isSidebarCollapsed ? "md:ml-20" : "md:ml-64")}>
         {/* Top Navbar */}
-        <header className="h-14 md:h-16 bg-white border-b border-gray-200 flex items-center justify-between gap-2 px-3 md:px-8 sticky top-0 z-20">
+        <header className="h-16 md:h-16 bg-white border-b border-gray-200 flex items-center justify-between gap-2 px-3 md:px-8 sticky top-0 z-20">
           <div className="flex items-center gap-2 md:gap-4 shrink-0">
             <button 
               onClick={() => setIsMobileMenuOpen(true)}
