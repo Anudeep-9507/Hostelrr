@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { FLAGS } from '../core/env';
 import DefaultAvatar from '../components/DefaultAvatar';
 import { Plus, Phone, X, History, ArrowLeft, Calendar, LogOut, UserPlus, Users, IndianRupee, FileText, CheckCircle2, Edit, User, Smartphone, Banknote, Upload, Image as ImageIcon } from 'lucide-react';
-import { cn, formatDate, getNamesFromIds, getTodayIST, convertToIST, getCurrentTimeIST, getResidentRentAmount } from '../lib/utils';
+import { cn, formatDate, getNamesFromIds, getTodayIST, convertToIST, getCurrentTimeIST, getResidentRentAmount, getResidentDueDisplayAmount } from '../lib/utils';
 import EmptyState from '../components/EmptyState';
 import { Resident, PastResident, MockPastResidents } from '../data/mock';
 import { AnimatePresence, motion } from 'motion/react';
@@ -98,10 +98,11 @@ export default function Residents() {
 
     const hostelName = hostelProfile?.hostelName || "My Hostel";
     const { roomName: roomNum } = getNamesFromIds(floors, resident.roomId, resident.bedId);
-    const rentAmount = getResidentRentAmount(resident, floors);
+    const rentAmount = getResidentDueDisplayAmount(resident, floors);
+    const isPartial = resident.paymentStatus === 'partially_paid';
     const dueDateDisplay = resident.dueDate ? getDayAndMonth(resident.dueDate) : 'Today';
 
-    const message = `Hello ${resident.name}, your hostel rent of *₹${rentAmount}* for Room ${roomNum} is currently pending.\n\nDue Date: *${dueDateDisplay}*\n\nPlease make the payment soon and reply *PAID* once done.\n\nThank you,\n${hostelName}\nPowered by Hostelrr`;
+    const message = `Hello ${resident.name}, your hostel rent ${isPartial ? `(remaining *₹${rentAmount}*)` : `of *₹${rentAmount}*`} for Room ${roomNum} is currently pending.\n\nDue Date: *${dueDateDisplay}*\n\nPlease make the payment soon and reply *PAID* once done.\n\nThank you,\n${hostelName}\nPowered by Hostelrr`;
 
     openWhatsAppReminder(resident, message);
   };
@@ -412,7 +413,7 @@ export default function Residents() {
     const { roomName: roomNum, bedName: bedLetter } = getNamesFromIds(floors, resident.roomId, resident.bedId);
     const joinDate = formatDate(resident.joinDate);
     const vacatingOn = resident.vacatingDate ? formatDate(resident.vacatingDate) : null;
-    const rentAmount = getResidentRentAmount(resident, floors);
+    const rentAmount = getResidentDueDisplayAmount(resident, floors);
     const bedStatus = getBedStatusFor(resident);
 
     return (
@@ -1665,7 +1666,7 @@ export default function Residents() {
 
                 <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 mb-6 flex flex-col items-center justify-center">
                   <span className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Amount to Collect</span>
-                  <span className="text-3xl font-black text-blue-700">₹{getResidentRentAmount(residentToMarkPaid, floors).toLocaleString('en-IN')}</span>
+                  <span className="text-3xl font-black text-blue-700">₹{getResidentDueDisplayAmount(residentToMarkPaid, floors).toLocaleString('en-IN')}</span>
                 </div>
                 <div className="space-y-6">
                   <div>
@@ -1759,23 +1760,23 @@ export default function Residents() {
                         
                         <div className={cn(
                           "p-3 rounded-xl border flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between",
-                          Number(partialAmount) > getResidentRentAmount(residentToMarkPaid, floors)
+                          Number(partialAmount) > getResidentDueDisplayAmount(residentToMarkPaid, floors)
                             ? "bg-red-50 border-red-100"
                             : "bg-blue-50 border-blue-100"
                         )}>
                           <span className={cn(
                             "text-sm font-medium",
-                            Number(partialAmount) > getResidentRentAmount(residentToMarkPaid, floors) ? "text-red-800" : "text-blue-800"
+                            Number(partialAmount) > getResidentDueDisplayAmount(residentToMarkPaid, floors) ? "text-red-800" : "text-blue-800"
                           )}>
-                            {Number(partialAmount) > getResidentRentAmount(residentToMarkPaid, floors) ? "Status:" : "Remaining Amount:"}
+                            {Number(partialAmount) > getResidentDueDisplayAmount(residentToMarkPaid, floors) ? "Status:" : "Remaining Amount:"}
                           </span>
                           <span className={cn(
                             "text-sm font-bold",
-                            Number(partialAmount) > getResidentRentAmount(residentToMarkPaid, floors) ? "text-red-900" : "text-blue-900"
+                            Number(partialAmount) > getResidentDueDisplayAmount(residentToMarkPaid, floors) ? "text-red-900" : "text-blue-900"
                           )}>
-                            {Number(partialAmount) > getResidentRentAmount(residentToMarkPaid, floors)
-                              ? `Overpaid by ₹${(Number(partialAmount) - getResidentRentAmount(residentToMarkPaid, floors)).toLocaleString('en-IN')}`
-                              : `₹${(getResidentRentAmount(residentToMarkPaid, floors) - Number(partialAmount)).toLocaleString('en-IN')}`
+                            {Number(partialAmount) > getResidentDueDisplayAmount(residentToMarkPaid, floors)
+                              ? `Overpaid by ₹${(Number(partialAmount) - getResidentDueDisplayAmount(residentToMarkPaid, floors)).toLocaleString('en-IN')}`
+                              : `₹${(getResidentDueDisplayAmount(residentToMarkPaid, floors) - Number(partialAmount)).toLocaleString('en-IN')}`
                             }
                           </span>
                         </div>

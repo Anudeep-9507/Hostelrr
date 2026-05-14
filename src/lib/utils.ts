@@ -130,6 +130,22 @@ export function getResidentRentAmount(resident: Pick<Resident, 'roomId' | 'month
   return getRoomBaseRent(floors, resident.roomId);
 }
 
+/**
+ * Returns the amount to display as "amount owed / to collect" for a resident.
+ * For partially_paid residents: returns dueAmount (the remaining balance).
+ * For all others: returns the full monthly rent (via getResidentRentAmount).
+ */
+export function getResidentDueDisplayAmount(
+  resident: Pick<Resident, 'roomId' | 'monthlyRent' | 'dueAmount' | 'paymentStatus'> | null | undefined,
+  floors: Floor[]
+): number {
+  if (!resident) return 0;
+  if (resident.paymentStatus === 'partially_paid') {
+    return Number(resident.dueAmount) || 0;
+  }
+  return getResidentRentAmount(resident, floors);
+}
+
 export function isSecurityDepositPayment(payment: { title?: string } | null | undefined) {
   return payment?.title === 'Security Deposit';
 }
