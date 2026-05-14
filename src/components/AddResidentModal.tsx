@@ -130,17 +130,17 @@ export default function AddResidentModal({
     }
   }, [isOpen, reAddData, floors, availableSharingTypes]);
 
-  // Derived pre-filled rent from sharingRentMap or room's baseRent
+  // Derived pre-filled rent from room's baseRent or sharingRentMap
   const prefilledRent = React.useMemo(() => {
     const targetRoomId = selectedRoomId;
     if (!targetRoomId) return '';
     for (const floor of floors) {
       const room = floor.rooms.find(r => r.id === targetRoomId);
       if (room) {
+        if (room.baseRent) return String(room.baseRent);
         if (sharingRentMap && sharingRentMap[room.beds.length]) {
           return String(sharingRentMap[room.beds.length]);
         }
-        if (room.baseRent) return String(room.baseRent);
       }
     }
     return '';

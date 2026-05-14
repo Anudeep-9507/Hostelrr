@@ -10,6 +10,7 @@ import {
   BedDouble,
   QrCode,
   Users,
+  Bell,
   Activity,
   Menu,
   X,
@@ -33,11 +34,60 @@ export default function AppLayout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const { residents, floors, setGlobalSelectedResidentId, setGlobalSelectedRoomId, addJoinRequest, joinRequests, isDemoMode, toggleDemoMode, hostelProfile } = useApp();
+  const [seenActivityIds, setSeenActivityIds] = useState<Set<string | number>>(new Set());
+  const [hasLoadedSeenActivityIds, setHasLoadedSeenActivityIds] = useState(false);
+  const { residents, floors, setGlobalSelectedResidentId, setGlobalSelectedRoomId, addJoinRequest, joinRequests, isDemoMode, toggleDemoMode, hostelProfile, activities } = useApp();
   const [isAddResidentModalOpen, setIsAddResidentModalOpen] = useState(false);
   const [addResidentData, setAddResidentData] = useState<any>(null);
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+
+  const getSeenActivityStorageKey = () => `hostelrr_seen_activity_ids:${hostelProfile?.id || 'default'}`;
+
+  const loadSeenActivityIds = React.useCallback(() => {
+    try {
+      const rawValue = localStorage.getItem(getSeenActivityStorageKey());
+      if (!rawValue) {
+        setSeenActivityIds(new Set());
+        return;
+      }
+
+      const parsedValue = JSON.parse(rawValue);
+      if (Array.isArray(parsedValue)) {
+        setSeenActivityIds(new Set(parsedValue));
+      }
+    } catch {
+      setSeenActivityIds(new Set());
+    } finally {
+      setHasLoadedSeenActivityIds(true);
+    }
+  }, [hostelProfile?.id]);
+
+  React.useEffect(() => {
+    setHasLoadedSeenActivityIds(false);
+    loadSeenActivityIds();
+  }, [hostelProfile?.id, loadSeenActivityIds]);
+
+  React.useEffect(() => {
+    const handleActivitySeenUpdate = () => {
+      loadSeenActivityIds();
+    };
+
+    window.addEventListener('activity-seen-updated', handleActivitySeenUpdate);
+    return () => window.removeEventListener('activity-seen-updated', handleActivitySeenUpdate);
+  }, [loadSeenActivityIds]);
+
+  React.useEffect(() => {
+    if (!hasLoadedSeenActivityIds) return;
+
+    try {
+      localStorage.setItem(getSeenActivityStorageKey(), JSON.stringify([...seenActivityIds]));
+    } catch {
+      // Ignore storage errors.
+    }
+  }, [hasLoadedSeenActivityIds, seenActivityIds, hostelProfile?.id]);
+
+  const unseenActivityCount = activities ? activities.filter(a => !seenActivityIds.has(a.id)).length : 0;
 
   const hostelDisplayName = hostelProfile?.hostelName || 'My Hostel';
   const ownerDisplayName = hostelProfile?.ownerName || 'Hostel Owner';
@@ -215,6 +265,20 @@ export default function AppLayout() {
               </button>
             )
           })}
+          
+          {/* Help button — mobile sidebar only */}
+          <button
+            onClick={() => {
+              navigate(ROUTES.settings.path);
+              setIsMobileMenuOpen(false);
+            }}
+            className="md:hidden w-full flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-colors text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+          >
+            <div className="flex items-center gap-3">
+              <HelpCircle className="w-5 h-5 shrink-0 text-gray-400" />
+              <span>Help</span>
+            </div>
+          </button>
         </nav>
 
           {FLAGS.demoMode && (
@@ -421,9 +485,23 @@ export default function AppLayout() {
               <QrCode className="w-4 h-4" />
               <span className="hidden sm:inline">Hostel QR</span>
             </button>
+            {/* Notification button — mobile only */}
+            <button 
+              onClick={() => {
+                navigate(ROUTES.dashboard.path, { state: { showActivity: true } });
+              }}
+              className="md:hidden flex h-10 shrink-0 items-center gap-2 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 px-2.5 py-2 rounded-xl text-sm font-semibold transition-colors relative"
+            >
+              <Bell className="w-4 h-4" />
+              {unseenActivityCount > 0 && (
+                <span className="absolute top-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold leading-none text-white">
+                  {unseenActivityCount > 99 ? '99+' : unseenActivityCount}
+                </span>
+              )}
+            </button>
             <button 
               onClick={() => navigate(ROUTES.settings.path)}
-              className="flex h-10 shrink-0 items-center gap-2 bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-700 px-2.5 sm:px-3 py-2 rounded-xl text-sm font-semibold transition-colors"
+              className="hidden md:flex h-10 shrink-0 items-center gap-2 bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-700 px-2.5 sm:px-3 py-2 rounded-xl text-sm font-semibold transition-colors"
             >
               <HelpCircle className="w-4 h-4" />
               <span className="hidden sm:inline">Help</span>

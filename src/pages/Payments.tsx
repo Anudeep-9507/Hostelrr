@@ -4,8 +4,8 @@ import { ROUTES } from '../routes/routes';
 import { FLAGS } from '../core/env';
 import { useApp, PaymentsFilterType } from '../context/AppContext';
 import DefaultAvatar from '../components/DefaultAvatar';
-import { CheckCircle2, Wallet, Clock, AlertTriangle, Check, Send, X, Smartphone, Banknote, IndianRupee, AlertCircle, Info, PieChart, Users, ChevronRight, Search, Calendar, ArrowLeft } from 'lucide-react';
-import { cn, formatDate, getNamesFromIds, getTodayIST, formatTimeIST, convertToIST, isSecurityDepositPayment } from '../lib/utils';
+import { CheckCircle2, Wallet, Clock, AlertTriangle, Check, Send, X, Smartphone, Banknote, IndianRupee, AlertCircle, Info, PieChart, Users, ChevronRight, Search, Calendar, ArrowLeft, FileText } from 'lucide-react';
+import { cn, formatDate, getNamesFromIds, getTodayIST, formatTimeIST, convertToIST, isSecurityDepositPayment, getResidentRentAmount } from '../lib/utils';
 import { Resident } from '../data/mock';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
@@ -107,6 +107,10 @@ export default function Payments() {
     return 'unknown';
   };
 
+  const isResidentVacated = (residentId: string) => {
+    return pastResidents.some(pr => pr.id === residentId);
+  };
+
   React.useEffect(() => {
     if (residentToMarkPaid) {
       setPaymentDate(getTodayIST());
@@ -128,7 +132,7 @@ export default function Payments() {
 
     const hostelName = hostelProfile?.hostelName || "My Hostel";
     const roomNum = getNamesFromIds(floors, resident.roomId, resident.bedId).roomName;
-    const rentAmount = resident.dueAmount > 0 ? resident.dueAmount : 7500;
+    const rentAmount = getResidentRentAmount(resident, floors);
     const dueDateDisplay = resident.dueDate ? getDayAndMonth(resident.dueDate) : 'Today';
 
     const message = `Hello ${resident.name}, your hostel rent of *₹${rentAmount}* for Room ${roomNum} is currently pending.\n\nDue Date: *${dueDateDisplay}*\n\nPlease make the payment soon and reply *PAID* once done.\n\nThank you,\n${hostelName}\nPowered by Hostelrr`;
@@ -170,7 +174,7 @@ export default function Payments() {
   };
 
   const getMockHistory = (resident: Resident) => {
-    const rentAmount = resident.dueAmount > 0 ? resident.dueAmount : 7500;
+    const rentAmount = getResidentRentAmount(resident, floors);
     const history = resident.paymentHistory ? [...resident.paymentHistory] : [];
     
     if (resident.securityDeposit && resident.isDepositPaid) {
@@ -410,6 +414,22 @@ export default function Payments() {
       <div className="mb-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Payments</h1>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+          <button
+            onClick={() => setShowHistory(prev => !prev)}
+            className="hidden md:inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-700 font-semibold hover:bg-gray-50 transition-colors shadow-sm"
+          >
+            <FileText className="w-4 h-4" />
+            {showHistory ? 'Back to Payments' : 'Payment History'}
+          </button>
+          {!showHistory && dueResidents.length > 0 && (
+            <button
+              onClick={() => setIsBulkModalOpen(true)}
+              className="hidden md:inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#25D366] hover:bg-[#22c35e] text-white font-bold transition-colors shadow-sm"
+            >
+              <WhatsAppIcon className="w-4 h-4" />
+              Remind All
+            </button>
+          )}
         </div>
       </div>
 
@@ -666,7 +686,7 @@ export default function Payments() {
                       : (r.paymentStatus === 'late' 
                         ? `Due: ${formatDate(r.dueDate || getTodayIST())}` 
                         : `Due: ${formatDate(r.dueDate || getTodayIST())}`);
-                    const rentAmount = r.dueAmount > 0 ? r.dueAmount : (r.monthlyRent || 7500);
+                    const rentAmount = getResidentRentAmount(r, floors);
 
                     return (
                       <div key={r.id} className="flex flex-col border-b border-gray-100 last:border-0 hover:bg-gray-50/50 transition-colors">
@@ -881,17 +901,21 @@ export default function Payments() {
                         const bedStatus = getBedStatusForResident(payment.roomId, payment.bedId);
                       const formattedDate = getTransactionDateForDisplay(payment.date);
                       const formattedTime = formatTimeIST(payment.date);
+                      const vacated = isResidentVacated(payment.residentId);
 
                       return (
                         <tr key={`${payment.id}-${idx}`} className={cn(
                           "hover:bg-gray-50/50 transition-colors border-l-4",
-                          payment.status === 'partial' ? "border-l-purple-600 bg-purple-50" : "border-l-transparent"
+                          vacated ? "border-l-red-600 bg-red-50" : (payment.status === 'partial' ? "border-l-purple-600 bg-purple-50" : "border-l-transparent")
                         )}>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-600">{formattedDate}</td>
                           <td className="px-6 py-4">
                             <div className="flex flex-col">
                               <span className="text-sm font-bold text-gray-900 flex items-center gap-2 flex-wrap">
                                 {payment.residentName}
+                                {vacated && (
+                                  <span className="px-1.5 py-0.5 rounded-md bg-red-100 text-red-700 text-[10px] font-bold uppercase tracking-wider leading-none">Vacated</span>
+                                )}
                                 {bedStatus === 'reserved' && (
                                   <span className="px-1.5 py-0.5 rounded-md bg-blue-100 text-blue-700 text-[10px] font-bold uppercase tracking-wider leading-none">Reserved</span>
                                 )}
@@ -935,16 +959,22 @@ export default function Payments() {
                     const { roomName } = getNamesFromIds(floors, payment.roomId, payment.bedId);
                     const formattedDate = getTransactionDateForDisplay(payment.date);
                     const formattedTime = formatTimeIST(payment.date);
+                    const vacated = isResidentVacated(payment.residentId);
 
                     return (
                       <div key={`${payment.id}-${idx}`} className={cn(
                         "p-4 flex flex-col gap-3 transition-colors border-l-4",
-                        payment.status === 'partial' ? "border-l-purple-600 bg-purple-50" : "border-l-transparent"
+                        vacated ? "border-l-red-600 bg-red-50" : (payment.status === 'partial' ? "border-l-purple-600 bg-purple-50" : "border-l-transparent")
                       )}>
                         <div className="flex justify-between items-start">
                           <div>
-                            <p className="text-sm font-bold text-gray-900">{payment.residentName}</p>
-                            <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">{payment.title || 'Rent Payment'}</p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-sm font-bold text-gray-900">{payment.residentName}</p>
+                              {vacated && (
+                                <span className="px-1.5 py-0.5 rounded-md bg-red-100 text-red-700 text-[9px] font-bold uppercase tracking-wider leading-none">Vacated</span>
+                              )}
+                            </div>
+                            <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mt-1">{payment.title || 'Rent Payment'}</p>
                           </div>
                           <div className="text-right">
                             <p className="text-sm font-black text-gray-900">₹{payment.amount.toLocaleString('en-IN')}</p>
@@ -1099,7 +1129,7 @@ export default function Payments() {
 
                 <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 mb-6 flex flex-col items-center justify-center">
                   <span className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Amount to Collect</span>
-                  <span className="text-2xl sm:text-3xl font-black text-blue-700">₹{(residentToMarkPaid.dueAmount > 0 ? residentToMarkPaid.dueAmount : 7500).toLocaleString('en-IN')}</span>
+                  <span className="text-2xl sm:text-3xl font-black text-blue-700">₹{getResidentRentAmount(residentToMarkPaid, floors).toLocaleString('en-IN')}</span>
                 </div>
                 <div className="space-y-6">
                   <div>
@@ -1193,23 +1223,23 @@ export default function Payments() {
                         
                         <div className={cn(
                           "p-3 rounded-xl border flex items-center justify-between",
-                          Number(partialAmount) > (residentToMarkPaid.dueAmount > 0 ? residentToMarkPaid.dueAmount : 7500)
+                          Number(partialAmount) > getResidentRentAmount(residentToMarkPaid, floors)
                             ? "bg-red-50 border-red-100"
                             : "bg-blue-50 border-blue-100"
                         )}>
                           <span className={cn(
                             "text-sm font-medium",
-                            Number(partialAmount) > (residentToMarkPaid.dueAmount > 0 ? residentToMarkPaid.dueAmount : 7500) ? "text-red-800" : "text-blue-800"
+                            Number(partialAmount) > getResidentRentAmount(residentToMarkPaid, floors) ? "text-red-800" : "text-blue-800"
                           )}>
-                            {Number(partialAmount) > (residentToMarkPaid.dueAmount > 0 ? residentToMarkPaid.dueAmount : 7500) ? "Status:" : "Remaining:"}
+                            {Number(partialAmount) > getResidentRentAmount(residentToMarkPaid, floors) ? "Status:" : "Remaining:"}
                           </span>
                           <span className={cn(
                             "text-sm font-bold text-right",
-                            Number(partialAmount) > (residentToMarkPaid.dueAmount > 0 ? residentToMarkPaid.dueAmount : 7500) ? "text-red-900" : "text-blue-900"
+                            Number(partialAmount) > getResidentRentAmount(residentToMarkPaid, floors) ? "text-red-900" : "text-blue-900"
                           )}>
-                            {Number(partialAmount) > (residentToMarkPaid.dueAmount > 0 ? residentToMarkPaid.dueAmount : 7500) 
-                              ? `Overpaid by ₹${(Number(partialAmount) - (residentToMarkPaid.dueAmount > 0 ? residentToMarkPaid.dueAmount : 7500)).toLocaleString('en-IN')}`
-                              : `₹${((residentToMarkPaid.dueAmount > 0 ? residentToMarkPaid.dueAmount : 7500) - Number(partialAmount)).toLocaleString('en-IN')}`
+                            {Number(partialAmount) > getResidentRentAmount(residentToMarkPaid, floors)
+                              ? `Overpaid by ₹${(Number(partialAmount) - getResidentRentAmount(residentToMarkPaid, floors)).toLocaleString('en-IN')}`
+                              : `₹${(getResidentRentAmount(residentToMarkPaid, floors) - Number(partialAmount)).toLocaleString('en-IN')}`
                             }
                           </span>
                         </div>

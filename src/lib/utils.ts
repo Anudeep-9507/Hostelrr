@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { Floor } from "../data/mock";
+import type { Floor, Resident } from "../data/mock";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -102,6 +102,32 @@ export function getNamesFromIds(floors: Floor[], roomId: string | undefined, bed
   }
 
   return { roomName, bedName };
+}
+
+export function getRoomBaseRent(floors: Floor[], roomId: string | undefined): number {
+  if (!floors || !roomId) return 0;
+
+  for (const floor of floors) {
+    for (const room of floor.rooms) {
+      if (room.id === roomId) {
+        return Number(room.baseRent) || 0;
+      }
+    }
+  }
+
+  return 0;
+}
+
+export function getResidentRentAmount(resident: Pick<Resident, 'roomId' | 'monthlyRent' | 'dueAmount'> | null | undefined, floors: Floor[]): number {
+  if (!resident) return 0;
+
+  const monthlyRent = Number(resident.monthlyRent);
+  if (monthlyRent > 0) return monthlyRent;
+
+  const dueAmount = Number(resident.dueAmount);
+  if (dueAmount > 0) return dueAmount;
+
+  return getRoomBaseRent(floors, resident.roomId);
 }
 
 export function isSecurityDepositPayment(payment: { title?: string } | null | undefined) {

@@ -1,5 +1,4 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { ROUTES } from '../routes/routes';
 import { FLAGS } from '../core/env';
@@ -152,10 +151,77 @@ function getActivityDetails(activity: DashboardActivity) {
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { floors, residents, pastResidents, activities, joinRequests, rejectJoinRequest, markAsPaid, setActiveBuildingFilter, setActivePaymentsFilter, hostelProfile, sharingRentMap, syncStateWithDb } = useApp();
   const [requestSearch, setRequestSearch] = useState('');
   const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
+  const [activityModalOpenedFromMobile, setActivityModalOpenedFromMobile] = useState(false);
   const [isRevenueInfoModalOpen, setIsRevenueInfoModalOpen] = useState(false);
+  const [seenActivityIds, setSeenActivityIds] = useState<Set<string | number>>(new Set());
+  const [hasLoadedSeenActivityIds, setHasLoadedSeenActivityIds] = useState(false);
+
+  const getSeenActivityStorageKey = () => `hostelrr_seen_activity_ids:${hostelProfile?.id || 'default'}`;
+
+  const syncSeenActivityIds = (activityIds: Set<string | number>) => {
+    setSeenActivityIds(activityIds);
+    try {
+      localStorage.setItem(getSeenActivityStorageKey(), JSON.stringify([...activityIds]));
+    } catch {
+      // Ignore storage errors.
+    }
+
+    window.dispatchEvent(new CustomEvent('activity-seen-updated'));
+  };
+
+  React.useEffect(() => {
+    setHasLoadedSeenActivityIds(false);
+
+    try {
+      const rawValue = localStorage.getItem(getSeenActivityStorageKey());
+      if (!rawValue) {
+        setSeenActivityIds(new Set());
+        return;
+      }
+
+      const parsedValue = JSON.parse(rawValue);
+      if (Array.isArray(parsedValue)) {
+        setSeenActivityIds(new Set(parsedValue));
+      }
+    } catch {
+      setSeenActivityIds(new Set());
+    } finally {
+      setHasLoadedSeenActivityIds(true);
+    }
+  }, [hostelProfile?.id]);
+
+  // Open activity modal if navigated from mobile Activity button
+  React.useEffect(() => {
+    if ((location.state as any)?.showActivity) {
+      setIsActivityModalOpen(true);
+      setActivityModalOpenedFromMobile(true);
+      // Consume route state once so modal does not reopen on later dashboard updates
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [activities, location.pathname, location.state, navigate]);
+
+  const handleOpenActivityModal = () => {
+    setIsActivityModalOpen(true);
+    setActivityModalOpenedFromMobile(false);
+    // Mark all current activities as seen when manually opening modal
+    if (activities && activities.length > 0) {
+      syncSeenActivityIds(new Set(activities.map(a => a.id)));
+    }
+  };
+
+  const handleCloseActivityModal = () => {
+    setIsActivityModalOpen(false);
+
+    if (activityModalOpenedFromMobile && activities && activities.length > 0) {
+      syncSeenActivityIds(new Set(activities.map(a => a.id)));
+    }
+
+    setActivityModalOpenedFromMobile(false);
+  };
 
   // Auto-sync join requests every 10 seconds to catch new submissions
   React.useEffect(() => {
@@ -649,12 +715,12 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Activity */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+          {/* Activity — desktop only */}
+          <div className="hidden md:flex bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex-col">
             <div className="p-4 md:p-5 border-b border-gray-100 flex justify-between items-center gap-3 bg-gray-50/50">
               <h3 className="text-lg font-bold text-gray-900">Activity</h3>
               <button 
-                onClick={() => setIsActivityModalOpen(true)}
+                onClick={handleOpenActivityModal}
                 className="min-h-10 px-2 text-sm font-medium text-blue-600 hover:text-blue-700"
               >
                 View All
@@ -665,7 +731,7 @@ export default function Dashboard() {
                 <div className="p-8 text-center text-gray-500 text-sm">No recent activity</div>
               ) : (
                 ([...vacatingAlerts, ...activities]).slice(0, 3).map((a, i) => (
-                  <div key={a.id} className="flex items-start gap-3 sm:gap-4 p-3 hover:bg-gray-50 rounded-xl transition-colors">
+                  <div key={a.id} className={cn("flex items-start gap-3 sm:gap-4 p-3 hover:bg-gray-50 rounded-xl transition-colors", seenActivityIds.has(a.id) ? "" : "bg-blue-50/50 border border-blue-100/50")}>
                     <div className={cn("flex items-center justify-center w-10 h-10 rounded-full shrink-0", a.icon === 'AlertCircle' ? "bg-orange-50 text-orange-600" : "bg-blue-50 text-blue-600")}>
                       {a.icon === 'UserPlus' && <Users className="w-5 h-5" />}
                       {a.icon === 'IndianRupee' && <IndianRupee className="w-5 h-5" />}
@@ -674,7 +740,12 @@ export default function Dashboard() {
                       {a.icon === 'AlertCircle' && <AlertCircle className="w-5 h-5" />}
                     </div>
                     <div className="flex min-w-0 flex-col flex-1 pt-0.5">
-                      <span className="font-medium text-sm text-gray-900">{a.text}</span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-sm text-gray-900">{a.text}</span>
+                        {!seenActivityIds.has(a.id) && (
+                          <span className="px-1.5 py-0.5 rounded-md bg-blue-600 text-white text-[9px] font-bold uppercase tracking-wider leading-none">New</span>
+                        )}
+                      </div>
                       <span className="text-xs text-gray-500 mt-0.5">{a.time}</span>
                     </div>
                   </div>
@@ -685,7 +756,7 @@ export default function Dashboard() {
                 <div className="absolute left-0 right-0 bottom-0 pointer-events-none">
                   <div className="w-full h-20 bg-gradient-to-t from-white to-transparent z-0"></div>
                   <button
-                    onClick={() => setIsActivityModalOpen(true)}
+                    onClick={handleOpenActivityModal}
                     className="pointer-events-auto absolute bottom-3 left-1/2 transform -translate-x-1/2 z-10 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full flex items-center gap-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-white"
                     aria-label="View more activity"
                   >
@@ -705,7 +776,7 @@ export default function Dashboard() {
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4">
             <div 
               className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" 
-              onClick={() => setIsActivityModalOpen(false)}
+              onClick={handleCloseActivityModal}
             ></div>
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -719,7 +790,7 @@ export default function Dashboard() {
                   <p className="text-sm text-gray-500">All recent activities in your hostel</p>
                 </div>
                 <button 
-                  onClick={() => setIsActivityModalOpen(false)}
+                  onClick={handleCloseActivityModal}
                   className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-500 shrink-0"
                 >
                   <X className="w-5 h-5" />
@@ -730,7 +801,7 @@ export default function Dashboard() {
                   <div className="p-12 text-center text-gray-500">No activity history found.</div>
                 ) : (
                   [...vacatingAlerts, ...activities].map((a, i) => (
-                    <div key={a.id} className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 hover:bg-gray-50 rounded-xl transition-colors border border-transparent hover:border-gray-100 group">
+                    <div key={a.id} className={cn("flex items-start gap-3 sm:gap-4 p-3 sm:p-4 hover:bg-gray-50 rounded-xl transition-colors border group", seenActivityIds.has(a.id) ? "border-transparent hover:border-gray-100" : "border-blue-100/50 bg-blue-50/50")}>
                       <div className={cn("flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-full shrink-0 group-hover:scale-110 transition-transform", a.icon === 'AlertCircle' ? "bg-orange-50 text-orange-600" : "bg-blue-50 text-blue-600")}>
                         {a.icon === 'UserPlus' && <Users className="w-5 h-5 sm:w-6 sm:h-6" />}
                         {a.icon === 'IndianRupee' && <IndianRupee className="w-5 h-5 sm:w-6 sm:h-6" />}
@@ -739,7 +810,12 @@ export default function Dashboard() {
                         {a.icon === 'AlertCircle' && <AlertCircle className="w-5 h-5 sm:w-6 sm:h-6" />}
                       </div>
                       <div className="flex min-w-0 flex-col flex-1 pt-1">
-                        <span className="font-medium text-sm sm:text-base text-gray-900">{a.text}</span>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-sm sm:text-base text-gray-900">{a.text}</span>
+                          {!seenActivityIds.has(a.id) && (
+                            <span className="px-1.5 py-0.5 rounded-md bg-blue-600 text-white text-[9px] font-bold uppercase tracking-wider leading-none">New</span>
+                          )}
+                        </div>
                         <span className="text-sm text-gray-500 mt-1 flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" />{a.time}</span>
                       </div>
                     </div>

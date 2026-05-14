@@ -5,6 +5,7 @@ import {
 } from '../data/mock';
 import { toast } from 'sonner';
 import { FLAGS } from '../core/env';
+import { getResidentRentAmount, getRoomBaseRent } from '../lib/utils';
 
 export type PaymentsFilterType = 'All' | 'Paid' | 'Unpaid' | 'Pending' | 'Late' | 'Partially Paid';
 
@@ -473,7 +474,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Determine how much to pay
     const res = residents.find(r => r.id === residentId);
     if (!res) return;
-    const paidValue = partialAmount !== undefined ? partialAmount : (res.dueAmount > 0 ? res.dueAmount : 7500);
+    const paidValue = partialAmount !== undefined ? partialAmount : getResidentRentAmount(res, floors);
 
     // Optimistic Update
     // ... we can skip detailed optimistic due to refetch ...
@@ -528,6 +529,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const newResidentId = await addResidentDb(hostelId, residentData.roomId, residentData.bedId, residentData, isReserved, residentData.oldResidentId);
 
         if (newResidentId) {
+          const resolvedRent = Number(residentData.rent) > 0 ? Number(residentData.rent) : getRoomBaseRent(floors, residentData.roomId);
           setResidents(prev => {
             const nextResident: Resident = {
               id: newResidentId,
@@ -537,12 +539,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               bedId: residentData.bedId,
               joinDate: residentData.joinDate || new Date().toISOString().split('T')[0],
               paymentStatus: 'due',
-              dueAmount: residentData.rent || 5000,
+              dueAmount: resolvedRent,
               dueDate: residentData.vacatingDate || residentData.joinDate || new Date().toISOString().split('T')[0],
               documentsComplete: false,
               emergencyPhone: residentData.emergencyPhone,
               aadhar: residentData.aadhar,
-              monthlyRent: residentData.rent || 5000,
+              monthlyRent: resolvedRent,
               stayTime: residentData.stayTime ?? undefined,
               securityDeposit: residentData.securityDeposit || 0,
               isDepositPaid: residentData.isDepositPaid || false,

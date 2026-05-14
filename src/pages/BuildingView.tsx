@@ -1171,85 +1171,33 @@ export default function BuildingView() {
 
               <div className="flex-1 overflow-y-auto max-h-[70vh]">
                 <div className="px-6 py-4 border-b border-gray-100 space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-gray-900 block">Room Number <span className="text-red-500">*</span></label>
-                  <input 
-                    type="text"
-                    value={editRoomNumber}
-                    onChange={(e) => setEditRoomNumber(e.target.value)}
-                    className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-gray-900 block">Sharing Type <span className="text-red-500">*</span></label>
-                    <div className="relative">
-                      <select 
-                        value={isEditCustomSharing ? 'custom' : editRoomBedsNum}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          if (val === 'custom') {
-                            setIsEditCustomSharing(true);
-                            setEditRoomBedsNum('');
-                          } else {
-                            setIsEditCustomSharing(false);
-                            setEditRoomBedsNum(val);
-                            const rentFromMap = sharingRentMap[parseInt(val)];
-                            if (rentFromMap) setEditRoomRent(String(rentFromMap));
-                          }
-                        }}
-                        className="w-full appearance-none border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 pr-10 text-sm outline-none transition-all bg-white cursor-pointer"
-                      >
-                        <option value="">Select sharing</option>
-                        {(Object.keys(sharingRentMap).length > 0
-                          ? Object.keys(sharingRentMap).map(Number).sort((a, b) => a - b)
-                          : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-                        ).map(num => (
-                          <option key={num} value={num}>{num} Sharing</option>
-                        ))}
-                        <option value="custom">Custom...</option>
-                      </select>
-                      <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-500">
-                        <ChevronDown className="w-4 h-4" />
+                    <label className="text-sm font-medium text-gray-900 block">Room Number <span className="text-red-500">*</span></label>
+                    <input 
+                      type="text"
+                      value={editRoomNumber}
+                      onChange={(e) => setEditRoomNumber(e.target.value)}
+                      className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-gray-900 block">Rent <span className="text-red-500">*</span></label>
+                      <div className="relative">
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">₹</div>
+                        <input 
+                          type="number" 
+                          value={editRoomRent}
+                          onChange={(e) => setEditRoomRent(e.target.value)}
+                          placeholder="7,500" 
+                          className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl pl-8 pr-4 py-3 text-sm outline-none transition-all"
+                        />
                       </div>
                     </div>
                   </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-gray-900 block">Rent <span className="text-red-500">*</span></label>
-                    <div className="relative">
-                      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">₹</div>
-                      <input 
-                        type="number" 
-                        value={editRoomRent}
-                        onChange={(e) => setEditRoomRent(e.target.value)}
-                        placeholder="7,500" 
-                        className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl pl-8 pr-4 py-3 text-sm outline-none transition-all"
-                      />
-                    </div>
-                  </div>
                 </div>
 
-                {isEditCustomSharing && (
-                  <motion.div 
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    className="space-y-1.5"
-                  >
-                    <label className="text-sm font-medium text-gray-900 block">Enter Sharing Count <span className="text-red-500">*</span></label>
-                    <input 
-                      type="number" 
-                      min="1"
-                      value={editCustomSharingValue}
-                      onChange={(e) => setEditCustomSharingValue(e.target.value)}
-                      placeholder="e.g. 5" 
-                      className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all"
-                    />
-                  </motion.div>
-                )}
-              </div>
-              
               <div className="flex border-b border-gray-200 px-6 pt-4 gap-6">
                 <button 
                   onClick={() => setEditModalTab('move')}
@@ -1273,6 +1221,60 @@ export default function BuildingView() {
 
               {editModalTab === 'add' ? (
                 <div className="p-6 space-y-6">
+                  <div className="space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-gray-900 block">Sharing Type <span className="text-red-500">*</span></label>
+                      <div className="relative">
+                        <select 
+                          value={isEditCustomSharing ? 'custom' : editRoomBedsNum}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === 'custom') {
+                              setIsEditCustomSharing(true);
+                              setEditRoomBedsNum('');
+                            } else {
+                              setIsEditCustomSharing(false);
+                              setEditRoomBedsNum(val);
+                              const rentFromMap = sharingRentMap[parseInt(val)];
+                              if (rentFromMap) setEditRoomRent(String(rentFromMap));
+                            }
+                          }}
+                          className="w-full appearance-none border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 pr-10 text-sm outline-none transition-all bg-white cursor-pointer"
+                        >
+                          <option value="">Select sharing</option>
+                          {(Object.keys(sharingRentMap).length > 0
+                            ? Object.keys(sharingRentMap).map(Number).sort((a, b) => a - b)
+                            : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+                          ).map(num => (
+                            <option key={num} value={num}>{num} Sharing</option>
+                          ))}
+                          <option value="custom">Custom...</option>
+                        </select>
+                        <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-500">
+                          <ChevronDown className="w-4 h-4" />
+                        </div>
+                      </div>
+                    </div>
+
+                    {isEditCustomSharing && (
+                      <motion.div 
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        className="space-y-1.5"
+                      >
+                        <label className="text-sm font-medium text-gray-900 block">Enter Sharing Count <span className="text-red-500">*</span></label>
+                        <input 
+                          type="number" 
+                          min="1"
+                          value={editCustomSharingValue}
+                          onChange={(e) => setEditCustomSharingValue(e.target.value)}
+                          placeholder="e.g. 5" 
+                          className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all"
+                        />
+                      </motion.div>
+                    )}
+                  </div>
+
                   <div className="space-y-4">
                     <p className="text-xs text-gray-500">Change the total number of beds in this room.</p>
                     <div className="space-y-1.5">
@@ -1496,23 +1498,13 @@ export default function BuildingView() {
                       >
                         Cancel
                       </button>
-                      {editModalTab === 'add' ? (
-                        <button 
-                          onClick={executeSaveEditRoomBeds}
-                          disabled={isSavingEditRoomBeds}
-                          className="px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-sm disabled:opacity-50"
-                        >
-                          {isSavingEditRoomBeds ? 'Saving...' : 'Save Changes'}
-                        </button>
-                      ) : (
-                        <button 
-                          onClick={executeMoveBeds}
-                          disabled={!moveTargetRoomId || selectedBedsToMove.length === 0 || isMovingBeds}
-                          className="px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed rounded-xl transition-colors shadow-sm"
-                        >
-                          {isMovingBeds ? 'Moving...' : 'Move Beds'}
-                        </button>
-                      )}
+                      <button 
+                        onClick={executeSaveEditRoomBeds}
+                        disabled={isSavingEditRoomBeds}
+                        className="px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-sm disabled:opacity-50"
+                      >
+                        {isSavingEditRoomBeds ? 'Saving...' : 'Save Changes'}
+                      </button>
                     </div>
                   </>
                 )}
