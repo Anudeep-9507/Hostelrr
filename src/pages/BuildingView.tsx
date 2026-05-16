@@ -4,7 +4,7 @@ import { ROUTES } from '../routes/routes';
 import { useApp } from '../context/AppContext';
 import { Room, Bed, Resident } from '../data/mock';
 import DefaultAvatar from '../components/DefaultAvatar';
-import { cn, formatDate, getNamesFromIds } from '../lib/utils';
+import { cn, compareBedLabels, formatDate, getNamesFromIds, normalizeBedLabel } from '../lib/utils';
 import { X, UserPlus, LogOut, Phone, IndianRupee, FileText, Plus, User, LayoutTemplate, Trash2, BedDouble, Search, ChevronDown, Copy, Eye } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import EmptyState from '../components/EmptyState';
@@ -458,7 +458,7 @@ export default function BuildingView() {
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {filteredRooms.map((room, idx) => {
-                      const labelSorter = (a: any, b: any) => String(a.name).replace(/^Bed\s+/i, '').localeCompare(String(b.name).replace(/^Bed\s+/i, ''), undefined, { numeric: true, sensitivity: 'base' });
+                      const labelSorter = (a: any, b: any) => compareBedLabels(a.name, b.name);
                       const sortedBeds = (room.beds || []).slice().sort(labelSorter);
                       const isSelected = selectedRoom?.id === room.id;
                       const isEmpty = sortedBeds.length === 0;
@@ -538,10 +538,7 @@ export default function BuildingView() {
                               );
                             }
 
-                            const hasValidTemplate = sortedBeds.every(bed => {
-                              const label = bed.name.replace(/^Bed\s+/i, '').trim();
-                              return Boolean(resolvedTemplate.positions?.[label]);
-                            });
+                            const hasValidTemplate = sortedBeds.every(bed => Boolean(resolvedTemplate.positions?.[normalizeBedLabel(bed.name)]));
 
                             if (!hasValidTemplate) {
                               return (
@@ -574,10 +571,8 @@ export default function BuildingView() {
                                 )}
 
                                 {sortedBeds.map((bed) => {
-                                  // Extract label from bed.name ('Bed A' → 'A') so
-                                  // template position lookup is correct regardless of
-                                  // DB fetch order — never use iteration index here.
-                                  const label = bed.name.replace(/^Bed\s+/i, '').trim();
+                                  // Use normalized numeric label so template lookup stays stable.
+                                  const label = normalizeBedLabel(bed.name);
                                   const pos = resolvedTemplate.positions[label];
                                   if (!pos) return null;
                                   const styles = getBedPillStyles(bed.status);
@@ -951,7 +946,7 @@ export default function BuildingView() {
                   const orderA = getOrder(a.status);
                   const orderB = getOrder(b.status);
                   if (orderA === orderB) {
-                    return a.name.localeCompare(b.name);
+                    return compareBedLabels(a.name, b.name);
                   }
                   return orderA - orderB;
                 })
@@ -974,7 +969,7 @@ export default function BuildingView() {
                   <div key={`${bed.id}-${bedIdx}`} className={`bg-white border text-left rounded-2xl overflow-hidden ${cardStyles.border}`}>
                     <div className={`p-4 border-b flex justify-between items-center ${cardStyles.border} ${cardStyles.headerBg}`}>
                       <div className="flex items-center gap-2">
-                        <span className={`font-bold ${cardStyles.title}`}>{bed.name}</span>
+                        <span className={`font-bold ${cardStyles.title}`}>Bed {bed.name}</span>
                       </div>
                       <span className={`text-xs font-medium uppercase tracking-wider ${cardStyles.title}`}>
                         {(bed.status || '').replace('_', ' ')}
@@ -1278,7 +1273,7 @@ export default function BuildingView() {
                   <div className="space-y-4">
                     <p className="text-xs text-gray-500">Change the total number of beds in this room.</p>
                     <div className="space-y-1.5">
-                      <p className="text-xs text-gray-500">Beds will automatically follow the letter ordering (A, B, C...)</p>
+                      <p className="text-xs text-gray-500">Beds will automatically follow numeric ordering (1, 2, 3...)</p>
                     </div>
 
                     {/* Layout Version Selection for Manage Room */}
@@ -1326,7 +1321,7 @@ export default function BuildingView() {
                     <div className="space-y-1.5">
                       <label className="text-sm font-medium text-gray-900 block">Preview Beds</label>
                       <div className="flex flex-wrap gap-2 border border-gray-100 p-3 rounded-lg bg-gray-50/50">
-                        {Array.from({ length: Math.max(currentRoom.beds.length, parseInt(editRoomBedsNum)) }).map((_, idx) => {
+                          {Array.from({ length: Math.max(currentRoom.beds.length, parseInt(editRoomBedsNum)) }).map((_, idx) => {
                           const existingBed = currentRoom.beds[idx];
                           const isRemoving = existingBed && idx >= parseInt(editRoomBedsNum);
                           
@@ -1349,7 +1344,7 @@ export default function BuildingView() {
                                 key={`new-bed-${idx}`} 
                                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all border bg-white border-dashed border-gray-300 text-gray-500 shadow-sm"
                               >
-                                Bed {String.fromCharCode(65 + idx)}
+                                Bed {idx + 1}
                               </div>
                             );
                           }
@@ -1459,7 +1454,7 @@ export default function BuildingView() {
                         );
                       })}
                     </div>
-                    <p className="text-xs text-gray-500 mt-2">Beds will follow the sequential letter ordering (A, B, C...) in the destination room.</p>
+                    <p className="text-xs text-gray-500 mt-2">Beds will follow sequential numeric ordering (1, 2, 3...) in destination room.</p>
                   </div>
                 </div>
               )}

@@ -516,7 +516,7 @@ export default function Dashboard() {
                       </div>
                       <div className="min-w-0">
                         <p className="font-semibold text-gray-900 truncate">{r.name}</p>
-                        <p className="text-xs text-gray-500">Room {getNamesFromIds(floors, r.roomId, r.bedId).roomName} • Bed {getNamesFromIds(floors, r.roomId, r.bedId).bedName}</p>
+                        <p className="text-xs text-gray-500">Room {getNamesFromIds(floors, r.roomId, r.bedId).roomName} • {getNamesFromIds(floors, r.roomId, r.bedId).bedName}</p>
                       </div>
                     </div>
                     <div className="flex items-center justify-between gap-3 sm:justify-end sm:gap-4 sm:text-right">

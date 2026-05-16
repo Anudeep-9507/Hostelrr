@@ -81,9 +81,55 @@ export function formatDate(dateString: string) {
   return `${day}-${month}-${year}`;
 }
 
+export function normalizeBedLabel(value?: string | null): string {
+  if (!value) return '';
+
+  const trimmed = value.trim();
+  const unwrapped = trimmed.replace(/^Bed\s+/i, '').trim();
+  if (!unwrapped) return '';
+
+  if (/^\d+$/.test(unwrapped)) return unwrapped;
+
+  if (/^[A-Z]$/i.test(unwrapped)) {
+    return String(unwrapped.toUpperCase().charCodeAt(0) - 64);
+  }
+
+  return unwrapped;
+}
+
+export function formatBedLabel(value?: string | null): string {
+  const normalized = normalizeBedLabel(value);
+  return normalized ? `Bed ${normalized}` : '';
+}
+
+export function compareBedLabels(a?: string | null, b?: string | null): number {
+  const left = normalizeBedLabel(a);
+  const right = normalizeBedLabel(b);
+
+  const leftNum = Number(left);
+  const rightNum = Number(right);
+  if (Number.isFinite(leftNum) && Number.isFinite(rightNum) && leftNum !== rightNum) {
+    return leftNum - rightNum;
+  }
+
+  return left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' });
+}
+
+export function normalizeBedLayoutPositions(
+  positions: Record<string, { x: number; y: number; rotated: boolean }>
+): Record<string, { x: number; y: number; rotated: boolean }> {
+  return Object.entries(positions || {}).reduce<Record<string, { x: number; y: number; rotated: boolean }>>((acc, [label, position]) => {
+    const normalized = normalizeBedLabel(label);
+    if (normalized) {
+      acc[normalized] = position;
+    }
+    return acc;
+  }, {});
+}
+
 export function getNamesFromIds(floors: Floor[], roomId: string | undefined, bedId: string | undefined) {
   let roomName = roomId?.replace('r', '') || '';
-  let bedName = bedId?.split('b')[1]?.replace(/^\d+/, '')?.toUpperCase() || '';
+  let bedName = '';
 
   if (!floors || !roomId) return { roomName, bedName };
 
@@ -94,7 +140,7 @@ export function getNamesFromIds(floors: Floor[], roomId: string | undefined, bed
         if (bedId) {
           const bed = room.beds.find(b => b.id === bedId);
           if (bed) {
-            bedName = bed.name?.replace('Bed ', '') || bedName;
+            bedName = normalizeBedLabel(bed.name) || bedName;
           }
         }
         return { roomName, bedName };

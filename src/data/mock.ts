@@ -110,17 +110,17 @@ export const MOckFloors: Floor[] = [
         id: 'r301',
         number: '301',
         beds: [
-          { id: 'b301a', name: 'Bed A', status: 'occupied', residentId: 'res1' },
-          { id: 'b301b', name: 'Bed B', status: 'occupied', residentId: 'res2' },
-          { id: 'b301c', name: 'Bed C', status: 'payment_due', residentId: 'res_hardcoded_1' },
+          { id: 'b301a', name: '1', status: 'occupied', residentId: 'res1' },
+          { id: 'b301b', name: '2', status: 'occupied', residentId: 'res2' },
+          { id: 'b301c', name: '3', status: 'payment_due', residentId: 'res_hardcoded_1' },
         ]
       },
       {
         id: 'r302',
         number: '302',
         beds: [
-          { id: 'b302a', name: 'Bed A', status: 'vacant' },
-          { id: 'b302b', name: 'Bed B', status: 'vacant' },
+          { id: 'b302a', name: '1', status: 'vacant' },
+          { id: 'b302b', name: '2', status: 'vacant' },
         ]
       },
     ]
@@ -134,18 +134,18 @@ export const MOckFloors: Floor[] = [
         id: 'r201',
         number: '201',
         beds: [
-          { id: 'b201a', name: 'Bed A', status: 'occupied', residentId: 'res3' },
-          { id: 'b201b', name: 'Bed B', status: 'payment_due', residentId: 'res4' },
-          { id: 'b201c', name: 'Bed C', status: 'occupied', residentId: 'res5' },
+          { id: 'b201a', name: '1', status: 'occupied', residentId: 'res3' },
+          { id: 'b201b', name: '2', status: 'payment_due', residentId: 'res4' },
+          { id: 'b201c', name: '3', status: 'occupied', residentId: 'res5' },
         ]
       },
       {
         id: 'r202',
         number: '202',
         beds: [
-          { id: 'b202a', name: 'Bed A', status: 'reserved', residentId: 'res_reserved_1' },
-          { id: 'b202b', name: 'Bed B', status: 'reserved', residentId: 'res_reserved_2' },
-          { id: 'b202c', name: 'Bed C', status: 'vacant' },
+          { id: 'b202a', name: '1', status: 'reserved', residentId: 'res_reserved_1' },
+          { id: 'b202b', name: '2', status: 'reserved', residentId: 'res_reserved_2' },
+          { id: 'b202c', name: '3', status: 'vacant' },
         ]
       },
     ]
@@ -159,16 +159,16 @@ export const MOckFloors: Floor[] = [
         id: 'r101',
         number: '101',
         beds: [
-          { id: 'b101a', name: 'Bed A', status: 'payment_due', residentId: 'res6' },
-          { id: 'b101b', name: 'Bed B', status: 'occupied', residentId: 'res7' },
+          { id: 'b101a', name: '1', status: 'payment_due', residentId: 'res6' },
+          { id: 'b101b', name: '2', status: 'occupied', residentId: 'res7' },
         ]
       },
       {
         id: 'r102',
         number: '102',
         beds: [
-          { id: 'b102a', name: 'Bed A', status: 'occupied', residentId: 'res8' },
-          { id: 'b102b', name: 'Bed B', status: 'payment_due', residentId: 'res_hardcoded_2' },
+          { id: 'b102a', name: '1', status: 'occupied', residentId: 'res8' },
+          { id: 'b102b', name: '2', status: 'payment_due', residentId: 'res_hardcoded_2' },
         ]
       },
     ]

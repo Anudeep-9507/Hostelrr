@@ -1264,7 +1264,7 @@ export default function Residents() {
                           </div>
                           <h3 className="text-xl font-bold text-gray-900 mb-2">Confirm Bed?</h3>
                           <p className="text-gray-500 text-[15px] leading-relaxed">
-                            Confirm that <strong>{residentToConfirmMoveIn.name}</strong> has moved into <strong>{getNamesFromIds(floors, residentToConfirmMoveIn.roomId, residentToConfirmMoveIn.bedId).roomName} {getNamesFromIds(floors, residentToConfirmMoveIn.roomId, residentToConfirmMoveIn.bedId).bedName}</strong>. This will activate billing and create the first payment cycle.
+                            Confirm that <strong>{residentToConfirmMoveIn.name}</strong> has moved into <strong>{getNamesFromIds(floors, residentToConfirmMoveIn.roomId, residentToConfirmMoveIn.bedId).roomName} • Bed {getNamesFromIds(floors, residentToConfirmMoveIn.roomId, residentToConfirmMoveIn.bedId).bedName}</strong>. This will activate billing and create the first payment cycle.
                           </p>
                         </div>
 

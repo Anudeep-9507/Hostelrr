@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext';
 import { RotateCcw, Save, LayoutTemplate, CheckCircle, Plus, X, Minus, Move, Trash2, Loader } from 'lucide-react';
 import { toast } from 'sonner';
 import { getBedLayoutTemplates, saveBedLayoutTemplate, deleteBedLayoutTemplate } from '../lib/supabaseAPI';
+import { compareBedLabels } from '../lib/utils';
  
 export const LAYOUT_COLORS = [
   { name: 'Blue', class: 'bg-blue-50 text-blue-600 border-blue-200', dot: 'bg-blue-500', hover: 'hover:bg-blue-100' },
@@ -27,75 +28,75 @@ const DRAFT_TEMPLATE_ID = '__draft_template__';
 function getDefaultPositions(sharing: SharingType) {
   const positions: Record<string, {x: number, y: number, rotated: boolean}> = {};
   if (sharing === 1) {
-    positions['A'] = { x: 112, y: 180, rotated: false };
+    positions['1'] = { x: 112, y: 180, rotated: false };
   } else if (sharing === 2) {
-    positions['A'] = { x: 40, y: 180, rotated: false };
-    positions['B'] = { x: 184, y: 180, rotated: false };
+    positions['1'] = { x: 40, y: 180, rotated: false };
+    positions['2'] = { x: 184, y: 180, rotated: false };
   } else if (sharing === 3) {
-    positions['A'] = { x: 40, y: 60, rotated: false };
-    positions['B'] = { x: 184, y: 60, rotated: false };
-    positions['C'] = { x: 112, y: 300, rotated: false };
+    positions['1'] = { x: 40, y: 60, rotated: false };
+    positions['2'] = { x: 184, y: 60, rotated: false };
+    positions['3'] = { x: 112, y: 300, rotated: false };
   } else if (sharing === 4) {
-    positions['A'] = { x: 40, y: 60, rotated: false };
-    positions['B'] = { x: 184, y: 60, rotated: false };
-    positions['C'] = { x: 40, y: 300, rotated: false };
-    positions['D'] = { x: 184, y: 300, rotated: false };
+    positions['1'] = { x: 40, y: 60, rotated: false };
+    positions['2'] = { x: 184, y: 60, rotated: false };
+    positions['3'] = { x: 40, y: 300, rotated: false };
+    positions['4'] = { x: 184, y: 300, rotated: false };
   } else if (sharing === 5) {
-    positions['A'] = { x: 10, y: 60, rotated: false };
-    positions['B'] = { x: 112, y: 60, rotated: false };
-    positions['C'] = { x: 214, y: 60, rotated: false };
-    positions['D'] = { x: 60, y: 300, rotated: false };
-    positions['E'] = { x: 164, y: 300, rotated: false };
+    positions['1'] = { x: 10, y: 60, rotated: false };
+    positions['2'] = { x: 112, y: 60, rotated: false };
+    positions['3'] = { x: 214, y: 60, rotated: false };
+    positions['4'] = { x: 60, y: 300, rotated: false };
+    positions['5'] = { x: 164, y: 300, rotated: false };
   } else if (sharing === 6) {
-    positions['A'] = { x: 10, y: 60, rotated: false };
-    positions['B'] = { x: 112, y: 60, rotated: false };
-    positions['C'] = { x: 214, y: 60, rotated: false };
-    positions['D'] = { x: 10, y: 300, rotated: false };
-    positions['E'] = { x: 112, y: 300, rotated: false };
-    positions['F'] = { x: 214, y: 300, rotated: false };
+    positions['1'] = { x: 10, y: 60, rotated: false };
+    positions['2'] = { x: 112, y: 60, rotated: false };
+    positions['3'] = { x: 214, y: 60, rotated: false };
+    positions['4'] = { x: 10, y: 300, rotated: false };
+    positions['5'] = { x: 112, y: 300, rotated: false };
+    positions['6'] = { x: 214, y: 300, rotated: false };
   } else if (sharing === 7) {
-    positions['A'] = { x: 10, y: 20, rotated: false };
-    positions['B'] = { x: 112, y: 20, rotated: false };
-    positions['C'] = { x: 214, y: 20, rotated: false };
-    positions['D'] = { x: 10, y: 180, rotated: false };
-    positions['E'] = { x: 214, y: 180, rotated: false };
-    positions['F'] = { x: 60, y: 340, rotated: false };
-    positions['G'] = { x: 164, y: 340, rotated: false };
+    positions['1'] = { x: 10, y: 20, rotated: false };
+    positions['2'] = { x: 112, y: 20, rotated: false };
+    positions['3'] = { x: 214, y: 20, rotated: false };
+    positions['4'] = { x: 10, y: 180, rotated: false };
+    positions['5'] = { x: 214, y: 180, rotated: false };
+    positions['6'] = { x: 60, y: 340, rotated: false };
+    positions['7'] = { x: 164, y: 340, rotated: false };
   } else if (sharing === 8) {
-    positions['A'] = { x: 10, y: 20, rotated: false };
-    positions['B'] = { x: 112, y: 20, rotated: false };
-    positions['C'] = { x: 214, y: 20, rotated: false };
-    positions['D'] = { x: 10, y: 180, rotated: false };
-    positions['E'] = { x: 214, y: 180, rotated: false };
-    positions['F'] = { x: 10, y: 340, rotated: false };
-    positions['G'] = { x: 112, y: 340, rotated: false };
-    positions['H'] = { x: 214, y: 340, rotated: false };
+    positions['1'] = { x: 10, y: 20, rotated: false };
+    positions['2'] = { x: 112, y: 20, rotated: false };
+    positions['3'] = { x: 214, y: 20, rotated: false };
+    positions['4'] = { x: 10, y: 180, rotated: false };
+    positions['5'] = { x: 214, y: 180, rotated: false };
+    positions['6'] = { x: 10, y: 340, rotated: false };
+    positions['7'] = { x: 112, y: 340, rotated: false };
+    positions['8'] = { x: 214, y: 340, rotated: false };
   } else if (sharing === 9) {
-    positions['A'] = { x: 10, y: 20, rotated: false };
-    positions['B'] = { x: 112, y: 20, rotated: false };
-    positions['C'] = { x: 214, y: 20, rotated: false };
-    positions['D'] = { x: 10, y: 180, rotated: false };
-    positions['E'] = { x: 112, y: 180, rotated: false };
-    positions['F'] = { x: 214, y: 180, rotated: false };
-    positions['G'] = { x: 10, y: 340, rotated: false };
-    positions['H'] = { x: 112, y: 340, rotated: false };
-    positions['I'] = { x: 214, y: 340, rotated: false };
+    positions['1'] = { x: 10, y: 20, rotated: false };
+    positions['2'] = { x: 112, y: 20, rotated: false };
+    positions['3'] = { x: 214, y: 20, rotated: false };
+    positions['4'] = { x: 10, y: 180, rotated: false };
+    positions['5'] = { x: 112, y: 180, rotated: false };
+    positions['6'] = { x: 214, y: 180, rotated: false };
+    positions['7'] = { x: 10, y: 340, rotated: false };
+    positions['8'] = { x: 112, y: 340, rotated: false };
+    positions['9'] = { x: 214, y: 340, rotated: false };
   } else if (sharing === 10) {
-    positions['A'] = { x: 10, y: 20, rotated: false };
-    positions['B'] = { x: 112, y: 20, rotated: false };
-    positions['C'] = { x: 214, y: 20, rotated: false };
-    positions['D'] = { x: 10, y: 125, rotated: false };
-    positions['E'] = { x: 214, y: 125, rotated: false };
-    positions['F'] = { x: 10, y: 235, rotated: false };
-    positions['G'] = { x: 214, y: 235, rotated: false };
-    positions['H'] = { x: 10, y: 340, rotated: false };
-    positions['I'] = { x: 112, y: 340, rotated: false };
-    positions['J'] = { x: 214, y: 340, rotated: false };
+    positions['1'] = { x: 10, y: 20, rotated: false };
+    positions['2'] = { x: 112, y: 20, rotated: false };
+    positions['3'] = { x: 214, y: 20, rotated: false };
+    positions['4'] = { x: 10, y: 125, rotated: false };
+    positions['5'] = { x: 214, y: 125, rotated: false };
+    positions['6'] = { x: 10, y: 235, rotated: false };
+    positions['7'] = { x: 214, y: 235, rotated: false };
+    positions['8'] = { x: 10, y: 340, rotated: false };
+    positions['9'] = { x: 112, y: 340, rotated: false };
+    positions['10'] = { x: 214, y: 340, rotated: false };
   } else {
     // Fallback for > 10 sharing
     for (let i = 0; i < sharing; i++) {
-      const letter = String.fromCharCode(65 + i);
-      positions[letter] = { x: (i % 3) * 100 + 10, y: Math.floor(i / 3) * 60 + 20, rotated: false };
+      const label = String(i + 1);
+      positions[label] = { x: (i % 3) * 100 + 10, y: Math.floor(i / 3) * 60 + 20, rotated: false };
     }
   }
   return positions;
@@ -180,7 +181,7 @@ export default function BedLayoutBuilder({ hostelId, onSaveComplete }: { hostelI
   const [isAddingCustom, setIsAddingCustom] = useState(false);
   const [customSharingValue, setCustomSharingValue] = useState('');
 
-  const beds = Array.from({length: activeSharing}).map((_, i) => String.fromCharCode(65 + i));
+  const beds = Array.from({length: activeSharing}).map((_, i) => String(i + 1));
 
   const handleReset = () => {
     setEditingPositions(getDefaultPositions(activeSharing));
@@ -194,7 +195,7 @@ export default function BedLayoutBuilder({ hostelId, onSaveComplete }: { hostelI
 
     const newPos = { ...editingPositions };
     
-    Object.keys(newPos).forEach(label => {
+    Object.keys(newPos).sort(compareBedLabels).forEach(label => {
       const p = newPos[label];
       const bedW = p.rotated ? 48 : 96;
       const bedH = p.rotated ? 96 : 44;

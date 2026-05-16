@@ -5,7 +5,7 @@ import {
 } from '../data/mock';
 import { toast } from 'sonner';
 import { FLAGS } from '../core/env';
-import { getResidentRentAmount, getRoomBaseRent } from '../lib/utils';
+import { compareBedLabels, getResidentRentAmount, getRoomBaseRent } from '../lib/utils';
 
 export type PaymentsFilterType = 'All' | 'Paid' | 'Unpaid' | 'Pending' | 'Late' | 'Partially Paid';
 
@@ -678,7 +678,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 const toAdd = numBeds - currentCount;
                 const added = Array.from({ length: toAdd }).map((_, idx) => ({
                   id: `temp_${Date.now()}_${idx}`,
-                  name: `Bed ${String.fromCharCode(65 + currentCount + idx)}`,
+                  name: String(currentCount + idx + 1),
                   status: 'vacant' as const
                 }));
                 newBeds = [...newBeds, ...added];
@@ -739,7 +739,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 const toAdd = numBeds - currentCount;
                 const added = Array.from({ length: toAdd }).map((_, idx) => ({
                   id: `temp_${Date.now()}_${idx}`,
-                  name: `Bed ${String.fromCharCode(65 + currentCount + idx)}`,
+                  name: String(currentCount + idx + 1),
                   status: 'vacant' as const
                 }));
                 newBeds = [...newBeds, ...added];
@@ -867,9 +867,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
           // Add beds
           if (sRoom.beds && sRoom.beds.length > 0) {
-            const sortedBeds = [...sRoom.beds].sort((a: any, b: any) =>
-              String(a.label).localeCompare(String(b.label), undefined, { numeric: true, sensitivity: 'base' })
-            );
+            const sortedBeds = [...sRoom.beds].sort((a: any, b: any) => compareBedLabels(a.label, b.label));
 
             const newBeds = sortedBeds.map((b: any) => ({
               hostel_id: sRoom.hostel_id,

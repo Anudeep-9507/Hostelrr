@@ -1,5 +1,6 @@
 import { supabase } from '../supabaseClient';
 import { Floor, Room, Bed, Resident, JoinRequest } from '../data/mock';
+import { compareBedLabels, formatBedLabel, normalizeBedLabel, normalizeBedLayoutPositions } from './utils';
 
 const IST_TIME_ZONE = 'Asia/Kolkata';
 const IST_OFFSET_LABEL = '+05:30';
@@ -207,7 +208,7 @@ export async function fetchHostelData(userId: string) {
       .map((r: any) => {
         const roomBeds = (bedsData || [])
           .filter((b: any) => b.room_id === r.id)
-          .sort((a: any, b: any) => String(a.label).localeCompare(String(b.label), undefined, { numeric: true, sensitivity: 'base' }))
+          .sort((a: any, b: any) => compareBedLabels(a.label, b.label))
           .map((b: any) => {
             // Find current resident in this bed
             const resident = currentResidentsData.find((res: any) => res.bed_id === b.id);
@@ -223,7 +224,7 @@ export async function fetchHostelData(userId: string) {
             
             return {
               id: b.id,
-              name: `Bed ${b.label}`,
+              name: normalizeBedLabel(b.label),
               status: displayStatus,
               residentId: resident ? resident.id : undefined,
             };
@@ -921,7 +922,7 @@ export async function addRoomDb(hostelId: string, floorId: string, roomData: any
     const bedsToInsert = Array.from({ length: roomData.numBeds }).map((_, idx) => ({
       hostel_id: hostelId,
       room_id: room.id,
-      label: String.fromCharCode(65 + idx), // A, B, C...
+      label: String(idx + 1),
     }));
     await supabase.from('beds').insert(bedsToInsert);
   }
@@ -971,7 +972,7 @@ export async function updateRoomSetupDb(roomId: string, roomData: any, bedsData:
       const bedsToInsert = Array.from({ length: bedsData.bedsToAdd }).map((_, idx) => ({
         hostel_id: roomInfo.hostel_id,
         room_id: roomId,
-        label: String.fromCharCode(65 + existingCount + idx),
+        label: String(existingCount + idx + 1),
       }));
       const { error: insErr } = await supabase.from('beds').insert(bedsToInsert);
       if (insErr) throw insErr;
@@ -1015,7 +1016,7 @@ export async function moveBedsDb(targetRoomId: string, bedIds: string[]) {
     }
   }
 
-  const labelSorter = (a: any, b: any) => String(a.label).localeCompare(String(b.label), undefined, { numeric: true, sensitivity: 'base' });
+  const labelSorter = (a: any, b: any) => compareBedLabels(a.label, b.label);
   const movingBedMap = new Map((movingBeds || []).map((bed: any) => [bed.id, bed]));
 
   const sortedTargetBeds = (targetBeds || []).slice().sort(labelSorter);
@@ -1029,7 +1030,7 @@ export async function moveBedsDb(targetRoomId: string, bedIds: string[]) {
   for (let i = 0; i < targetFinalBeds.length; i++) {
     await supabase.from('beds').update({
       room_id: targetRoomId,
-      label: String.fromCharCode(65 + i)
+      label: String(i + 1)
     }).eq('id', targetFinalBeds[i].id);
   }
 
@@ -1041,7 +1042,7 @@ export async function moveBedsDb(targetRoomId: string, bedIds: string[]) {
     for (let i = 0; i < remainingBeds.length; i++) {
       await supabase.from('beds').update({
         room_id: sourceRoomId,
-        label: String.fromCharCode(65 + i)
+        label: String(i + 1)
       }).eq('id', remainingBeds[i].id);
     }
   }
@@ -1367,7 +1368,7 @@ export async function getBedLayoutTemplates(hostelId: string): Promise<BedLayout
   return (data || []).map((t: any) => ({
     id: t.id,
     sharing: t.sharing,
-    positions: t.positions,
+    positions: normalizeBedLayoutPositions(t.positions),
     door: t.door,
     color: t.color,
   }));
@@ -1387,13 +1388,15 @@ export async function saveBedLayoutTemplate(
     throw new Error('Template must have sharing and positions');
   }
 
+  const normalizedPositions = normalizeBedLayoutPositions(template.positions as Record<string, { x: number; y: number; rotated: boolean }>);
+
   // If template has a non-empty ID, update it; otherwise insert (let DB generate UUID)
   if (template.id && template.id.length > 0) {
     const { data, error } = await supabase
       .from('bed_layout_templates')
       .update({
         sharing: template.sharing,
-        positions: template.positions,
+        positions: normalizedPositions,
         door: template.door || null,
         color: template.color || 'Blue',
       })
@@ -1421,7 +1424,7 @@ export async function saveBedLayoutTemplate(
       .insert({
         hostel_id: hostelId,
         sharing: template.sharing,
-        positions: template.positions,
+        positions: normalizedPositions,
         door: template.door || null,
         color: template.color || 'Blue',
       })
