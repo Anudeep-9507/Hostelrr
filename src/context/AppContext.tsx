@@ -18,6 +18,7 @@ interface AppContextType {
   markAsPaid: (residentId: string, method?: 'UPI' | 'Cash', partialAmount?: number, paymentDate?: string) => void;
   markReminderSent: (residentId: string) => void;
   vacateResident: (residentId: string) => void;
+  archiveResident: (residentId: string, reason?: string) => void;
   addResident: (residentData: any, isReserved?: boolean) => void;
   confirmMoveIn: (residentId: string, confirmedDate?: string) => void;
   editResident: (residentId: string, updatedData: any) => void;
@@ -517,6 +518,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  /**
+   * Archive (soft delete) a resident
+   * CRITICAL: Preserves all payment history forever
+   * Use for admin features only - do not expose in standard UI
+   */
+  const archiveResident = (residentId: string, reason?: string) => {
+    // Optimistic: Remove from active residents
+    const res = residents.find(r => r.id === residentId);
+    if (!res) return;
+    setResidents(prev => prev.filter(r => r.id !== residentId));
+    setFloors(prev => prev.map(f => ({ ...f, rooms: f.rooms.map(room => ({ ...room, beds: room.beds.map(b => b.id === res.bedId ? { ...b, status: 'vacant', residentId: undefined } : b) })) })));
+
+    // DB Sync: Soft delete via archive_resident RPC
+    import('../lib/supabaseAPI').then(async ({ archiveResidentDb }) => {
+      try {
+        await archiveResidentDb(residentId, reason);
+        toast.success('Resident archived successfully');
+        await syncStateWithDb();
+      } catch (e) { 
+        console.error(e);
+        toast.error('Failed to archive resident');
+      }
+    });
+  };
+
   const addResident = (residentData: any, isReserved?: boolean) => {
     const hostelId = hostelProfile?.id;
     if (!hostelId) {
@@ -857,7 +883,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   return (
     <AppContext.Provider value={{ 
       floors, residents, pastResidents, activities, joinRequests,
-      markAsPaid, markReminderSent, vacateResident, addResident, confirmMoveIn, editResident, removeJoinRequest, approveJoinRequest, rejectJoinRequest, addJoinRequest,
+      markAsPaid, markReminderSent, vacateResident, archiveResident, addResident, confirmMoveIn, editResident, removeJoinRequest, approveJoinRequest, rejectJoinRequest, addJoinRequest,
       activeBuildingFilter, setActiveBuildingFilter,
       activePaymentsFilter, setActivePaymentsFilter,
       globalSelectedResidentId, setGlobalSelectedResidentId,

@@ -21,7 +21,8 @@ export function getTodayIST(): string {
 
 // Format time in IST timezone
 export function formatTimeIST(dateString: string): string {
-  const d = new Date(dateString);
+  const dateOnlyMatch = dateString.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const d = dateOnlyMatch ? new Date(`${dateString}T00:00:00+05:30`) : new Date(dateString);
   if (isNaN(d.getTime())) return '';
 
   return new Intl.DateTimeFormat('en-IN', {

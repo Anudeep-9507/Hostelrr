@@ -83,9 +83,9 @@ export default function Payments() {
     if (!dateString) return new Date(NaN);
 
     if (!hasExplicitTimezone(dateString)) {
-      const simpleDateMatch = dateString.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      const simpleDateMatch = dateString.match(/^(\d{4})-(\d{2})-(\d{2})$/);
       if (simpleDateMatch) {
-        return new Date(Date.UTC(Number(simpleDateMatch[1]), Number(simpleDateMatch[2]) - 1, Number(simpleDateMatch[3])));
+        return new Date(`${dateString}T00:00:00+05:30`);
       }
     }
 
@@ -250,43 +250,32 @@ export default function Payments() {
   const allCount = activeResidents.length;
 
   const allPaymentsTransactions = useMemo(() => {
-    const currentHistory = residents.flatMap(r => {
-      const history = (r.paymentHistory || []).map(p => ({ ...p, residentName: r.name, residentId: r.id, roomId: r.roomId, bedId: r.bedId }));
-      if (r.securityDeposit && r.isDepositPaid) {
+    const appendSecurityDepositHistory = (resident: any, history: any[]) => {
+      if (resident.securityDeposit && resident.isDepositPaid) {
         history.push({
-          id: `sec_dep_${r.id}`,
-          // keep raw ISO/timestamp for reliable parsing/sorting
-          date: r.depositPaidDate || r.joinDate,
-          amount: r.securityDeposit,
+          id: `sec_dep_${resident.id}`,
+          date: resident.depositPaidDate || resident.joinDate,
+          amount: resident.securityDeposit,
           status: 'paid',
           title: 'Security Deposit',
-          residentName: r.name,
-          residentId: r.id,
-          roomId: r.roomId,
-          bedId: r.bedId,
-          method: 'UPI' // Default or unknown
+          residentName: resident.name,
+          residentId: resident.id,
+          roomId: resident.roomId,
+          bedId: resident.bedId,
+          method: 'UPI'
         } as any);
       }
+    };
+    const currentHistory = residents.flatMap(r => {
+      const history = (r.paymentHistory || []).map(p => ({ ...p, residentName: r.name, residentId: r.id, roomId: r.roomId, bedId: r.bedId }));
+      appendSecurityDepositHistory(r, history);
       return history;
     });
     
     const pastHistory = pastResidents.flatMap(r => {
       const history = (r.paymentHistory || []).map(p => ({ ...p, residentName: r.name, residentId: r.id, roomId: r.roomId, bedId: r.bedId }));
       // Past residents also had security deposits
-      if ((r as any).securityDeposit && (r as any).isDepositPaid) {
-        history.push({
-          id: `sec_dep_${r.id}`,
-          date: r.joinDate,
-          amount: (r as any).securityDeposit,
-          status: 'paid',
-          title: 'Security Deposit',
-          residentName: r.name,
-          residentId: r.id,
-          roomId: r.roomId,
-          bedId: r.bedId,
-          method: 'UPI'
-        } as any);
-      }
+      appendSecurityDepositHistory(r, history);
       return history;
     });
     
@@ -373,7 +362,13 @@ export default function Payments() {
     return base.sort((a, b) => getTransactionDateForSort(b.date).getTime() - getTransactionDateForSort(a.date).getTime());
   }, [allPaymentsTransactions, floors, historyPaymentFilter, historySearchQuery, historyTimeFilter, selectedHistoryMonth, selectedHistoryYear]);
 
-  const totalHistoryAmount = filteredHistoryTransactions.reduce((acc, p) => acc + p.amount, 0);
+  const totalHistoryAmount = filteredHistoryTransactions.reduce((acc, p) => {
+    // Exclude security deposits from vacated residents
+    if (p.title === 'Security Deposit' && isResidentVacated(p.residentId)) {
+      return acc;
+    }
+    return acc + p.amount;
+  }, 0);
   const isSecurityDepositHistory = historyPaymentFilter === 'Security Deposits';
 
   const historyTimeLabel = historyTimeFilter === 'All'
@@ -936,7 +931,10 @@ export default function Payments() {
                             </span>
                           </td>
                           <td className="px-6 py-4 text-right whitespace-nowrap">
-                            <span className="text-sm font-black text-gray-900">₹{payment.amount.toLocaleString('en-IN')}</span>
+                            <span className={cn(
+                              "text-sm font-black text-gray-900",
+                              payment.title === 'Security Deposit' && vacated && "line-through text-gray-400"
+                            )}>₹{payment.amount.toLocaleString('en-IN')}</span>
                           </td>
                         </tr>
                       );
@@ -978,7 +976,10 @@ export default function Payments() {
                             <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mt-1">{payment.title || 'Rent Payment'}</p>
                           </div>
                           <div className="text-right">
-                            <p className="text-sm font-black text-gray-900">₹{payment.amount.toLocaleString('en-IN')}</p>
+                            <p className={cn(
+                              "text-sm font-black text-gray-900",
+                              payment.title === 'Security Deposit' && vacated && "line-through text-gray-400"
+                            )}>₹{payment.amount.toLocaleString('en-IN')}</p>
                             <div className={cn(
                               "inline-flex px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-wider items-center gap-1 mt-1",
                               payment.method === 'Cash' ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"

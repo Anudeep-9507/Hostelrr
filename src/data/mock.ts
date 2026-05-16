@@ -71,6 +71,9 @@ export interface PastResident {
   emergencyPhone?: string;
   aadhar?: string;
   paymentHistory?: { id: string | number; date: string; amount: number; status: string; method?: 'UPI' | 'Cash'; title?: string }[];
+  securityDeposit?: number;
+  isDepositPaid?: boolean;
+  depositPaidDate?: string;
   createdAt?: string;
   areaAndCity?: string;
   state?: string;

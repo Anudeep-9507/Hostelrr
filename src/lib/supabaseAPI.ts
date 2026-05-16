@@ -142,7 +142,8 @@ export async function fetchHostelData(userId: string) {
     .select('*')
     .eq('hostel_id', hostelId);
 
-  const currentResidentsData = (residentsData || []).filter((r: any) => r.status !== 'left' && r.status !== 'archived');
+  // Business visibility filter: only keep non-deleted, non-left residents in active resident set.
+  const currentResidentsData = (residentsData || []).filter((r: any) => r.status !== 'left' && r.deleted_at == null);
   const activeResidentsData = currentResidentsData.filter((r: any) => r.status === 'active');
 
   // 6. Get Payment Cycles
@@ -379,6 +380,9 @@ export async function fetchHostelData(userId: string) {
     areaAndCity: r.area_and_city || '',
     state: r.state || '',
     country: r.country || 'India',
+    securityDeposit: r.security_deposit || 0,
+    isDepositPaid: r.is_deposit_paid || false,
+    depositPaidDate: r.deposit_paid_at || undefined,
     paymentHistory: (paymentsData || [])
       .filter((p: any) => p.resident_id === r.id)
       .map((p: any) => {
@@ -715,13 +719,13 @@ export async function addResidentDb(
   if (oldResidentId) {
     await supabase
       .from('residents')
-      .update({ status: 'archived' })
+      .update({ deleted_at: new Date().toISOString() })
       .eq('id', oldResidentId);
   } else if (residentData.phone) {
     // Fallback: archive by phone if ID not provided
     await supabase
       .from('residents')
-      .update({ status: 'archived' })
+      .update({ deleted_at: new Date().toISOString() })
       .eq('hostel_id', hostelId)
       .eq('phone', residentData.phone)
       .eq('status', 'left');
@@ -1021,6 +1025,38 @@ export async function moveBedsDb(targetRoomId: string, bedIds: string[]) {
 
 export async function vacateResidentDb(residentId: string) {
   const { data, error } = await supabase.rpc('vacate_resident', {
+    p_resident_id: residentId,
+  });
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Archive (soft delete) a resident
+ * @param residentId The resident ID to archive
+ * @param reason Optional reason for archival (logged to audit trail)
+ * 
+ * CRITICAL: This soft-deletes the resident (marks deleted_at), but:
+ * - Payment history is PRESERVED FOREVER
+ * - Payment cycles are PRESERVED FOREVER
+ * - Bed becomes vacant
+ * - Can be restored via restoreResidentDb()
+ */
+export async function archiveResidentDb(residentId: string, reason?: string) {
+  const { data, error } = await supabase.rpc('archive_resident', {
+    p_resident_id: residentId,
+    p_reason: reason || null,
+  });
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Restore an archived resident (undo archiveResidentDb)
+ * @param residentId The resident ID to restore
+ */
+export async function restoreResidentDb(residentId: string) {
+  const { data, error } = await supabase.rpc('restore_resident', {
     p_resident_id: residentId,
   });
   if (error) throw error;
