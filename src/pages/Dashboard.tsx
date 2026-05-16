@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { ROUTES } from '../routes/routes';
 import { FLAGS } from '../core/env';
 import { BedDouble, Users, AlertCircle, IndianRupee, PieChart, CheckCircle, Clock, LogOut, X, Info, Phone, ChevronRight, ChevronDown, UserPlus } from 'lucide-react';
-import { cn, formatDate, getNamesFromIds, isSecurityDepositPayment } from '../lib/utils';
+import { cn, formatDate, getNamesFromIds } from '../lib/utils';
 import { PieChart as RePieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { AnimatePresence, motion } from 'motion/react';
 import EmptyState from '../components/EmptyState';
@@ -152,7 +152,7 @@ function getActivityDetails(activity: DashboardActivity) {
 export default function Dashboard() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { floors, residents, pastResidents, activities, joinRequests, rejectJoinRequest, markAsPaid, setActiveBuildingFilter, setActivePaymentsFilter, hostelProfile, sharingRentMap, syncStateWithDb } = useApp();
+  const { floors, residents, pastResidents, activities, joinRequests, rejectJoinRequest, markAsPaid, setActiveBuildingFilter, setActivePaymentsFilter, hostelProfile, sharingRentMap, syncStateWithDb, dashboardStats } = useApp();
   const [requestSearch, setRequestSearch] = useState('');
   const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
   const [activityModalOpenedFromMobile, setActivityModalOpenedFromMobile] = useState(false);
@@ -237,43 +237,17 @@ export default function Dashboard() {
     };
   }, [syncStateWithDb]);
 
-  // Metrics Logic
-  let occupiedBeds = 0;
-  let reservedBeds = 0;
-  let configuredBedsCount = 0;
-
-  floors.forEach(f => {
-    f.rooms.forEach(r => {
-      configuredBedsCount += r.beds.length;
-      r.beds.forEach(b => {
-        if (b.status === 'occupied' || b.status === 'payment_due') occupiedBeds++;
-        else if (b.status === 'reserved') reservedBeds++;
-      });
-    });
-  });
-
-  const totalBeds = Math.max(hostelProfile?.total_beds || 0, configuredBedsCount);
-  const vacantBeds = configuredBedsCount - occupiedBeds - reservedBeds;
+  const totalBeds = Number(dashboardStats?.total_beds || hostelProfile?.total_beds || 0);
+  const occupiedBeds = Number(dashboardStats?.occupied_beds || 0);
+  const vacantBeds = Number(dashboardStats?.vacant_beds || 0);
+  const reservedBeds = Number(dashboardStats?.reserved_beds || 0);
   const activeResidents = residents.filter(r => r.status !== 'reserved');
-
-  // Exclude reserved residents from due amounts
-  const dueResidents = residents.filter(r => r.status !== 'reserved' && (r.dueAmount || 0) > 0);
-  const totalDueAmount = dueResidents.reduce((acc, curr) => acc + curr.dueAmount, 0);
-
-  // Calculate this month's rent for KPI
+  // List of residents with outstanding dues (UI list only). KPI numbers come from `dashboardStats`.
+  const dueResidents = activeResidents.filter(r => (r.dueAmount || 0) > 0);
+  const totalDueAmount = Number(dashboardStats?.pending_amount || 0);
+  const thisMonthRevenue = Number(dashboardStats?.collected_this_month || 0);
+  const expectedMonthlyRevenue = Number(dashboardStats?.expected_monthly_revenue || 0);
   const now = new Date();
-  const thisMonthRevenue = activeResidents.reduce((total, resident) => {
-    return total + (resident.paymentHistory || []).reduce((sum, payment) => {
-      if (isSecurityDepositPayment(payment)) return sum;
-      if (payment.status === 'paid' || payment.status === 'partial' || payment.status === 'partially_paid') {
-        const paymentDate = new Date(payment.date);
-        if (paymentDate.getFullYear() === now.getFullYear() && paymentDate.getMonth() === now.getMonth()) {
-          return sum + payment.amount;
-        }
-      }
-      return sum;
-    }, 0);
-  }, 0);
 
   // Calculate vacating alerts (within 7 days)
   const today = new Date();
@@ -303,12 +277,6 @@ export default function Dashboard() {
     setActivePaymentsFilter(filter);
     navigate(ROUTES.payments.path);
   };
-
-  // Expected = sum of monthlyRent for all currently OCCUPIED residents only
-  // (resident.monthlyRent is set when resident is added and stored in DB)
-  const expectedMonthlyRevenue = activeResidents.reduce((total, r) => {
-    return total + (r.monthlyRent || 0);
-  }, 0);
 
   const defaultSecurityDeposit = Number(hostelProfile?.security_deposit || 0);
   const occupiedResidentsCount = occupiedBeds;
@@ -527,7 +495,7 @@ export default function Dashboard() {
           {/* Due Payments */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="p-4 md:p-5 border-b border-gray-100 flex justify-between items-center gap-3 bg-gray-50/50">
-              <h3 className="text-lg font-bold text-gray-900">Pending Dues ({dueResidents.length})</h3>
+              <h3 className="text-lg font-bold text-gray-900">Pending Dues ({dashboardStats?.pending_count ?? dueResidents.length})</h3>
               <button 
                 onClick={() => handleNavigatePayments('Unpaid')}
                 className="min-h-10 px-2 text-sm font-medium text-blue-600 hover:text-blue-700"

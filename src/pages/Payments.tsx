@@ -5,7 +5,7 @@ import { FLAGS } from '../core/env';
 import { useApp, PaymentsFilterType } from '../context/AppContext';
 import DefaultAvatar from '../components/DefaultAvatar';
 import { CheckCircle2, Wallet, Clock, AlertTriangle, Check, Send, X, Smartphone, Banknote, IndianRupee, AlertCircle, Info, PieChart, Users, ChevronRight, Search, Calendar, ArrowLeft, FileText } from 'lucide-react';
-import { cn, formatDate, getNamesFromIds, getTodayIST, formatTimeIST, convertToIST, isSecurityDepositPayment, getResidentRentAmount, getResidentDueDisplayAmount } from '../lib/utils';
+import { cn, formatDate, getNamesFromIds, getTodayIST, formatTimeIST, convertToIST, getResidentRentAmount, getResidentDueDisplayAmount } from '../lib/utils';
 import { Resident } from '../data/mock';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
@@ -21,7 +21,7 @@ export const WhatsAppIcon = ({ className }: { className?: string }) => (
 export default function Payments() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { floors, residents, pastResidents, markAsPaid, markReminderSent, activePaymentsFilter: filter, setActivePaymentsFilter: setFilter, setGlobalSelectedResidentId, hostelProfile, isDemoMode, sharingRentMap } = useApp();
+  const { floors, residents, pastResidents, markAsPaid, markReminderSent, activePaymentsFilter: filter, setActivePaymentsFilter: setFilter, setGlobalSelectedResidentId, hostelProfile, isDemoMode, sharingRentMap, dashboardStats } = useApp();
   const [showHistory, setShowHistory] = useState(false);
   const [historyTimeFilter, setHistoryTimeFilter] = useState<'All' | 'Today' | 'Monthly' | 'Yearly'>('All');
   const [historyPaymentFilter, setHistoryPaymentFilter] = useState<'All' | 'Rent' | 'Security Deposits'>('All');
@@ -200,53 +200,25 @@ export default function Payments() {
   const dueResidents = activeResidents.filter(r => (r.dueAmount || 0) > 0);
   const paidResidents = activeResidents.filter(r => (r.dueAmount || 0) === 0);
 
-  let occupiedBeds = 0;
-  floors.forEach(floor => {
-    floor.rooms.forEach(room => {
-      room.beds.forEach(bed => {
-        if (bed.status === 'occupied' || bed.status === 'payment_due') {
-          occupiedBeds += 1;
-        }
-      });
-    });
-  });
-
-  const totalDueAmount = dueResidents.reduce((acc, curr) => acc + curr.dueAmount, 0);
-
-  // Expected monthly rent = sum of actual monthly_rent for all occupied residents
-  const expectedMonthlyRevenue = activeResidents.reduce((total, r) => {
+  const occupiedBeds = Number(dashboardStats?.occupied_beds ?? 0);
+  const totalDueAmount = Number(dashboardStats?.pending_amount ?? dueResidents.reduce((acc, curr) => acc + curr.dueAmount, 0));
+  const expectedMonthlyRevenue = Number(dashboardStats?.expected_monthly_revenue ?? activeResidents.reduce((total, r) => {
     return total + (r.monthlyRent || 0);
-  }, 0);
+  }, 0));
 
   const defaultSecurityDeposit = Number(hostelProfile?.security_deposit || 0);
   const occupiedResidentsCount = occupiedBeds;
   const expectedTotalSecurityDeposit = occupiedResidentsCount * defaultSecurityDeposit;
   const finalExpectedRevenue = expectedMonthlyRevenue + expectedTotalSecurityDeposit;
 
-  const now = new Date();
-  const istNow = convertToIST(now);
-  const thisMonthRevenue = activeResidents.reduce((total, r) => {
-    const historyRevenue = (r.paymentHistory || []).reduce((sum, h) => {
-      if (isSecurityDepositPayment(h)) return sum;
-      if (h.status === 'paid' || h.status === 'partial') {
-        const d = new Date(h.date);
-        const dateIST = convertToIST(d);
-        if (dateIST.getUTCFullYear() === istNow.getUTCFullYear() && dateIST.getUTCMonth() === istNow.getUTCMonth()) {
-          return sum + h.amount;
-        }
-      }
-      return sum;
-    }, 0);
-
-    return total + historyRevenue;
-  }, 0);
+  const thisMonthRevenue = Number(dashboardStats?.collected_this_month ?? 0);
 
   // Logic for subsets
-  const pendingCount = dueResidents.filter(r => r.paymentStatus === 'due').length;
-  const lateCount = dueResidents.filter(r => r.paymentStatus === 'late').length;
-  const partiallyPaidCount = activeResidents.filter(r => r.paymentStatus === 'partially_paid').length;
+  const pendingCount = Number(dashboardStats?.pending_count ?? dueResidents.filter(r => r.paymentStatus === 'due').length);
+  const lateCount = Number(dashboardStats?.late_count ?? dueResidents.filter(r => r.paymentStatus === 'late').length);
+  const partiallyPaidCount = Number(dashboardStats?.partially_paid_count ?? activeResidents.filter(r => r.paymentStatus === 'partially_paid').length);
   const unpaidCount = dueResidents.length;
-  const paidCount = paidResidents.length;
+  const paidCount = Number(dashboardStats?.paid_count ?? paidResidents.length);
   const allCount = activeResidents.length;
 
   const allPaymentsTransactions = useMemo(() => {

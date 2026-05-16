@@ -104,7 +104,7 @@ function getCardStyles(tone: CardTone) {
 
 export default function MonthlyOverview() {
   const navigate = useNavigate();
-  const { floors, residents, pastResidents, activities, joinRequests, rejectJoinRequest, markAsPaid, setActiveBuildingFilter, setActivePaymentsFilter, hostelProfile } = useApp();
+  const { floors, residents, pastResidents, activities, joinRequests, rejectJoinRequest, markAsPaid, setActiveBuildingFilter, setActivePaymentsFilter, hostelProfile, dashboardStats } = useApp();
   const [liveNow, setLiveNow] = React.useState(() => new Date());
 
   React.useEffect(() => {
@@ -160,16 +160,16 @@ export default function MonthlyOverview() {
       }, 0);
     };
 
-    const collectCurrent = totalCollectedByMonth(currentMonthKey);
+    const collectCurrent = Number(dashboardStats?.collected_this_month ?? totalCollectedByMonth(currentMonthKey));
     const collectPrevious = totalCollectedByMonth(previousMonthKey);
 
     // FIX: Outstanding dues = ALL unpaid balances (rent only), regardless of month
     // This includes carry-forward dues, old late balances, partial balances, etc.
     // Source of truth: dueAmount > 0, NOT payment status (deposit status is separate)
-    const outstandingTotal = activeResidents.reduce((sum, resident) => {
+    const outstandingTotal = Number(dashboardStats?.pending_amount ?? activeResidents.reduce((sum, resident) => {
       if (!resident.dueAmount || resident.dueAmount <= 0) return sum;
       return sum + resident.dueAmount;
-    }, 0);
+    }, 0));
 
     // For trend comparison, calculate previous month's total outstanding at that time
     // (approximation: count residents who had dues in previous month by checking dueDate)
@@ -183,9 +183,9 @@ export default function MonthlyOverview() {
     }, 0);
 
     // FIX: Late payments = count of ALL overdue cycles, regardless of month
-    const lateCurrent = activeResidents.reduce((count, resident) => {
+    const lateCurrent = Number(dashboardStats?.late_count ?? activeResidents.reduce((count, resident) => {
       return resident.paymentStatus === 'late' ? count + 1 : count;
-    }, 0);
+    }, 0));
 
     // For trend comparison, use previous month's data as approximation
     const latePreviousApprox = activeResidents.reduce((count, resident) => {
@@ -211,7 +211,7 @@ export default function MonthlyOverview() {
     };
 
     const occupancyPrevious = totalBeds === 0 ? 0 : (activeAtMonthEnd(previousMonthEnd) / totalBeds) * 100;
-    const occupancyCurrent = totalBeds === 0 ? 0 : (occupiedBeds / totalBeds) * 100;
+    const occupancyCurrent = Number(dashboardStats?.occupancy_rate ?? (totalBeds === 0 ? 0 : (occupiedBeds / totalBeds) * 100));
 
     // NEW: Collection Efficiency for current month
     // Formula: (collected_amount / expected_amount) * 100
@@ -241,6 +241,9 @@ export default function MonthlyOverview() {
         }
       });
 
+      if (dashboardStats?.collection_efficiency !== undefined && dashboardStats?.collection_efficiency !== null) {
+        return Number(dashboardStats.collection_efficiency);
+      }
       if (currentMonthExpected <= 0) return 0;
       const efficiency = Math.round((currentMonthCollected / currentMonthExpected) * 100);
       return Math.min(efficiency, 100); // Cap at 100%
@@ -257,7 +260,10 @@ export default function MonthlyOverview() {
       latePrevious: latePreviousApprox,
       collectionEfficiency,
     };
-  }, [activeResidents, pastResidents, totalBeds, occupiedBeds, currentMonthStart, previousMonthStart, previousMonthEnd]);
+  }, [activeResidents, pastResidents, totalBeds, occupiedBeds, currentMonthStart, previousMonthStart, previousMonthEnd, dashboardStats]);
+
+  const occupiedBedsCount = Number(dashboardStats?.occupied_beds ?? occupiedBeds);
+  const vacantBedsCount = Number(dashboardStats?.vacant_beds ?? vacantBeds);
 
   const revenueTrend = getTrendText(monthlyStats.collectCurrent, monthlyStats.collectPrevious, true);
   const duesTrend = getTrendText(monthlyStats.outstandingCurrent, monthlyStats.outstandingPrevious, false);
@@ -275,7 +281,7 @@ export default function MonthlyOverview() {
   };
 
   const defaultSecurityDeposit = Number(hostelProfile?.security_deposit || 0);
-  const totalExpectedDeposit = occupiedBeds * defaultSecurityDeposit;
+  const totalExpectedDeposit = occupiedBedsCount * defaultSecurityDeposit;
 
   const depositsCollectedThisMonth = activeResidents.reduce((sum, r) => {
     if (!r.isDepositPaid) return sum;
@@ -358,7 +364,7 @@ export default function MonthlyOverview() {
     },
     {
       title: 'Active Residents',
-      value: `${occupiedBeds}`,
+      value: `${occupiedBedsCount}`,
       icon: Users,
       trend: 'Live occupied beds',
       trendColor: 'text-emerald-600',
@@ -367,7 +373,7 @@ export default function MonthlyOverview() {
     },
     {
       title: 'Empty Beds',
-      value: `${vacantBeds}`,
+      value: `${vacantBedsCount}`,
       icon: PieChart,
       trend: 'Available beds right now',
       trendColor: 'text-slate-500',

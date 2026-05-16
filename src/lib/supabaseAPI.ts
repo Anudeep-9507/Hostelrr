@@ -184,6 +184,22 @@ export async function fetchHostelData(userId: string) {
     console.error('fetchHostelData join_requests error:', joinRequestsError);
   }
 
+  // 11. Get centralized dashboard KPIs from backend RPC
+  let dashboardStats: any = null;
+  try {
+    const { data: dashboardStatsData, error: dashboardStatsError } = await supabase.rpc('get_dashboard_stats', {
+      p_hostel_id: hostelId,
+    });
+
+    if (dashboardStatsError) {
+      console.error('fetchHostelData dashboard_stats error:', dashboardStatsError);
+    } else {
+      dashboardStats = dashboardStatsData;
+    }
+  } catch (error) {
+    console.error('fetchHostelData dashboard_stats exception:', error);
+  }
+
   // Build the nested structure Floor[] -> Room[] -> Bed[]
   const floors: Floor[] = (floorsData || []).map((f: any) => {
     const floorRooms = (roomsData || [])
@@ -484,7 +500,15 @@ export async function fetchHostelData(userId: string) {
     }))
   );
 
-  return { hostel: mappedHostel, floors, residents: mappedResidents, pastResidents: mappedPastResidents, activities: mappedActivities, joinRequests: mappedJoinRequestsWithUrls };
+  return {
+    hostel: mappedHostel,
+    floors,
+    residents: mappedResidents,
+    pastResidents: mappedPastResidents,
+    activities: mappedActivities,
+    joinRequests: mappedJoinRequestsWithUrls,
+    dashboardStats,
+  };
 }
 
 async function getRoomsPerFloorSnapshot(hostelId: string) {

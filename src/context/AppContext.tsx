@@ -59,6 +59,7 @@ interface AppContextType {
   sharingRentMap: Record<number, number>;
   securityDeposit: number;
   hostelProfile: any;
+  dashboardStats: Record<string, any> | null;
   updateHostelProfile: (profile: any) => void;
   syncStateWithDb: () => Promise<void>;
   isDataLoading: boolean;
@@ -138,6 +139,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch { return null; }
   });
 
+  const [dashboardStats, setDashboardStats] = React.useState<Record<string, any> | null>(null);
+
   const [showBedLayout, setShowBedLayout] = React.useState<boolean>(() => {
     try {
       const raw = localStorage.getItem('hostelrr_show_bed_layout');
@@ -173,10 +176,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             setResidents(result.residents || []);
             setActivities(result.activities || []);
             setJoinRequests(result.joinRequests || []);
+            setDashboardStats(result.dashboardStats || null);
             setIsOnboardingComplete(true);
             localStorage.setItem('hostelrr_onboarding', 'true');
             setIsDemoMode(false);
           } else {
+            setDashboardStats(null);
             setIsOnboardingComplete(false);
             localStorage.removeItem('hostelrr_onboarding');
           }
@@ -200,6 +205,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (!currentSession?.user) {
           currentUserId = null;
           setSession(null);
+          setDashboardStats(null);
           setIsDataLoading(false);
           setAuthLoading(false);
           return;
@@ -296,6 +302,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setPastResidents(result.pastResidents || []);
           setActivities(result.activities || []);
           setJoinRequests(result.joinRequests || []);
+          setDashboardStats(result.dashboardStats || null);
         }
       }
     } catch (e) {
@@ -340,6 +347,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setFloors(result.floors || []);
           setResidents(result.residents || []);
           setActivities(result.activities || []);
+          setDashboardStats(result.dashboardStats || null);
         }
       }
     } catch (e: any) {
@@ -895,6 +903,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       sharingRentMap,
       securityDeposit,
       hostelProfile,
+      dashboardStats,
       updateHostelProfile,
       syncStateWithDb,
       isDataLoading,

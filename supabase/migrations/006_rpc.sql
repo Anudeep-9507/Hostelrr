@@ -407,76 +407,175 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_total_beds        INTEGER;
-  v_occupied_beds     INTEGER;
-  v_vacant_beds       INTEGER;
-  v_reserved_beds     INTEGER;
-  v_pending_amount    BIGINT;
-  v_collected_month   BIGINT;
-  v_active_residents  INTEGER;
-  v_late_cycles       INTEGER;
-  v_month_start       DATE := DATE_TRUNC('month', CURRENT_DATE)::DATE;
+  v_total_beds              INTEGER;
+  v_occupied_beds           INTEGER;
+  v_vacant_beds             INTEGER;
+  v_reserved_beds           INTEGER;
+  v_pending_amount          BIGINT;
+  v_collected_month         BIGINT;
+  v_active_residents        INTEGER;
+  v_late_cycles             INTEGER;
+  v_month_start             DATE := DATE_TRUNC('month', CURRENT_DATE)::DATE;
+  
+  -- Payment status counts (operational KPIs)
+  v_pending_count           INTEGER;
+  v_late_count              INTEGER;
+  v_partially_paid_count    INTEGER;
+  v_paid_count              INTEGER;
+  
+  -- Revenue metrics
+  v_expected_monthly_rev    BIGINT;
+  v_collection_efficiency   NUMERIC;
 BEGIN
   IF NOT public.user_owns_hostel(p_hostel_id) THEN
     RAISE EXCEPTION 'Access denied.' USING ERRCODE = '42501';
   END IF;
 
-  -- Bed counts
-  SELECT
-    COUNT(*)                                              INTO v_total_beds
+  -- ── BED COUNTS ────────────────────────────────────────────────────────────
+  SELECT COUNT(*) INTO v_total_beds
   FROM public.beds WHERE hostel_id = p_hostel_id;
 
-  SELECT
-    COUNT(*) FILTER (WHERE status = 'occupied')          INTO v_occupied_beds
+  SELECT COUNT(*) FILTER (WHERE status = 'occupied')
+  INTO v_occupied_beds
   FROM public.beds WHERE hostel_id = p_hostel_id;
 
-  SELECT
-    COUNT(*) FILTER (WHERE status = 'vacant')            INTO v_vacant_beds
+  SELECT COUNT(*) FILTER (WHERE status = 'vacant')
+  INTO v_vacant_beds
   FROM public.beds WHERE hostel_id = p_hostel_id;
 
-  SELECT
-    COUNT(*) FILTER (WHERE status = 'reserved')          INTO v_reserved_beds
+  SELECT COUNT(*) FILTER (WHERE status = 'reserved')
+  INTO v_reserved_beds
   FROM public.beds WHERE hostel_id = p_hostel_id;
 
-  -- Active resident count
+  -- ── RESIDENT COUNTS & PAYMENT STATUS ───────────────────────────────────────
   SELECT COUNT(*) INTO v_active_residents
-  FROM public.residents WHERE hostel_id = p_hostel_id AND status = 'active';
+  FROM public.residents
+  WHERE hostel_id = p_hostel_id
+    AND status = 'active'
+    AND deleted_at IS NULL;
 
-  -- Total outstanding (pending + late + partial cycles)
+  -- Count residents with unpaid cycles (status='due')
+  SELECT COUNT(DISTINCT r.id) INTO v_pending_count
+  FROM public.residents r
+  WHERE r.hostel_id = p_hostel_id AND r.status = 'active' AND r.deleted_at IS NULL
+    AND EXISTS (
+      SELECT 1 FROM public.payment_cycles pc
+      WHERE pc.resident_id = r.id
+        AND pc.status = 'pending'
+    );
+
+  -- Count residents with late cycles (status='late')
+  SELECT COUNT(DISTINCT r.id) INTO v_late_count
+  FROM public.residents r
+  WHERE r.hostel_id = p_hostel_id AND r.status = 'active' AND r.deleted_at IS NULL
+    AND EXISTS (
+      SELECT 1 FROM public.payment_cycles pc
+      WHERE pc.resident_id = r.id
+        AND pc.status = 'late'
+    );
+
+  -- Count residents with partial payments
+  SELECT COUNT(DISTINCT r.id) INTO v_partially_paid_count
+  FROM public.residents r
+  WHERE r.hostel_id = p_hostel_id AND r.status = 'active' AND r.deleted_at IS NULL
+    AND EXISTS (
+      SELECT 1 FROM public.payment_cycles pc
+      WHERE pc.resident_id = r.id
+        AND pc.status = 'partial'
+    );
+
+  -- Count residents with no unpaid cycles (paid)
+  SELECT COUNT(DISTINCT r.id) INTO v_paid_count
+  FROM public.residents r
+  WHERE r.hostel_id = p_hostel_id AND r.status = 'active' AND r.deleted_at IS NULL
+    AND NOT EXISTS (
+      SELECT 1 FROM public.payment_cycles pc
+      WHERE pc.resident_id = r.id
+        AND pc.status IN ('pending', 'late', 'partial')
+    );
+
+  -- ── REVENUE METRICS ────────────────────────────────────────────────────────
+  -- Total outstanding (all unpaid cycle balances)
   SELECT COALESCE(SUM(total_amount - paid_amount), 0) INTO v_pending_amount
   FROM public.payment_cycles
   WHERE hostel_id = p_hostel_id
-    AND status IN ('pending', 'late', 'partial');
+    AND status IN ('pending', 'late', 'partial')
+    AND resident_id IN (
+      SELECT id
+      FROM public.residents
+      WHERE hostel_id = p_hostel_id
+        AND status = 'active'
+        AND deleted_at IS NULL
+    );
 
-  -- Total collected this calendar month
+  -- Total collected this calendar month (operational KPI only)
   SELECT COALESCE(SUM(amount), 0) INTO v_collected_month
   FROM public.payments
   WHERE hostel_id = p_hostel_id
+    AND resident_id IN (
+      SELECT id
+      FROM public.residents
+      WHERE hostel_id = p_hostel_id
+        AND status = 'active'
+        AND deleted_at IS NULL
+    )
     AND paid_on >= v_month_start
     AND paid_on < v_month_start + INTERVAL '1 month';
+
+  -- Expected monthly revenue = SUM(monthly_rent) for all ACTIVE residents
+  SELECT COALESCE(SUM(monthly_rent), 0) INTO v_expected_monthly_rev
+  FROM public.residents
+  WHERE hostel_id = p_hostel_id AND status = 'active' AND deleted_at IS NULL;
+
+  -- Collection efficiency = (collected_this_month / expected_monthly_revenue) * 100
+  IF v_expected_monthly_rev > 0 THEN
+    v_collection_efficiency := ROUND((v_collected_month::NUMERIC / v_expected_monthly_rev::NUMERIC) * 100, 1);
+  ELSE
+    v_collection_efficiency := 0;
+  END IF;
 
   -- Count of late cycles
   SELECT COUNT(*) INTO v_late_cycles
   FROM public.payment_cycles
-  WHERE hostel_id = p_hostel_id AND status = 'late';
+  WHERE hostel_id = p_hostel_id
+    AND status = 'late'
+    AND resident_id IN (
+      SELECT id
+      FROM public.residents
+      WHERE hostel_id = p_hostel_id
+        AND status = 'active'
+        AND deleted_at IS NULL
+    );
 
+  -- ── RETURN ALL KPIs ───────────────────────────────────────────────────────
   RETURN jsonb_build_object(
-    'total_beds',         v_total_beds,
-    'occupied_beds',      v_occupied_beds,
-    'vacant_beds',        v_vacant_beds,
-    'reserved_beds',      v_reserved_beds,
-    'occupancy_rate',     CASE WHEN v_total_beds > 0
-                            THEN ROUND((v_occupied_beds::NUMERIC / v_total_beds) * 100, 1)
-                            ELSE 0 END,
-    'active_residents',   v_active_residents,
-    'pending_amount',     v_pending_amount,
+    -- Occupancy KPIs
+    'total_beds',           v_total_beds,
+    'occupied_beds',        v_occupied_beds,
+    'vacant_beds',          v_vacant_beds,
+    'reserved_beds',        v_reserved_beds,
+    'occupancy_rate',       CASE WHEN v_total_beds > 0
+                              THEN ROUND((v_occupied_beds::NUMERIC / v_total_beds) * 100, 1)
+                              ELSE 0 END,
+    'active_residents',     v_active_residents,
+    
+    -- Payment status counts (operational)
+    'pending_count',        v_pending_count,
+    'late_count',           v_late_count,
+    'partially_paid_count', v_partially_paid_count,
+    'paid_count',           v_paid_count,
+    
+    -- Revenue KPIs
+    'pending_amount',       v_pending_amount,
     'collected_this_month', v_collected_month,
-    'late_cycles',        v_late_cycles
+    'expected_monthly_revenue', v_expected_monthly_rev,
+    'collection_efficiency', v_collection_efficiency,
+    'late_cycles',          v_late_cycles
   );
 END;
 $$;
 
-COMMENT ON FUNCTION public.get_dashboard_stats IS 'Returns aggregate occupancy and financial metrics for the hostel dashboard.';
+COMMENT ON FUNCTION public.get_dashboard_stats IS 'Returns complete operational KPI payload for dashboard: occupancy, payment status counts, and revenue metrics. Single source of truth for all financial dashboards.';
 
 
 -- ---------------------------------------------------------------------------
