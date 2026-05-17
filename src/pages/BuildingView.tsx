@@ -4,7 +4,7 @@ import { ROUTES } from '../routes/routes';
 import { useApp } from '../context/AppContext';
 import { Room, Bed, Resident } from '../data/mock';
 import DefaultAvatar from '../components/DefaultAvatar';
-import { cn, compareBedLabels, formatDate, getNamesFromIds, normalizeBedLabel } from '../lib/utils';
+import { cn, compareBedLabels, formatDate, getNamesFromIds, normalizeBedLabel, getTodayIST, getResidentDueDisplayAmount } from '../lib/utils';
 import { X, UserPlus, LogOut, Phone, IndianRupee, FileText, Plus, User, LayoutTemplate, Trash2, BedDouble, Search, ChevronDown, Copy, Eye } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import EmptyState from '../components/EmptyState';
@@ -12,6 +12,9 @@ import { toast } from 'sonner';
 import BedLayoutBuilder, { LAYOUT_COLORS, Template } from '../components/BedLayoutBuilder';
 import { getBedLayoutTemplates } from '../lib/supabaseAPI';
 import useAsyncAction from '../hooks/useAsyncAction';
+import ResidentStatusCard, { WhatsAppIcon } from '../components/ResidentStatusCard';
+import { MarkRentPaidModal } from '../components/MarkRentPaidModal';
+import { MarkDepositPaidModal } from '../components/MarkDepositPaidModal';
 
 function getStatusColor(status: Bed['status']) {
   switch (status) {
@@ -45,9 +48,18 @@ function isBedMatch(status: Bed['status'], filter: Bed['status'] | 'all') {
 
 export default function BuildingView() {
   const navigate = useNavigate();
-  const { floors, residents, activeBuildingFilter: filterStatus, setActiveBuildingFilter: setFilterStatus, globalSelectedRoomId, setGlobalSelectedRoomId, vacateResident, setGlobalSelectedResidentId, addRoom, editRoomBeds, updateRoomSetup, deleteRoom, moveBeds, sharingRentMap, copyFloorLayout, hostelProfile, showBedLayout, setShowBedLayout } = useApp();
+  const { floors, residents, activeBuildingFilter: filterStatus, setActiveBuildingFilter: setFilterStatus, globalSelectedRoomId, setGlobalSelectedRoomId, vacateResident, setGlobalSelectedResidentId, addRoom, editRoomBeds, updateRoomSetup, deleteRoom, moveBeds, sharingRentMap, copyFloorLayout, hostelProfile, showBedLayout, setShowBedLayout, editResident, markAsPaid, markReminderSent } = useApp();
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [residentToVacate, setResidentToVacate] = useState<Resident | null>(null);
+  const [residentToMarkPaid, setResidentToMarkPaid] = useState<Resident | null>(null);
+  const [paidUsing, setPaidUsing] = useState<'UPI' | 'Cash'>('UPI');
+  const [isPartialPayment, setIsPartialPayment] = useState<boolean>(false);
+  const [partialAmount, setPartialAmount] = useState<string>('');
+  const [paymentDate, setPaymentDate] = useState<string>(getTodayIST());
+  const [isSendingReminder, setIsSendingReminder] = useState(false);
+  const [residentToMarkDepositPaid, setResidentToMarkDepositPaid] = useState<Resident | null>(null);
+  const [depositPaymentMethod, setDepositPaymentMethod] = useState<'UPI' | 'Cash'>('UPI');
+  const [depositPaymentDate, setDepositPaymentDate] = useState<string>(getTodayIST());
   const [isAddRoomModalOpen, setIsAddRoomModalOpen] = useState(false);
   const [isEditRoomModalOpen, setIsEditRoomModalOpen] = useState(false);
   const [editModalTab, setEditModalTab] = useState<'add' | 'move'>('add');
@@ -138,6 +150,87 @@ export default function BuildingView() {
   }, [editRoomBedsNum, isEditRoomModalOpen, editModalTab, allTemplates]);
 
   
+
+  const { execute: executeMarkPaid, isLoading: isMarkingPaid } = useAsyncAction(async (id: string, method: string, amount?: number, date?: string) => {
+    await markAsPaid(id, method as 'UPI' | 'Cash', amount, date);
+    toast.success('Rent marked as paid');
+    setResidentToMarkPaid(null);
+  });
+
+  const { execute: executeMarkDepositPaid, isLoading: isMarkingDepositPaid } = useAsyncAction(async (id: string, date: string) => {
+    await editResident(id, { isDepositPaid: true, depositPaidDate: date });
+    toast.success('Security deposit marked as paid');
+    setResidentToMarkDepositPaid(null);
+  });
+
+  const openWhatsAppReminder = (resident: Resident, message: string) => {
+    const phoneDigits = (resident.phone || '').replace(/\D/g, '');
+    const waPhone = phoneDigits.startsWith('91') && phoneDigits.length === 12 ? phoneDigits : (phoneDigits.length === 10 ? `91${phoneDigits}` : phoneDigits);
+    const waUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(message)}`;
+
+    markReminderSent(resident.id);
+    window.open(waUrl, '_blank');
+    toast.success(`Opening WhatsApp for ${resident.name}`);
+  };
+
+  const handleSendReminder = (resident: Resident) => {
+    if (!resident.phone) {
+      toast.error('Resident phone number not available');
+      return;
+    }
+    
+    const phoneDigits = (resident.phone || '').replace(/\D/g, '');
+    if (phoneDigits.length < 10) {
+      toast.error('Invalid phone number');
+      return;
+    }
+
+    const hostelName = hostelProfile?.hostelName || "My Hostel";
+    const { roomName: roomNum } = getNamesFromIds(floors, resident.roomId, resident.bedId);
+    const rentAmount = getResidentDueDisplayAmount(resident, floors);
+    const isPartial = resident.paymentStatus === 'partially_paid';
+    const dueDate = resident.dueDate ? formatDate(resident.dueDate) : 'Today';
+
+    const message = `Hello ${resident.name}, your hostel rent ${isPartial ? `(remaining *₹${rentAmount}*)` : `of *₹${rentAmount}*`} for Room ${roomNum} is currently pending.\n\nDue Date: *${dueDate}*\n\nPlease make the payment soon and reply *PAID* once done.\n\nThank you,\n${hostelName}\nPowered by Hostelrr`;
+
+    openWhatsAppReminder(resident, message);
+  };
+
+  const handleSendDepositReminder = (resident: Resident) => {
+    if (!resident.phone) {
+      toast.error('Resident phone number not available');
+      return;
+    }
+
+    const phoneDigits = (resident.phone || '').replace(/\D/g, '');
+    if (phoneDigits.length < 10) {
+      toast.error('Invalid phone number');
+      return;
+    }
+
+    if (!resident.securityDeposit) {
+      toast.error('Security deposit amount not available');
+      return;
+    }
+
+    const hostelName = hostelProfile?.hostelName || 'My Hostel';
+    const { roomName: roomNum } = getNamesFromIds(floors, resident.roomId, resident.bedId);
+    const message = `Hello ${resident.name}, your security deposit of *₹${resident.securityDeposit.toLocaleString('en-IN')}* for Room ${roomNum} is still pending.\n\nPlease make the payment soon and reply *PAID* once done.\n\nThank you,\n${hostelName}\nPowered by Hostelrr`;
+
+    openWhatsAppReminder(resident, message);
+  };
+
+  React.useEffect(() => {
+    if (residentToMarkPaid) {
+      setPaymentDate(getTodayIST());
+    }
+  }, [residentToMarkPaid]);
+
+  React.useEffect(() => {
+    if (residentToMarkDepositPaid) {
+      setDepositPaymentDate(getTodayIST());
+    }
+  }, [residentToMarkDepositPaid]);
 
   const { execute: executeSaveRoom, isLoading: isSavingRoom } = useAsyncAction(async () => {
     const bedsCount = isCustomSharing ? parseInt(customSharingValue) : parseInt(newRoomBeds);
@@ -1027,6 +1120,28 @@ export default function BuildingView() {
                           )}
                         </div>
 
+                        {/* Status Card for unpaid dues and deposit */}
+                        <ResidentStatusCard
+                          resident={resident}
+                          dueAmount={getResidentDueDisplayAmount(resident, floors)}
+                          onSendReminder={() => handleSendReminder(resident)}
+                          onMarkPaid={() => {
+                            setResidentToMarkPaid(resident);
+                            setPaidUsing('UPI');
+                            setIsPartialPayment(false);
+                            setPartialAmount('');
+                            setPaymentDate(getTodayIST());
+                          }}
+                          onSendDepositReminder={() => handleSendDepositReminder(resident)}
+                          onMarkDepositPaid={() => {
+                            setResidentToMarkDepositPaid(resident);
+                            setDepositPaymentMethod('UPI');
+                            setDepositPaymentDate(getTodayIST());
+                          }}
+                          isSendingReminder={isSendingReminder}
+                          isCompact={true}
+                        />
+
                         <div className="flex gap-2 pt-2">
                            <button 
                              onClick={() => {
@@ -1744,6 +1859,52 @@ export default function BuildingView() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Mark Rent Paid Modal */}
+      <MarkRentPaidModal
+        resident={residentToMarkPaid}
+        isOpen={!!residentToMarkPaid}
+        onClose={() => {
+          setResidentToMarkPaid(null);
+          setPaidUsing('UPI');
+          setIsPartialPayment(false);
+          setPartialAmount('');
+          setPaymentDate(getTodayIST());
+        }}
+        paidUsing={paidUsing}
+        onPaymentMethodChange={setPaidUsing}
+        isPartialPayment={isPartialPayment}
+        onPartialPaymentChange={setIsPartialPayment}
+        partialAmount={partialAmount}
+        onPartialAmountChange={setPartialAmount}
+        paymentDate={paymentDate}
+        onPaymentDateChange={setPaymentDate}
+        floors={floors}
+        onConfirm={() => {
+          if (residentToMarkPaid) {
+            const amountToPay = isPartialPayment && partialAmount ? Number(partialAmount) : undefined;
+            executeMarkPaid(residentToMarkPaid.id, paidUsing, amountToPay, isPartialPayment ? paymentDate : undefined);
+          }
+        }}
+        isLoading={isMarkingPaid}
+      />
+
+      {/* Mark Deposit Paid Modal */}
+      <MarkDepositPaidModal
+        resident={residentToMarkDepositPaid}
+        isOpen={!!residentToMarkDepositPaid}
+        onClose={() => setResidentToMarkDepositPaid(null)}
+        depositPaymentDate={depositPaymentDate}
+        onPaymentDateChange={setDepositPaymentDate}
+        depositPaymentMethod={depositPaymentMethod}
+        onPaymentMethodChange={setDepositPaymentMethod}
+        onConfirm={() => {
+          if (residentToMarkDepositPaid) {
+            executeMarkDepositPaid(residentToMarkDepositPaid.id, depositPaymentDate);
+          }
+        }}
+        isLoading={isMarkingDepositPaid}
+      />
 
     </div>
   );
