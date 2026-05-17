@@ -20,6 +20,7 @@ export interface Template {
   positions: Record<string, {x: number, y: number, rotated: boolean}>;
   door: 'N'|'S'|'E'|'W' | null;
   color: string;
+  pillSize: number;
 }
  
 type SharingType = number;
@@ -160,6 +161,7 @@ export default function BedLayoutBuilder({ hostelId, onSaveComplete }: { hostelI
   const [editingPositions, setEditingPositions] = useState<Record<string, {x: number, y: number, rotated: boolean}>>(getDefaultPositions(activeSharing));
   const [editingDoor, setEditingDoor] = useState<'N'|'S'|'E'|'W' | null>(null);
   const [editingColor, setEditingColor] = useState<string>('Blue');
+  const [editingPillSize, setEditingPillSize] = useState<number>(1.0);
 
   // Sync editing state when active template changes
   React.useEffect(() => {
@@ -169,12 +171,14 @@ export default function BedLayoutBuilder({ hostelId, onSaveComplete }: { hostelI
         setEditingPositions(template.positions);
         setEditingDoor(template.door);
         setEditingColor(template.color);
+        setEditingPillSize(template.pillSize || 1.0);
         setActiveSharing(template.sharing);
       }
     } else {
       setEditingPositions(getDefaultPositions(activeSharing));
       setEditingDoor(null);
       setEditingColor('Blue');
+      setEditingPillSize(1.0);
     }
   }, [activeTemplateId, allTemplates, activeSharing]);
 
@@ -185,46 +189,15 @@ export default function BedLayoutBuilder({ hostelId, onSaveComplete }: { hostelI
 
   const handleReset = () => {
     setEditingPositions(getDefaultPositions(activeSharing));
-    toast.success('Layout reset to default positions');
+    setEditingPillSize(1.0);
+    toast.success('Layout reset to default');
   };
 
-  const handleSpacing = (direction: 'increase' | 'decrease') => {
-    const centerX = 160;
-    const centerY = 200;
-    const shift = direction === 'increase' ? 24 : -24;
-
-    const newPos = { ...editingPositions };
-    
-    Object.keys(newPos).sort(compareBedLabels).forEach(label => {
-      const p = newPos[label];
-      const bedW = p.rotated ? 48 : 96;
-      const bedH = p.rotated ? 96 : 44;
-
-      const bedCenterX = p.x + bedW / 2;
-      const bedCenterY = p.y + bedH / 2;
-
-      let dx = 0;
-      if (bedCenterX < centerX - 10) dx = -1;
-      else if (bedCenterX > centerX + 10) dx = 1;
-
-      let dy = 0;
-      if (bedCenterY < centerY - 10) dy = -1;
-      else if (bedCenterY > centerY + 10) dy = 1;
-
-      let newX = p.x + (dx * shift);
-      let newY = p.y + (dy * shift);
-
-      const GRID_SIZE = 24;
-      newX = Math.round(newX / GRID_SIZE) * GRID_SIZE;
-      newY = Math.round(newY / GRID_SIZE) * GRID_SIZE;
-
-      newX = Math.max(0, Math.min(newX, 316 - bedW));
-      newY = Math.max(0, Math.min(newY, 396 - bedH));
-
-      newPos[label] = { ...p, x: newX, y: newY };
+  const handleSize = (direction: 'increase' | 'decrease') => {
+    setEditingPillSize(prev => {
+      const next = direction === 'increase' ? prev + 0.1 : prev - 0.1;
+      return Math.max(0.5, Math.min(next, 1.5));
     });
-
-    setEditingPositions(newPos);
   };
 
   const handleSave = async () => {
@@ -247,7 +220,8 @@ export default function BedLayoutBuilder({ hostelId, onSaveComplete }: { hostelI
         sharing: activeSharing,
         positions: editingPositions,
         door: editingDoor,
-        color: editingColor
+        color: editingColor,
+        pillSize: editingPillSize
       };
 
       const savedTemplate = await saveBedLayoutTemplate(hostelId, newTemplate);
@@ -516,30 +490,38 @@ export default function BedLayoutBuilder({ hostelId, onSaveComplete }: { hostelI
             
             {beds.map(bed => {
               const rotated = editingPositions[bed]?.rotated || false;
+              const bedW = (rotated ? 48 : 96) * editingPillSize;
+              const bedH = (rotated ? 96 : 44) * editingPillSize;
+
               return (
                 <motion.div
                   key={`${activeTemplateId}-${bed}`}
                   drag
-                  dragConstraints={roomRef}
+                  dragConstraints={{ top: 0, left: 0, right: 316 - bedW, bottom: 396 - bedH }}
                   dragMomentum={false}
                   dragElastic={0}
                   initial={false}
                   animate={{ 
                     x: editingPositions[bed]?.x || 0, 
-                    y: editingPositions[bed]?.y || 0 
+                    y: editingPositions[bed]?.y || 0,
+                    width: bedW,
+                    height: bedH
                   }}
                   onDragEnd={(e, info) => {
-                    const bedW = rotated ? 48 : 96;
-                    const bedH = rotated ? 96 : 44;
                     let newX = editingPositions[bed].x + info.offset.x;
                     let newY = editingPositions[bed].y + info.offset.y;
                     
                     const GRID_SIZE = 24;
+                    // Snapping
                     newX = Math.round(newX / GRID_SIZE) * GRID_SIZE;
                     newY = Math.round(newY / GRID_SIZE) * GRID_SIZE;
 
-                    newX = Math.max(0, Math.min(newX, 316 - bedW));
-                    newY = Math.max(0, Math.min(newY, 396 - bedH));
+                    // Constraints (Canvas is 320x400, but let's leave 4px buffer for borders)
+                    const MAX_X = Math.floor((316 - bedW) / GRID_SIZE) * GRID_SIZE;
+                    const MAX_Y = Math.floor((396 - bedH) / GRID_SIZE) * GRID_SIZE;
+
+                    newX = Math.max(0, Math.min(newX, MAX_X));
+                    newY = Math.max(0, Math.min(newY, MAX_Y));
                     
                     setEditingPositions(prev => ({
                       ...prev,
@@ -551,19 +533,19 @@ export default function BedLayoutBuilder({ hostelId, onSaveComplete }: { hostelI
                     }));
                   }}
                   className={`absolute top-0 left-0 bg-blue-50 border-2 border-blue-200 rounded-xl shadow-sm text-blue-900 font-semibold text-sm flex items-center justify-center gap-1 cursor-grab active:cursor-grabbing hover:bg-blue-100 hover:border-blue-300 transition-colors z-10 group ${
-                    rotated ? 'w-12 h-24 flex-col' : 'w-24 px-3 py-2.5 flex-row'
+                    rotated ? 'flex-col' : 'flex-row px-3 py-2.5'
                   }`}
                 >
                   <button 
                     onClick={(e) => {
                       e.stopPropagation();
                       const newRotated = !editingPositions[bed].rotated;
-                      const bedW = newRotated ? 48 : 96;
-                      const bedH = newRotated ? 96 : 44;
+                      const nextBedW = (newRotated ? 48 : 96) * editingPillSize;
+                      const nextBedH = (newRotated ? 96 : 44) * editingPillSize;
                       let newX = editingPositions[bed].x;
                       let newY = editingPositions[bed].y;
-                      newX = Math.max(0, Math.min(newX, 316 - bedW));
-                      newY = Math.max(0, Math.min(newY, 396 - bedH));
+                      newX = Math.max(0, Math.min(newX, 316 - nextBedW));
+                      newY = Math.max(0, Math.min(newY, 396 - nextBedH));
 
                       setEditingPositions(prev => ({
                         ...prev,
@@ -579,7 +561,7 @@ export default function BedLayoutBuilder({ hostelId, onSaveComplete }: { hostelI
                   >
                     <RotateCcw className="w-3 h-3" />
                   </button>
-                  <span className={rotated ? "-rotate-90 origin-center text-sm" : "text-sm"}>Bed {bed}</span>
+                  <span className={rotated ? "-rotate-90 origin-center text-sm" : "text-sm"}>{bed}</span>
                 </motion.div>
               );
             })}
@@ -627,18 +609,19 @@ export default function BedLayoutBuilder({ hostelId, onSaveComplete }: { hostelI
             <div className="space-y-3 pt-2">
               <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-200">
                 <span className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                  <Move className="w-4 h-4" />
-                  Spacing
+                  <LayoutTemplate className="w-4 h-4" />
+                  Bed Size
                 </span>
                 <div className="flex items-center gap-1">
                   <button 
-                    onClick={() => handleSpacing('decrease')}
+                    onClick={() => handleSize('decrease')}
                     className="w-8 h-8 flex items-center justify-center bg-white hover:bg-gray-100 text-gray-600 rounded-lg border border-gray-200 transition-colors"
                   >
                     <Minus className="w-4 h-4" />
                   </button>
+                  <span className="w-10 text-center text-xs font-bold text-gray-500">{editingPillSize.toFixed(1)}x</span>
                   <button 
-                    onClick={() => handleSpacing('increase')}
+                    onClick={() => handleSize('increase')}
                     className="w-8 h-8 flex items-center justify-center bg-white hover:bg-gray-100 text-gray-600 rounded-lg border border-gray-200 transition-colors"
                   >
                     <Plus className="w-4 h-4" />

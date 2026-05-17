@@ -1346,6 +1346,7 @@ export interface BedLayoutTemplate {
   positions: Record<string, { x: number; y: number; rotated: boolean }>;
   door: 'N' | 'S' | 'E' | 'W' | null;
   color: string;
+  pillSize: number;
 }
 
 /**
@@ -1371,6 +1372,7 @@ export async function getBedLayoutTemplates(hostelId: string): Promise<BedLayout
     positions: normalizeBedLayoutPositions(t.positions),
     door: t.door,
     color: t.color,
+    pillSize: Number(t.pill_size || 1.0),
   }));
 }
 
@@ -1399,6 +1401,7 @@ export async function saveBedLayoutTemplate(
         positions: normalizedPositions,
         door: template.door || null,
         color: template.color || 'Blue',
+        pill_size: template.pillSize || 1.0,
       })
       .eq('id', template.id)
       .eq('hostel_id', hostelId)
@@ -1413,9 +1416,10 @@ export async function saveBedLayoutTemplate(
     return {
       id: data.id,
       sharing: data.sharing,
-      positions: data.positions,
+      positions: normalizeBedLayoutPositions(data.positions),
       door: data.door,
       color: data.color,
+      pillSize: Number(data.pill_size || 1.0),
     };
   } else {
     // Insert new template
@@ -1427,6 +1431,7 @@ export async function saveBedLayoutTemplate(
         positions: normalizedPositions,
         door: template.door || null,
         color: template.color || 'Blue',
+        pill_size: template.pillSize || 1.0,
       })
       .select()
       .single();
@@ -1439,9 +1444,10 @@ export async function saveBedLayoutTemplate(
     return {
       id: data.id,
       sharing: data.sharing,
-      positions: data.positions,
+      positions: normalizeBedLayoutPositions(data.positions),
       door: data.door,
       color: data.color,
+      pillSize: Number(data.pill_size || 1.0),
     };
   }
 }

@@ -670,13 +670,8 @@ export default function BuildingView() {
                                   if (!pos) return null;
                                   const styles = getBedPillStyles(bed.status);
                                   
-                                  // Auto-align beds to a 24px grid to fix minor drag-and-drop misalignments
-                                  const GRID_SIZE = 24;
-                                  const snappedX = Math.round(pos.x / GRID_SIZE) * GRID_SIZE;
-                                  const snappedY = Math.round(pos.y / GRID_SIZE) * GRID_SIZE;
-                                  
-                                  const scaleX = (snappedX / 320) * 100;
-                                  const scaleY = (snappedY / 400) * 100;
+                                  const scaleX = (pos.x / 320) * 100;
+                                  const scaleY = (pos.y / 400) * 100;
                                   const xOffsetPct = 16;
                                   const yOffsetPct = 2;
     
@@ -687,8 +682,8 @@ export default function BuildingView() {
                                   // base canvas (320x400). Use transform to center the
                                   // bed box at the (left,top) coordinate so scaling works
                                   // consistently across card sizes.
-                                  const bedWidthPx = pos.rotated ? 44 : 96;
-                                  const bedHeightPx = pos.rotated ? 96 : 44;
+                                  const bedWidthPx = (pos.rotated ? 48 : 96) * (resolvedTemplate.pillSize || 1.0);
+                                  const bedHeightPx = (pos.rotated ? 96 : 44) * (resolvedTemplate.pillSize || 1.0);
                                   const widthPct = (bedWidthPx / 320) * 100;
                                   const heightPct = (bedHeightPx / 400) * 100;
 
@@ -1450,14 +1445,14 @@ export default function BuildingView() {
                                   isRemoving ? "opacity-30 line-through bg-gray-100 border-gray-200 text-gray-500 shadow-none" : statusColors.container
                                 )}
                               >
-                                {existingBed.name}
+                                Bed {existingBed.name}
                               </div>
                             );
                           } else {
                             return (
                               <div 
                                 key={`new-bed-${idx}`} 
-                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all border bg-white border-dashed border-gray-300 text-gray-500 shadow-sm"
+                                className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all border bg-white border-dashed border-gray-300 text-gray-500 shadow-sm"
                               >
                                 Bed {idx + 1}
                               </div>
@@ -1564,7 +1559,7 @@ export default function BuildingView() {
                                 : cn(statusColors.container, "hover:opacity-80 hover:shadow-sm")
                             )}
                           >
-                            {bed.name}
+                            Bed {bed.name}
                           </button>
                         );
                       })}
@@ -1813,8 +1808,8 @@ export default function BuildingView() {
                       )}
 
                       {Object.entries(template.positions).map(([label, pos]) => {
-                        const bedWidthPx = pos.rotated ? 44 : 96;
-                        const bedHeightPx = pos.rotated ? 96 : 44;
+                        const bedWidthPx = (pos.rotated ? 48 : 96) * (template.pillSize || 1.0);
+                        const bedHeightPx = (pos.rotated ? 96 : 44) * (template.pillSize || 1.0);
                         
                         // Template is based on 320x400
                         // Preview is 280x350
