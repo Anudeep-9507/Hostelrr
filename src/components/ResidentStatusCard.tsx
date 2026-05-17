@@ -1,7 +1,7 @@
 import React from 'react';
 import { Resident } from '../data/mock';
-import { IndianRupee, CheckCircle2 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { CheckCircle2 } from 'lucide-react';
 
 export const WhatsAppIcon = ({ className }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="0" className={className}>
@@ -11,88 +11,108 @@ export const WhatsAppIcon = ({ className }: { className?: string }) => (
 
 interface ResidentStatusCardProps {
   resident: Resident;
-  dueAmount: number;
-  onSendReminder: () => void;
-  onMarkPaid: () => void;
-  onSendDepositReminder: () => void;
-  onMarkDepositPaid: () => void;
+  rentAmount: number;
+  onSendReminder?: () => void;
+  onMarkPaid?: () => void;
+  onSendDepositReminder?: () => void;
+  onMarkDepositPaid?: () => void;
   isSendingReminder?: boolean;
+  isMarkingPayment?: boolean;
+  isMarkingDeposit?: boolean;
   isCompact?: boolean;
 }
 
 export default function ResidentStatusCard({
   resident,
-  dueAmount,
+  rentAmount,
   onSendReminder,
   onMarkPaid,
   onSendDepositReminder,
   onMarkDepositPaid,
   isSendingReminder = false,
+  isMarkingPayment = false,
+  isMarkingDeposit = false,
   isCompact = false,
 }: ResidentStatusCardProps) {
-  if (resident.status === 'reserved') return null;
+  const rentStatus = resident.paymentStatus === 'paid'
+    ? 'Paid'
+    : resident.paymentStatus === 'partially_paid'
+      ? 'Partial'
+      : resident.paymentStatus === 'late'
+        ? 'Late'
+        : 'Due';
+  const rentStatusColor = (resident.paymentStatus === 'paid')
+    ? 'text-green-600 bg-green-50 border-green-100'
+    : (resident.paymentStatus === 'partially_paid')
+      ? 'text-amber-600 bg-amber-50 border-amber-100'
+      : 'text-red-600 bg-red-50 border-red-100';
+  const depositStatus = resident.securityDeposit && resident.isDepositPaid ? 'Paid' : 'Pending';
+  const depositStatusColor = resident.securityDeposit && resident.isDepositPaid
+    ? 'text-green-600 bg-green-50 border-green-100'
+    : 'text-red-600 bg-red-50 border-red-100';
 
   return (
-    <div className={isCompact ? 'space-y-2' : 'space-y-3'}>
+    <div className={cn(isCompact ? 'space-y-2' : 'space-y-3')}>
       {isCompact && (
         <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Status</h4>
       )}
 
-      {/* Dues Card */}
-      {resident.paymentStatus !== 'paid' && (
-        <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
-            <IndianRupee className="w-5 h-5 text-gray-400" />
-            <span className="font-medium text-sm text-gray-700">Dues</span>
+      <div className="grid gap-2.5">
+        <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-medium text-sm text-gray-700">Rent</span>
+            <span className={cn('px-2.5 py-1 rounded-full text-xs font-semibold border', rentStatusColor)}>
+              {rentStatus} ₹{rentAmount.toLocaleString('en-IN')}
+            </span>
           </div>
-          <div className="flex w-full flex-col gap-3 sm:max-w-[320px] sm:items-end">
-            <span className="text-sm font-bold text-red-600 self-start sm:self-auto">₹{dueAmount.toLocaleString('en-IN')}</span>
-            <div className="grid w-full grid-cols-2 gap-2">
+          {rentStatus !== 'Paid' && !isMarkingPayment ? (
+            <div className="grid grid-cols-2 gap-2">
               <button
-                onClick={onSendReminder}
+                onClick={() => onSendReminder?.()}
                 disabled={isSendingReminder}
-                className="h-11 min-w-0 w-full justify-center whitespace-nowrap bg-[#25D366] hover:bg-[#22c35e] disabled:opacity-60 disabled:cursor-not-allowed text-white px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                className="h-10 min-w-0 w-full justify-center whitespace-nowrap bg-[#25D366] hover:bg-[#22c35e] disabled:opacity-60 disabled:cursor-not-allowed text-white px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
               >
                 <WhatsAppIcon className="w-3.5 h-3.5" /> Remind
               </button>
               <button
-                onClick={onMarkPaid}
-                className="h-11 min-w-0 w-full justify-center whitespace-nowrap text-[#059669] bg-white border border-[#A7F3D0]/70 px-3 py-2 rounded-lg text-xs font-semibold hover:bg-[#ECFDF5] transition-all flex items-center gap-1.5 shadow-sm"
+                onClick={() => onMarkPaid?.()}
+                className="h-10 min-w-0 w-full justify-center whitespace-nowrap text-[#059669] bg-white border border-[#A7F3D0]/70 px-3 py-2 rounded-lg text-xs font-semibold hover:bg-[#ECFDF5] transition-all flex items-center gap-1.5 shadow-sm"
               >
                 <CheckCircle2 className="w-3.5 h-3.5" /> Mark Paid
               </button>
             </div>
-          </div>
+          ) : null}
         </div>
-      )}
 
-      {/* Security Deposit Card */}
-      {resident.securityDeposit && !resident.isDepositPaid && (
-        <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
-            <IndianRupee className="w-5 h-5 text-gray-400" />
-            <span className="font-medium text-sm text-gray-700">Security Deposit</span>
-          </div>
-          <div className="flex w-full flex-col gap-3 sm:max-w-[320px] sm:items-end">
-            <span className="text-sm font-bold text-red-600 self-start sm:self-auto">₹{resident.securityDeposit.toLocaleString('en-IN')}</span>
-            <div className="grid w-full grid-cols-2 gap-2">
-              <button
-                onClick={onSendDepositReminder}
-                disabled={isSendingReminder}
-                className="h-11 min-w-0 w-full justify-center whitespace-nowrap bg-[#25D366] hover:bg-[#22c35e] disabled:opacity-60 disabled:cursor-not-allowed text-white px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
-              >
-                <WhatsAppIcon className="w-3.5 h-3.5" /> Remind
-              </button>
-              <button
-                onClick={onMarkDepositPaid}
-                className="h-11 min-w-0 w-full justify-center whitespace-nowrap text-[#059669] bg-white border border-[#A7F3D0]/70 px-3 py-2 rounded-lg text-xs font-semibold hover:bg-[#ECFDF5] transition-all flex items-center gap-1.5 shadow-sm"
-              >
-                <CheckCircle2 className="w-3.5 h-3.5" /> Mark Paid
-              </button>
+        {resident.securityDeposit ? (
+          <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-medium text-sm text-gray-700">Security Deposit</span>
+              <span className={cn('px-2.5 py-1 rounded-full text-xs font-semibold border', depositStatusColor)}>
+                {depositStatus} ₹{resident.securityDeposit.toLocaleString('en-IN')}
+              </span>
             </div>
+            {depositStatus !== 'Paid' && !isMarkingDeposit ? (
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => onSendDepositReminder?.()}
+                  disabled={isSendingReminder}
+                  className="h-10 min-w-0 w-full justify-center whitespace-nowrap bg-[#25D366] hover:bg-[#22c35e] disabled:opacity-60 disabled:cursor-not-allowed text-white px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                >
+                  <WhatsAppIcon className="w-3.5 h-3.5" /> Remind
+                </button>
+                <button
+                  onClick={() => onMarkDepositPaid?.()}
+                  className="h-10 min-w-0 w-full justify-center whitespace-nowrap text-[#059669] bg-white border border-[#A7F3D0]/70 px-3 py-2 rounded-lg text-xs font-semibold hover:bg-[#ECFDF5] transition-all flex items-center gap-1.5 shadow-sm"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Mark Paid
+                </button>
+              </div>
+            ) : null}
           </div>
-        </div>
-      )}
+        ) : null}
+      </div>
     </div>
   );
 }
+

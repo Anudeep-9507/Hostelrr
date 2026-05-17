@@ -12,6 +12,7 @@ import { uploadResidentDocuments } from '../lib/supabaseAPI';
 import useAsyncAction from '../hooks/useAsyncAction';
 import { MarkRentPaidModal } from '../components/MarkRentPaidModal';
 import { MarkDepositPaidModal } from '../components/MarkDepositPaidModal';
+import ResidentStatusCard from '../components/ResidentStatusCard';
 
 type ViewMode = 'all' | 'floor' | 'room' | 'vacating';
 
@@ -834,87 +835,28 @@ export default function Residents() {
               )}
 
               {/* Status Section */}
-              {('paymentStatus' in selectedResident) && (
-                <div className="space-y-3">
-                  <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Status</h4>
-
-                  {selectedResident.status !== 'reserved' && (
-                    <>
-                  
-                  {/* Dues Card */}
-                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                     <div className="flex items-center gap-2">
-                       <IndianRupee className="w-5 h-5 text-gray-400" />
-                       <span className="font-medium text-sm text-gray-700">Dues</span>
-                     </div>
-                     {selectedResident.paymentStatus === 'paid' ? (
-                        <span className="text-sm font-bold text-green-600">Paid (₹{getResidentRentAmount(selectedResident as Resident, floors).toLocaleString('en-IN')})</span>
-                      ) : (
-                         <div className="flex w-full flex-col gap-3 sm:max-w-[320px] sm:items-end">
-                          <span className="text-sm font-bold text-red-600 self-start sm:self-auto">₹{selectedResident.dueAmount}</span>
-                          <div className="grid w-full grid-cols-2 gap-2">
-                            <button
-                              onClick={() => handleSendReminder(selectedResident as Resident)}
-                              className="h-11 min-w-0 w-full justify-center whitespace-nowrap bg-[#25D366] hover:bg-[#22c35e] text-white px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
-                            >
-                              <WhatsAppIcon className="w-3.5 h-3.5" /> Remind
-                            </button>
-                            <button
-                              onClick={() => {
-                                setResidentToMarkPaid(selectedResident as Resident);
-                                setPaidUsing('UPI');
-                                setIsPartialPayment(false);
-                                setPartialAmount('');
-                                setPaymentDate(getTodayIST());
-                              }}
-                              className="h-11 min-w-0 w-full justify-center whitespace-nowrap text-[#059669] bg-white border border-[#A7F3D0]/70 px-3 py-2 rounded-lg text-xs font-semibold hover:bg-[#ECFDF5] transition-all flex items-center gap-1.5 shadow-sm"
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5" /> Mark Paid
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                  </div>
-
-                    </>
-                  )}
-
-                  {/* Security Deposit Card */}
-                  {('securityDeposit' in selectedResident && selectedResident.securityDeposit) && (
-                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="flex items-center gap-2">
-                        <IndianRupee className="w-5 h-5 text-gray-400" />
-                        <span className="font-medium text-sm text-gray-700">Security Deposit</span>
-                      </div>
-                      {'isDepositPaid' in selectedResident && selectedResident.isDepositPaid ? (
-                        <span className="text-sm font-bold text-green-600">Paid (₹{selectedResident.securityDeposit.toLocaleString('en-IN')})</span>
-                      ) : (
-                        <div className="flex w-full flex-col gap-3 sm:max-w-[320px] sm:items-end">
-                          <span className="text-sm font-bold text-red-600 self-start sm:self-auto">₹{selectedResident.securityDeposit.toLocaleString('en-IN')}</span>
-                          <div className="grid w-full grid-cols-2 gap-2">
-                            <button
-                              onClick={() => handleSendDepositReminder(selectedResident as Resident)}
-                              disabled={isSendingReminder}
-                              className="h-11 min-w-0 w-full justify-center whitespace-nowrap bg-[#25D366] hover:bg-[#22c35e] disabled:opacity-60 disabled:cursor-not-allowed text-white px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
-                            >
-                              <WhatsAppIcon className="w-3.5 h-3.5" /> Remind
-                            </button>
-                            <button
-                              onClick={() => {
-                                setResidentToMarkDepositPaid(selectedResident as Resident);
-                                setDepositPaymentMethod('UPI');
-                                setDepositPaymentDate(getTodayIST());
-                              }}
-                              className="h-11 min-w-0 w-full justify-center whitespace-nowrap text-[#059669] bg-white border border-[#A7F3D0]/70 px-3 py-2 rounded-lg text-xs font-semibold hover:bg-[#ECFDF5] transition-all flex items-center gap-1.5 shadow-sm"
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5" /> Mark Paid
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+              {('paymentStatus' in selectedResident) && selectedResident.status !== 'reserved' && (
+                <ResidentStatusCard
+                  resident={selectedResident as Resident}
+                  rentAmount={getResidentDueDisplayAmount(selectedResident as Resident, floors)}
+                  onSendReminder={() => handleSendReminder(selectedResident as Resident)}
+                  onMarkPaid={() => {
+                    setResidentToMarkPaid(selectedResident as Resident);
+                    setPaidUsing('UPI');
+                    setIsPartialPayment(false);
+                    setPartialAmount('');
+                    setPaymentDate(getTodayIST());
+                  }}
+                  onSendDepositReminder={() => handleSendDepositReminder(selectedResident as Resident)}
+                  onMarkDepositPaid={() => {
+                    setResidentToMarkDepositPaid(selectedResident as Resident);
+                    setDepositPaymentMethod('UPI');
+                    setDepositPaymentDate(getTodayIST());
+                  }}
+                  isSendingReminder={isSendingReminder}
+                  isMarkingPayment={isMarkingPaid}
+                  isMarkingDeposit={isMarkingDepositPaid}
+                />
               )}
 
               <div className="flex bg-gray-100/80 p-1 rounded-xl">

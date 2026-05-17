@@ -5,14 +5,14 @@ import { useApp } from '../context/AppContext';
 import { Room, Bed, Resident } from '../data/mock';
 import DefaultAvatar from '../components/DefaultAvatar';
 import { cn, compareBedLabels, formatDate, getNamesFromIds, normalizeBedLabel, getTodayIST, getResidentDueDisplayAmount } from '../lib/utils';
-import { X, UserPlus, LogOut, Phone, IndianRupee, FileText, Plus, User, LayoutTemplate, Trash2, BedDouble, Search, ChevronDown, Copy, Eye } from 'lucide-react';
+import { X, UserPlus, LogOut, FileText, Phone, Plus, User, LayoutTemplate, Trash2, BedDouble, Search, ChevronDown, Copy, Eye } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import EmptyState from '../components/EmptyState';
 import { toast } from 'sonner';
 import BedLayoutBuilder, { LAYOUT_COLORS, Template } from '../components/BedLayoutBuilder';
 import { getBedLayoutTemplates } from '../lib/supabaseAPI';
 import useAsyncAction from '../hooks/useAsyncAction';
-import ResidentStatusCard, { WhatsAppIcon } from '../components/ResidentStatusCard';
+import ResidentStatusCard from '../components/ResidentStatusCard';
 import { MarkRentPaidModal } from '../components/MarkRentPaidModal';
 import { MarkDepositPaidModal } from '../components/MarkDepositPaidModal';
 
@@ -1098,27 +1098,27 @@ export default function BuildingView() {
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3 pt-2">
-                          <div className={cn("bg-gray-50 p-3 rounded-xl", bed.status === 'reserved' && "col-span-2")}>
-                            <span className="flex items-center gap-1.5 text-xs text-gray-500 font-medium mb-1"><Phone className="w-3.5 h-3.5" /> Phone</span>
-                            <span className="text-sm font-semibold text-gray-900 truncate">{resident.phone}</span>
+                        <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <Phone className="w-4 h-4 text-gray-400" />
+                            <span className="text-sm font-semibold text-gray-900">{resident.phone}</span>
                           </div>
-                          {bed.status !== 'reserved' && (
-                            <div className="bg-gray-50 p-3 rounded-xl flex flex-col justify-center">
-                              <span className="flex items-center gap-1.5 text-xs text-gray-500 font-medium mb-1"><IndianRupee className="w-3.5 h-3.5" /> Dues</span>
-                              {resident.paymentStatus === 'due' ? (
-                                <span className="text-sm font-bold text-red-600">₹{resident.dueAmount}</span>
-                              ) : (
-                                <span className="text-sm font-bold text-green-600">Paid</span>
-                              )}
-                            </div>
-                          )}
+                          <button 
+                            onClick={() => {
+                              navigator.clipboard.writeText(resident.phone);
+                              toast.success('Phone number copied');
+                            }}
+                            className="p-1.5 hover:bg-gray-200 rounded-md transition-colors text-gray-500"
+                            title="Copy Phone"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
                         </div>
 
                         {/* Status Card for unpaid dues and deposit */}
                         <ResidentStatusCard
                           resident={resident}
-                          dueAmount={getResidentDueDisplayAmount(resident, floors)}
+                          rentAmount={getResidentDueDisplayAmount(resident, floors)}
                           onSendReminder={() => handleSendReminder(resident)}
                           onMarkPaid={() => {
                             setResidentToMarkPaid(resident);
@@ -1134,6 +1134,8 @@ export default function BuildingView() {
                             setDepositPaymentDate(getTodayIST());
                           }}
                           isSendingReminder={isSendingReminder}
+                          isMarkingPayment={residentToMarkPaid?.id === resident.id}
+                          isMarkingDeposit={residentToMarkDepositPaid?.id === resident.id}
                           isCompact={true}
                         />
 
