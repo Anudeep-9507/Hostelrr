@@ -37,7 +37,7 @@ export default function HostelQrPoster({ hostelName, joinUrl, posterRef, logoBas
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '70px 80px 60px',
-          fontFamily: "'Inter', 'Segoe UI', Arial, sans-serif",
+          fontFamily: "'Plus Jakarta Sans', 'Inter', 'Segoe UI', Arial, sans-serif",
           boxSizing: 'border-box',
           position: 'relative',
           overflow: 'hidden',

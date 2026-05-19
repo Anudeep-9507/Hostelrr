@@ -1,4 +1,9 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap');
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+}
 
 html,
 body,
@@ -6,6 +11,7 @@ body,
 	/* lock root to viewport and prevent outer scroll; inner app handles vertical scrolling */
 	height: 100dvh;
 	overflow: hidden;
+  font-family: "Plus Jakarta Sans", sans-serif;
 }
 
 .no-scrollbar,
