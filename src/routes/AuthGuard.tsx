@@ -39,6 +39,12 @@ export default function AuthGuard() {
     return <Navigate to={ROUTES.signin.path} replace />;
   }
 
+  // An administrator session is not an owner session and must never enter
+  // hostel onboarding. This also handles auth changes shared across browser tabs.
+  if (session.user.app_metadata?.platform_role === 'admin') {
+    return <Navigate to="/admin" replace />;
+  }
+
   if (FLAGS.maintenanceMode) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
@@ -53,7 +59,8 @@ export default function AuthGuard() {
 
   // Authenticated but onboarding not complete → redirect to onboarding
   // (unless already on onboarding page)
-  if (!isOnboardingComplete && location.pathname !== ROUTES.onboarding.path) {
+  const isAdminRoute = location.pathname.startsWith('/admin/');
+  if (!isOnboardingComplete && location.pathname !== ROUTES.onboarding.path && !isAdminRoute) {
     return <Navigate to={ROUTES.onboarding.path} replace />;
   }
 

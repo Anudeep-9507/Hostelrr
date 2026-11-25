@@ -2,11 +2,12 @@ import { Navigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { ROUTES } from './routes';
 import { Loader2 } from 'lucide-react';
+import LandingPage from '../pages/LandingPage';
 
 /**
  * Smart root redirect:
  * - authenticated → /dashboard
- * - unauthenticated → /signin
+ * - unauthenticated → public landing page
  * - loading → spinner
  */
 export default function RootRedirect() {
@@ -21,8 +22,9 @@ export default function RootRedirect() {
   }
 
   if (session) {
+    if (session.user.app_metadata?.platform_role === 'admin') return <Navigate to="/admin" replace />;
     return <Navigate to={ROUTES.dashboard.path} replace />;
   }
 
-  return <Navigate to={ROUTES.signin.path} replace />;
+  return <LandingPage />;
 }

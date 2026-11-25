@@ -5,7 +5,7 @@ import {
 } from '../data/mock';
 import { toast } from 'sonner';
 import { FLAGS } from '../core/env';
-import { compareBedLabels, getResidentRentAmount, getRoomBaseRent } from '../lib/utils';
+import { compareBedLabels, getResidentPaymentStateForDate, getResidentDueDisplayAmount, getRoomBaseRent, getTodayIST } from '../lib/utils';
 
 export type PaymentsFilterType = 'All' | 'Paid' | 'Unpaid' | 'Pending' | 'Late' | 'Partially Paid';
 
@@ -16,12 +16,12 @@ interface AppContextType {
   activities: any[];
   joinRequests: JoinRequest[];
   markAsPaid: (residentId: string, method?: 'UPI' | 'Cash', partialAmount?: number, paymentDate?: string) => void;
-  markReminderSent: (residentId: string) => void;
   vacateResident: (residentId: string) => void;
   archiveResident: (residentId: string, reason?: string) => void;
+  deletePastResident: (residentId: string) => Promise<'deleted' | 'anonymized'>;
   addResident: (residentData: any, isReserved?: boolean) => void;
   confirmMoveIn: (residentId: string, confirmedDate?: string) => void;
-  editResident: (residentId: string, updatedData: any) => void;
+  editResident: (residentId: string, updatedData: any) => Promise<void>;
   removeJoinRequest: (requestId: string) => void;
   approveJoinRequest: (params: {
     requestId: string;
@@ -32,8 +32,9 @@ interface AppContextType {
     securityDeposit?: number;
     isDepositPaid?: boolean;
     stayDurationDays?: number | null;
+    vacatingDate?: string;
     reviewNotes?: string | null;
-  }) => void;
+  }) => Promise<void>;
   rejectJoinRequest: (requestId: string, reviewNotes?: string) => void;
   addJoinRequest: (request: Omit<JoinRequest, 'id' | 'requestDate' | 'status'>) => void;
   activeBuildingFilter: Bed['status'] | 'all';
@@ -47,7 +48,7 @@ interface AppContextType {
   addRoom: (floorId: string, roomData: { number: string; numBeds: number; baseRent?: string; layoutId?: string }) => void;
   editRoomBeds: (floorId: string, roomId: string, numBeds: number, layoutId?: string) => void;
   updateRoomSetup: (floorId: string, roomId: string, numBeds: number, baseRent: number, newNumber?: string, layoutId?: string) => void;
-  moveBeds: (sourceRoomId: string, targetRoomId: string, bedIdsToMove: string[]) => void;
+  moveBeds: (sourceRoomId: string, targetRoomId: string, bedIdsToMove: string[]) => Promise<void>;
   deleteRoom: (floorId: string, roomId: string) => void;
   copyFloorLayout: (sourceFloorId: string, targetFloorId: string) => void;
   isOnboardingComplete: boolean;
@@ -60,6 +61,7 @@ interface AppContextType {
   securityDeposit: number;
   hostelProfile: any;
   dashboardStats: Record<string, any> | null;
+  subscriptionOverview: any | null;
   updateHostelProfile: (profile: any) => void;
   syncStateWithDb: () => Promise<void>;
   isDataLoading: boolean;
@@ -67,16 +69,18 @@ interface AppContextType {
   retryDataFetch: () => void;
   authLoading: boolean;
   session: any | null;
+  isSupportModalOpen: boolean;
+  setIsSupportModalOpen: (open: boolean) => void;
+  openSupportModal: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const isOnboardingCompleteInitial = localStorage.getItem('hostelrr_onboarding') === 'true';
-  const [isDemoMode, setIsDemoMode] = useState(() => {
-    if (FLAGS.demoMode) return true;
-    return !isOnboardingCompleteInitial;
-  });
+  const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
+  const openSupportModal = () => setIsSupportModalOpen(true);
+  const isOnboardingCompleteInitial = false;
+  const [isDemoMode, setIsDemoMode] = useState(() => FLAGS.demoMode);
 
   const [floors, setFloors] = useState<Floor[]>(() => {
     if (!isOnboardingCompleteInitial) return MOckFloors;
@@ -102,12 +106,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     return [];
   });
-  
+
   const [residents, setResidents] = useState<Resident[]>(!isOnboardingCompleteInitial ? MockResidents : []);
   const [pastResidents, setPastResidents] = useState<PastResident[]>(!isOnboardingCompleteInitial ? MockPastResidents : []);
   const [activities, setActivities] = useState<any[]>(!isOnboardingCompleteInitial ? MockActivities : []);
   const [joinRequests, setJoinRequests] = useState<JoinRequest[]>(!isOnboardingCompleteInitial ? MockJoinRequests : []);
-  
+
   const [activeBuildingFilter, setActiveBuildingFilter] = useState<Bed['status'] | 'all'>('all');
   const [activePaymentsFilter, setActivePaymentsFilter] = useState<PaymentsFilterType>('All');
   const [globalSelectedResidentId, setGlobalSelectedResidentId] = useState<string | null>(null);
@@ -140,6 +144,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   });
 
   const [dashboardStats, setDashboardStats] = React.useState<Record<string, any> | null>(null);
+  const [subscriptionOverview, setSubscriptionOverview] = React.useState<any | null>(null);
+
+  React.useEffect(() => {
+    const subscription = subscriptionOverview?.subscription;
+    if (!subscription || subscriptionOverview.writable !== true) return;
+    const trialEnd = Date.parse(subscription.trial_ends_at || '');
+    const paidEnd = Date.parse(subscription.current_period_end || '');
+    const expiresAt = subscription.status === 'active' && Number.isFinite(paidEnd)
+      ? Math.max(Number.isFinite(trialEnd) ? trialEnd : 0, paidEnd)
+      : trialEnd;
+    const delay = expiresAt - Date.now();
+    if (!Number.isFinite(delay) || delay <= 0) {
+      setSubscriptionOverview((current: any) => current ? { ...current, writable: false } : current);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setSubscriptionOverview((current: any) => current ? { ...current, writable: false } : current);
+    }, Math.min(delay + 1000, 2147483647));
+    return () => window.clearTimeout(timer);
+  }, [subscriptionOverview]);
 
   const [showBedLayout, setShowBedLayout] = React.useState<boolean>(() => {
     try {
@@ -177,13 +201,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             setActivities(result.activities || []);
             setJoinRequests(result.joinRequests || []);
             setDashboardStats(result.dashboardStats || null);
+            setSubscriptionOverview(result.subscriptionOverview || null);
             setIsOnboardingComplete(true);
             localStorage.setItem('hostelrr_onboarding', 'true');
+            localStorage.setItem(`hostelrr_onboarding:${userId}`, 'true');
             setIsDemoMode(false);
           } else {
+            setHostelProfile(null);
+            setFloors([]);
+            setResidents([]);
+            setPastResidents([]);
+            setActivities([]);
+            setJoinRequests([]);
             setDashboardStats(null);
+            setSubscriptionOverview(null);
             setIsOnboardingComplete(false);
             localStorage.removeItem('hostelrr_onboarding');
+            localStorage.removeItem(`hostelrr_onboarding:${userId}`);
           }
           setDataFetchError(false);
         } catch (err) {
@@ -205,7 +239,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (!currentSession?.user) {
           currentUserId = null;
           setSession(null);
+          setHostelProfile(null);
+          setFloors([]);
+          setResidents([]);
+          setPastResidents([]);
+          setActivities([]);
+          setJoinRequests([]);
           setDashboardStats(null);
+          setSubscriptionOverview(null);
+          setIsOnboardingComplete(false);
+          localStorage.removeItem('hostelrr_onboarding');
           setIsDataLoading(false);
           setAuthLoading(false);
           return;
@@ -232,6 +275,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             }
             currentUserId = null;
             setSession(null);
+            setHostelProfile(null);
+            setFloors([]);
+            setResidents([]);
+            setPastResidents([]);
+            setActivities([]);
+            setJoinRequests([]);
             setIsDataLoading(false);
             setAuthLoading(false);
             return;
@@ -243,17 +292,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           loadData(user.id);
         } catch (err) {
           console.error("Network or verification error:", err);
-          // If fetch fails (which can happen on CORS errors from invalid/deleted sessions),
-          // we should sign out defensively to prevent the app getting stuck with a ghost session.
-          try {
-            await supabase.auth.signOut();
-          } catch (e) {
-            console.warn("Sign out failed:", e);
-          }
-          currentUserId = null;
-          setSession(null);
-          setIsDataLoading(false);
+          // A failed network check does not prove the saved session is invalid.
+          currentUserId = currentSession.user.id;
+          setSession(currentSession);
           setAuthLoading(false);
+          loadData(currentSession.user.id);
         }
       };
 
@@ -274,23 +317,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const updateHostelProfile = async (newProfile: any) => {
-    setHostelProfile(newProfile);
-    localStorage.setItem('hostelrr_profile', JSON.stringify(newProfile));
-    
-    // Save to DB
     try {
       if (session?.user && newProfile.id) {
         const { updateHostelData } = await import('../lib/supabaseAPI');
         await updateHostelData(session.user.id, newProfile.id, newProfile);
-        toast.success('Hostel profile updated successfully');
       }
+      setHostelProfile(newProfile);
+      localStorage.setItem('hostelrr_profile', JSON.stringify(newProfile));
+      return true;
     } catch (e) {
       console.error("Failed to update hostel profile in DB:", e);
-      toast.error('Failed to update profile');
+      throw e;
     }
   };
 
-  const syncStateWithDb = async () => {
+  const syncStateWithDb = React.useCallback(async () => {
     try {
       const { fetchHostelData } = await import('../lib/supabaseAPI');
       const { data: { session } } = await import('../supabaseClient').then(m => m.supabase.auth.getSession());
@@ -303,34 +344,93 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setActivities(result.activities || []);
           setJoinRequests(result.joinRequests || []);
           setDashboardStats(result.dashboardStats || null);
+          setSubscriptionOverview(result.subscriptionOverview || null);
         }
       }
     } catch (e) {
       console.error(e);
     }
-  };
+  }, []);
 
   const [isOnboardingComplete, setIsOnboardingComplete] = React.useState(() => {
-    return localStorage.getItem('hostelrr_onboarding') === 'true';
+    // Do not infer onboarding state from shared browser storage. The active
+    // account's hostel record is authoritative and is loaded below.
+    return false;
   });
 
   React.useEffect(() => {
     if (isOnboardingComplete && !isDemoMode) {
       syncStateWithDb();
     }
-  }, [isOnboardingComplete, isDemoMode]);
+  }, [isOnboardingComplete, isDemoMode, syncStateWithDb]);
 
   // Listen for join request refresh events (e.g., after new submission from JoinForm)
   React.useEffect(() => {
     const handleRefreshJoinRequests = () => {
       if (isOnboardingComplete && !isDemoMode) {
-        syncStateWithDb();
+        void syncStateWithDb();
       }
     };
 
     window.addEventListener('refresh-join-requests', handleRefreshJoinRequests);
     return () => window.removeEventListener('refresh-join-requests', handleRefreshJoinRequests);
-  }, [isOnboardingComplete, isDemoMode]);
+  }, [isOnboardingComplete, isDemoMode, syncStateWithDb]);
+
+  React.useEffect(() => {
+    if (!isOnboardingComplete || isDemoMode) return;
+
+    const interval = window.setInterval(() => {
+      void syncStateWithDb();
+    }, 10000);
+    const handleFocus = () => { void syncStateWithDb(); };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [isOnboardingComplete, isDemoMode, syncStateWithDb]);
+
+  // Activity logs are the existing in-app notification feed. Realtime refreshes
+  // that feed across tabs/devices, while focus refresh remains the fallback.
+  React.useEffect(() => {
+    const hostelId = hostelProfile?.id;
+    if (!hostelId || isDemoMode) return;
+
+    let mounted = true;
+    let removeChannel: (() => void) | undefined;
+    void import('../supabaseClient').then(({ supabase }) => {
+      if (!mounted) return;
+      const channel = supabase
+        .channel(`hostel-activity-${hostelId}`)
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'activity_logs',
+          filter: `hostel_id=eq.${hostelId}`,
+        }, () => { void syncStateWithDb(); })
+        .subscribe(status => {
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            console.warn(`Activity realtime unavailable (${status}); refresh-on-focus remains enabled.`);
+          }
+        });
+      removeChannel = () => { void supabase.removeChannel(channel); };
+    }).catch(error => console.warn('Could not initialize activity realtime:', error));
+
+    return () => {
+      mounted = false;
+      removeChannel?.();
+    };
+  }, [hostelProfile?.id, isDemoMode, syncStateWithDb]);
+
+  React.useEffect(() => {
+    if (!hostelProfile?.id || isDemoMode) return;
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void syncStateWithDb();
+    };
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => document.removeEventListener('visibilitychange', refreshWhenVisible);
+  }, [hostelProfile?.id, isDemoMode, syncStateWithDb]);
 
   const completeOnboarding = async (data: any) => {
     // Attempt saving to Supabase
@@ -339,7 +439,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const { data: { session } } = await import('../supabaseClient').then(m => m.supabase.auth.getSession());
       if (session?.user) {
         await createHostelData(session.user.id, data);
-        
+
         // Refresh from server to ensure IDs match Supabase generated ones
         const result = await fetchHostelData(session.user.id);
         if (result.hostel) {
@@ -348,6 +448,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setResidents(result.residents || []);
           setActivities(result.activities || []);
           setDashboardStats(result.dashboardStats || null);
+          setSubscriptionOverview(result.subscriptionOverview || null);
         }
       }
     } catch (e: any) {
@@ -375,15 +476,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setIsOnboardingComplete(true);
     localStorage.setItem('hostelrr_onboarding', 'true');
     localStorage.setItem('hostelrr_onboarding_data', JSON.stringify(data));
-    
-    setSecurityDeposit(data.securityDeposit ? parseInt(data.securityDeposit) : 0);
+    if (session?.user?.id) {
+      localStorage.setItem(`hostelrr_onboarding:${session.user.id}`, 'true');
+    }
+
+    const depositAmount = data.collectSecurityDeposit && data.securityDeposit
+      ? parseInt(data.securityDeposit, 10)
+      : 0;
+    setSecurityDeposit(depositAmount);
+    setHostelProfile((current: any) => ({
+      ...current,
+      security_deposit: depositAmount,
+      collectSecurityDeposit: Boolean(data.collectSecurityDeposit && depositAmount > 0),
+    }));
   };
 
   const removeJoinRequest = (requestId: string) => {
     setJoinRequests(prev => prev.filter(req => req.id !== requestId));
   };
 
-  const approveJoinRequest = (params: {
+  const approveJoinRequest = async (params: {
     requestId: string;
     roomId: string;
     bedId: string;
@@ -392,6 +504,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     securityDeposit?: number;
     isDepositPaid?: boolean;
     stayDurationDays?: number | null;
+    vacatingDate?: string;
     reviewNotes?: string | null;
   }) => {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(params.requestId);
@@ -399,13 +512,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     if (isDemoMode || !session?.user || !isUuid) {
       if (!localRequest) {
-        toast.error('Failed to approve join request');
-        return;
+        throw new Error('This join request is no longer available. Refresh the page and try again.');
       }
 
       const newResidentId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
         ? crypto.randomUUID()
         : `res_${Date.now()}`;
+      const joinDate = params.joinDate || getTodayIST();
+      const paymentState = getResidentPaymentStateForDate([{
+        status: 'pending', due_date: joinDate, paid_amount: 0, total_amount: params.monthlyRent,
+      }], getTodayIST());
 
       setResidents(prev => [{
         id: newResidentId,
@@ -413,22 +529,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         phone: localRequest.phone,
         roomId: params.roomId,
         bedId: params.bedId,
-        joinDate: params.joinDate || new Date().toISOString().split('T')[0],
+        joinDate,
         // Rent dues are independent of security-deposit collection.
-        paymentStatus: 'due',
-        dueAmount: params.monthlyRent,
-        dueDate: params.joinDate || new Date().toISOString().split('T')[0],
-        documentsComplete: true,
+        paymentStatus: paymentState.paymentStatus,
+        dueAmount: paymentState.dueAmount,
+        dueDate: joinDate,
         emergencyPhone: localRequest.emergencyContact,
         aadhar: localRequest.aadharNumber,
         monthlyRent: params.monthlyRent,
         stayTime: params.stayDurationDays ?? undefined,
+        vacatingDate: params.vacatingDate,
         securityDeposit: params.securityDeposit ?? 0,
         isDepositPaid: params.isDepositPaid ?? false,
         photoPath: localRequest.photoPath,
         photoUrl: localRequest.photoUrl,
-        aadharDocumentPath: localRequest.aadharDocumentPath,
-        aadharDocumentUrl: localRequest.aadharDocumentUrl,
       }, ...prev]);
 
       setFloors(prev => prev.map(floor => ({
@@ -444,16 +558,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    import('../lib/supabaseAPI').then(async ({ approveJoinRequestDb }) => {
-      try {
-        await approveJoinRequestDb(params);
-        toast.success('Join request approved and resident added');
-        await syncStateWithDb();
-      } catch (e) {
-        console.error(e);
-        toast.error('Failed to approve join request');
-      }
-    });
+    try {
+      const { approveJoinRequestDb } = await import('../lib/supabaseAPI');
+      await approveJoinRequestDb(params);
+      toast.success('Join request approved and resident added');
+      await syncStateWithDb();
+    } catch (error) {
+      console.error(error);
+      throw error;
+    }
   };
 
   const rejectJoinRequest = (requestId: string, reviewNotes?: string) => {
@@ -483,27 +596,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Determine how much to pay
     const res = residents.find(r => r.id === residentId);
     if (!res) return;
-    const paidValue = partialAmount !== undefined ? partialAmount : getResidentRentAmount(res, floors);
+    const paidValue = partialAmount !== undefined ? partialAmount : getResidentDueDisplayAmount(res, floors);
 
     // Optimistic Update
     // ... we can skip detailed optimistic due to refetch ...
     // Background DB Update
     import('../lib/supabaseAPI').then(async ({ markAsPaidDb }) => {
       try {
-        await markAsPaidDb(residentId, paidValue, method, paymentDate); 
+        await markAsPaidDb(residentId, paidValue, method, paymentDate);
         toast.success(`Payment of ₹${paidValue} recorded`);
         await syncStateWithDb();
-      } catch(e) { 
+      } catch(e: any) {
         console.error(e);
-        toast.error('Failed to record payment');
+        toast.error(e?.message === 'Payment exceeds the outstanding rent balance.'
+          ? 'Payment is higher than the current outstanding balance. Refresh the resident and retry.'
+          : 'Failed to record payment');
       }
     });
-  };
-
-  const markReminderSent = (residentId: string) => {
-    setResidents(prev => prev.map(r => 
-      r.id === residentId ? { ...r, lastReminderSentAt: new Date().toISOString() } : r
-    ));
   };
 
   const vacateResident = (residentId: string) => {
@@ -519,7 +628,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await vacateResidentDb(residentId);
         toast.success('Resident vacated successfully');
         await syncStateWithDb();
-      } catch (e) { 
+      } catch (e) {
         console.error(e);
         toast.error('Failed to vacate resident');
       }
@@ -544,11 +653,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await archiveResidentDb(residentId, reason);
         toast.success('Resident archived successfully');
         await syncStateWithDb();
-      } catch (e) { 
+      } catch (e) {
         console.error(e);
         toast.error('Failed to archive resident');
       }
     });
+  };
+
+  const deletePastResident = async (residentId: string) => {
+    if (isDemoMode) {
+      setPastResidents(prev => prev.filter(resident => resident.id !== residentId));
+      return 'deleted' as const;
+    }
+    const { deletePastResidentDb } = await import('../lib/supabaseAPI');
+    const disposition = await deletePastResidentDb(residentId);
+    await syncStateWithDb();
+    return disposition;
   };
 
   const addResident = (residentData: any, isReserved?: boolean) => {
@@ -564,6 +684,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         if (newResidentId) {
           const resolvedRent = Number(residentData.rent) > 0 ? Number(residentData.rent) : getRoomBaseRent(floors, residentData.roomId);
+          const joinDate = residentData.joinDate || getTodayIST();
+          const paymentState = getResidentPaymentStateForDate(isReserved ? [] : [{
+            status: 'pending', due_date: joinDate, paid_amount: 0, total_amount: resolvedRent,
+          }], getTodayIST());
           setResidents(prev => {
             const nextResident: Resident = {
               id: newResidentId,
@@ -571,29 +695,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               phone: residentData.phone,
               roomId: residentData.roomId,
               bedId: residentData.bedId,
-              joinDate: residentData.joinDate || new Date().toISOString().split('T')[0],
-              paymentStatus: 'due',
-              dueAmount: resolvedRent,
-              dueDate: residentData.vacatingDate || residentData.joinDate || new Date().toISOString().split('T')[0],
-              documentsComplete: false,
+              joinDate,
+              paymentStatus: paymentState.paymentStatus,
+              dueAmount: paymentState.dueAmount,
+              dueDate: joinDate,
               emergencyPhone: residentData.emergencyPhone,
               aadhar: residentData.aadhar,
               monthlyRent: resolvedRent,
               stayTime: residentData.stayTime ?? undefined,
               securityDeposit: residentData.securityDeposit || 0,
               isDepositPaid: residentData.isDepositPaid || false,
-              vacatingDate: residentData.vacatingDate,
+              vacatingDate: isReserved ? undefined : residentData.vacatingDate,
               areaAndCity: residentData.areaAndCity,
               state: residentData.state,
               country: residentData.country,
+              status: isReserved ? 'reserved' : 'active',
               createdAt: new Date().toISOString(),
               paymentHistory: [],
               photoUrl: undefined,
               photoPath: undefined,
-              aadharDocumentUrl: undefined,
-              aadharDocumentPath: undefined,
-              hostelFormUrl: undefined,
-              hostelFormPath: undefined,
             };
 
             const withoutOld = residentData.oldResidentId
@@ -639,17 +759,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const editResident = (residentId: string, updatedData: any) => {
-    import('../lib/supabaseAPI').then(async ({ editResidentDb }) => {
-      try {
-        await editResidentDb(residentId, updatedData);
-        toast.success('Resident details updated');
-        await syncStateWithDb();
-      } catch (e) { 
-        console.error(e);
-        toast.error('Failed to update resident');
-      }
-    });
+  const editResident = async (residentId: string, updatedData: any) => {
+    const { editResidentDb } = await import('../lib/supabaseAPI');
+    await editResidentDb(residentId, updatedData);
+    await syncStateWithDb();
   };
 
   const addRoom = (floorId: string, roomData: { number: string; numBeds: number; baseRent?: string; layoutId?: string }) => {
@@ -658,7 +771,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await addRoomDb(hostelProfile?.id, floorId, roomData);
         toast.success(`Room ${roomData.number} created`);
         await syncStateWithDb();
-      } catch (e) { 
+      } catch (e) {
         console.error(e);
         toast.error('Failed to create room');
       }
@@ -705,19 +818,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const { data: currentBeds, error: bedErr } = await supabase.from('beds').select('id').eq('room_id', roomId);
         if (bedErr) console.error('updateRoomSetup: bed fetch error', bedErr);
         const currentCount = currentBeds ? currentBeds.length : 0;
-        let toAdd = 0;
-        let toRemove: string[] = [];
-        if (numBeds > currentCount) {
-          toAdd = numBeds - currentCount;
-        } else if (numBeds < currentCount && currentBeds) {
-          toRemove = currentBeds.slice(numBeds).map(b => b.id);
-        }
-        
+        const toAdd = Math.max(0, numBeds - currentCount);
+        const toRemove = numBeds < currentCount && currentBeds ? currentBeds.slice(numBeds).map(b => b.id) : [];
         const { updateRoomSetupDb } = await import('../lib/supabaseAPI');
         await updateRoomSetupDb(roomId, { number: newNumber, baseRent: baseRent || 0, layoutId: layoutId || null }, { bedsToAdd: toAdd, bedsToRemove: toRemove });
         toast.success('Room configuration saved');
         await syncStateWithDb();
-      } catch (e) { 
+      } catch (e) {
         console.error('Error in updateRoomSetup:', e);
         toast.error('Failed to save room setup');
         await syncStateWithDb(); // Revert on failure
@@ -757,22 +864,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     import('../supabaseClient').then(async ({ supabase }) => {
       try {
-        // Find current beds
         const { data: currentBeds } = await supabase.from('beds').select('id').eq('room_id', roomId);
         const currentCount = currentBeds ? currentBeds.length : 0;
-        let toAdd = 0;
-        let toRemove: string[] = [];
-        if (numBeds > currentCount) {
-          toAdd = numBeds - currentCount;
-        } else if (numBeds < currentCount && currentBeds) {
-          // Remove from end
-          toRemove = currentBeds.slice(numBeds).map(b => b.id);
-        }
+        const toAdd = Math.max(0, numBeds - currentCount);
+        const toRemove = numBeds < currentCount && currentBeds ? currentBeds.slice(numBeds).map(b => b.id) : [];
         const { updateRoomSetupDb } = await import('../lib/supabaseAPI');
         await updateRoomSetupDb(roomId, { layoutId }, { bedsToAdd: toAdd, bedsToRemove: toRemove });
         toast.success('Room layout updated');
         await syncStateWithDb();
-      } catch (e) { 
+      } catch (e) {
         console.error(e);
         toast.error('Failed to update beds');
         await syncStateWithDb(); // Revert on failure
@@ -823,63 +923,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await deleteRoomDb(roomId);
         toast.success('Room deleted');
         await syncStateWithDb();
-      } catch (e) { 
+      } catch (e) {
         console.error(e);
         toast.error('Failed to delete room');
       }
     });
   };
 
-  const moveBeds = (sourceRoomId: string, targetRoomId: string, bedIdsToMove: string[]) => {
-    import('../lib/supabaseAPI').then(async ({ moveBedsDb }) => {
-      try {
-        await moveBedsDb(targetRoomId, bedIdsToMove);
-        toast.success(`${bedIdsToMove.length} bed(s) moved successfully`);
-        await syncStateWithDb();
-      } catch (e: any) {
-        console.error(e);
-        toast.error(e?.message || 'Failed to move beds');
-        await syncStateWithDb(); // Re-sync to revert optimistic state
-      }
-    });
+  const moveBeds = async (sourceRoomId: string, targetRoomId: string, bedIdsToMove: string[]) => {
+    const { moveBedsDb } = await import('../lib/supabaseAPI');
+    await moveBedsDb(sourceRoomId, targetRoomId, bedIdsToMove);
+    await syncStateWithDb();
   };
 
   const copyFloorLayout = (sourceFloorId: string, targetFloorId: string) => {
-    import('../supabaseClient').then(async ({ supabase }) => {
+    import('../lib/supabaseAPI').then(async ({ copyFloorLayoutDb }) => {
       try {
-        const { data: sourceRooms } = await supabase.from('rooms').select('*, beds(*)').eq('floor_id', sourceFloorId);
-        const { data: targetRooms } = await supabase.from('rooms').select('id, room_number').eq('floor_id', targetFloorId);
-        
-        if (!sourceRooms || !targetRooms) return;
-
-        for (let i = 0; i < targetRooms.length; i++) {
-          const tRoom = targetRooms[i];
-          const sRoom = sourceRooms[i];
-          if (!sRoom) break;
-
-          await supabase.from('rooms').update({
-            base_rent: sRoom.base_rent,
-            layout_id: sRoom.layout_id
-          }).eq('id', tRoom.id);
-
-          // Delete existing beds
-          await supabase.from('beds').delete().eq('room_id', tRoom.id);
-
-          // Add beds
-          if (sRoom.beds && sRoom.beds.length > 0) {
-            const sortedBeds = [...sRoom.beds].sort((a: any, b: any) => compareBedLabels(a.label, b.label));
-
-            const newBeds = sortedBeds.map((b: any) => ({
-              hostel_id: sRoom.hostel_id,
-              room_id: tRoom.id,
-              label: b.label
-            }));
-            await supabase.from('beds').insert(newBeds);
-          }
-        }
+        await copyFloorLayoutDb(sourceFloorId, targetFloorId);
         toast.success('Floor layout copied successfully');
         await syncStateWithDb();
-      } catch (e) { 
+      } catch (e) {
         console.error(e);
         toast.error('Failed to copy layout');
       }
@@ -887,9 +950,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AppContext.Provider value={{ 
+    <AppContext.Provider value={{
       floors, residents, pastResidents, activities, joinRequests,
-      markAsPaid, markReminderSent, vacateResident, archiveResident, addResident, confirmMoveIn, editResident, removeJoinRequest, approveJoinRequest, rejectJoinRequest, addJoinRequest,
+      markAsPaid, vacateResident, archiveResident, deletePastResident, addResident, confirmMoveIn, editResident, removeJoinRequest, approveJoinRequest, rejectJoinRequest, addJoinRequest,
       activeBuildingFilter, setActiveBuildingFilter,
       activePaymentsFilter, setActivePaymentsFilter,
       globalSelectedResidentId, setGlobalSelectedResidentId,
@@ -902,6 +965,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       securityDeposit,
       hostelProfile,
       dashboardStats,
+      subscriptionOverview,
       updateHostelProfile,
       syncStateWithDb,
       isDataLoading,
@@ -918,6 +982,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 setResidents(result.residents || []);
                 setActivities(result.activities || []);
                 setJoinRequests(result.joinRequests || []);
+                setDashboardStats(result.dashboardStats || null);
+                setSubscriptionOverview(result.subscriptionOverview || null);
                 setIsOnboardingComplete(true);
               }
               setIsDataLoading(false);
@@ -931,7 +997,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       },
       authLoading,
-      session
+      session,
+      isSupportModalOpen,
+      setIsSupportModalOpen,
+      openSupportModal
     }}>
       {children}
     </AppContext.Provider>
@@ -944,4 +1013,4 @@ export function useApp() {
     throw new Error('useApp must be used within an AppProvider');
   }
   return context;
-} 
+}

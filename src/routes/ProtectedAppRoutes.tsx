@@ -10,6 +10,8 @@ import Payments from '../pages/Payments';
 import Settings from '../pages/Settings';
 import Onboarding from '../pages/Onboarding';
 import MonthlyOverview from '../pages/MonthlyOverview';
+import Subscription from '../pages/Subscription';
+import Notes from '../pages/Notes';
 
 /**
  * Protected app routes — wrapped by AuthGuard in AppRoutes.
@@ -25,7 +27,9 @@ export default function ProtectedAppRoutes() {
         <Route path={ROUTES.residents.path} element={<Residents />} />
         <Route path={ROUTES.payments.path} element={<Payments />} />
         <Route path={ROUTES.settings.path} element={<Settings />} />
+        <Route path={ROUTES.notes.path} element={<Notes />} />
         <Route path={ROUTES.monthlyOverview.path} element={<MonthlyOverview />} />
+        <Route path={ROUTES.subscription.path} element={<Subscription />} />
       </Route>
     </>
   );

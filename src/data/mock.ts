@@ -32,19 +32,14 @@ export interface Resident {
   paymentStatus: 'paid' | 'due' | 'partially_paid' | 'late';
   dueAmount: number;
   dueDate?: string;
-  documentsComplete: boolean;
+  pendingDueToday?: boolean;
   photoUrl?: string;
   photoPath?: string;
-  aadharDocumentPath?: string;
-  aadharDocumentUrl?: string;
-  hostelFormPath?: string;
-  hostelFormUrl?: string;
-  lastReminderSentAt?: string;
   emergencyPhone?: string;
   aadhar?: string;
   monthlyRent?: number;
   stayTime?: string | number;
-  paymentHistory?: { id: string | number; date: string; amount: number; status: string; method?: 'UPI' | 'Cash'; title?: string }[];
+  paymentHistory?: { id: string | number; date: string; recordedAt?: string; amount: number; status: string; method?: 'UPI' | 'Cash'; title?: string }[];
   securityDeposit?: number;
   isDepositPaid?: boolean;
   depositPaidDate?: string;
@@ -70,7 +65,7 @@ export interface PastResident {
   photoPath?: string;
   emergencyPhone?: string;
   aadhar?: string;
-  paymentHistory?: { id: string | number; date: string; amount: number; status: string; method?: 'UPI' | 'Cash'; title?: string }[];
+  paymentHistory?: { id: string | number; date: string; recordedAt?: string; amount: number; status: string; method?: 'UPI' | 'Cash'; title?: string }[];
   securityDeposit?: number;
   isDepositPaid?: boolean;
   depositPaidDate?: string;
@@ -86,12 +81,11 @@ export interface JoinRequest {
   phone: string;
   occupation?: string;
   preferredRoom?: string;
+  preferredSharing?: string;
   emergencyContact?: string;
   aadharNumber?: string;
   photoPath?: string;
   photoUrl?: string;
-  aadharDocumentPath?: string;
-  aadharDocumentUrl?: string;
   areaAndCity?: string;
   state?: string;
   country?: string;
@@ -176,20 +170,20 @@ export const MOckFloors: Floor[] = [
 ];
 
 export const MockResidents: Resident[] = [
-  { id: 'res_hardcoded_1', name: 'Sai Ram', phone: '88012 20744', roomId: 'r301', bedId: 'b301c', joinDate: '2026-04-20', paymentStatus: 'due', dueAmount: 5500, dueDate: '2026-04-25', documentsComplete: true, photoUrl: 'https://res.cloudinary.com/dfkfysygf/image/upload/v1777448441/sai_owner_natcmm.jpg' },
-  { id: 'res_hardcoded_2', name: 'Naveen', phone: '81254 60218', roomId: 'r102', bedId: 'b102b', joinDate: '2026-04-22', paymentStatus: 'due', dueAmount: 6000, dueDate: '2026-04-26', documentsComplete: true, photoUrl: 'https://res.cloudinary.com/dfkfysygf/image/upload/v1777448759/naveen_owner_rwbozn.jpg' },
-  { id: 'res_fake', name: 'fake', phone: '8076 091 804', roomId: 'r301', bedId: 'b301c', joinDate: '2026-04-20', paymentStatus: 'due', dueAmount: 5000, dueDate: '2026-04-25', documentsComplete: true },
-  { id: 'res_reserved_1', name: 'Alia Bhatt', phone: '+91 98765 00001', roomId: 'r202', bedId: 'b202a', joinDate: '2026-05-01', paymentStatus: 'due', dueAmount: 5000, documentsComplete: false },
-  { id: 'res_reserved_2', name: 'Ranbir Kapoor', phone: '+91 98765 00002', roomId: 'r202', bedId: 'b202b', joinDate: '2026-05-05', paymentStatus: 'due', dueAmount: 5000, documentsComplete: false },
-  { id: 'res1', name: 'Ravi Kumar', phone: '+91 98765 43210', roomId: 'r301', bedId: 'b301a', joinDate: '2025-01-15', paymentStatus: 'paid', dueAmount: 0, documentsComplete: true },
-  { id: 'res2', name: 'Amit Singh', phone: '+91 98765 43211', roomId: 'r301', bedId: 'b301b', joinDate: '2025-02-01', paymentStatus: 'due', dueAmount: 5500, dueDate: '2026-04-10', documentsComplete: true },
-  { id: 'res3', name: 'Suresh Patel', phone: '+91 98765 43212', roomId: 'r201', bedId: 'b201a', joinDate: '2025-03-10', paymentStatus: 'due', dueAmount: 9000, dueDate: '2026-03-15', documentsComplete: false },
-  { id: 'res4', name: 'Vikram Sharma', phone: '+91 98765 43213', roomId: 'r201', bedId: 'b201b', joinDate: '2025-04-01', paymentStatus: 'due', dueAmount: 6500, dueDate: '2026-04-05', documentsComplete: true },
-  { id: 'res5', name: 'Neha Gupta', phone: '+91 98765 43214', roomId: 'r201', bedId: 'b201c', joinDate: '2025-11-20', paymentStatus: 'paid', dueAmount: 0, documentsComplete: true },
-  { id: 'res6', name: 'Pooja Reddy', phone: '+91 98765 43215', roomId: 'r101', bedId: 'b101a', joinDate: '2026-02-12', paymentStatus: 'due', dueAmount: 8500, dueDate: '2026-03-25', documentsComplete: false },
-  { id: 'res7', name: 'Arjun Das', phone: '+91 98765 43216', roomId: 'r101', bedId: 'b101b', joinDate: '2026-01-05', paymentStatus: 'due', dueAmount: 6000, dueDate: '2026-04-12', documentsComplete: true },
-  { id: 'res8', name: 'Manoj Tiwari', phone: '+91 98765 43217', roomId: 'r102', bedId: 'b102a', joinDate: '2026-03-15', paymentStatus: 'paid', dueAmount: 0, documentsComplete: true },
-  { id: 'res9', name: 'Karan Mehta', phone: '+91 98765 43218', roomId: 'r302', bedId: 'b302a', joinDate: '2026-01-10', paymentStatus: 'due', dueAmount: 8000, dueDate: '2026-03-30', documentsComplete: true },
+  { id: 'res_hardcoded_1', name: 'Sai Ram', phone: '88012 20744', roomId: 'r301', bedId: 'b301c', joinDate: '2026-04-20', paymentStatus: 'due', dueAmount: 5500, dueDate: '2026-04-25', photoUrl: 'https://res.cloudinary.com/dfkfysygf/image/upload/v1777448441/sai_owner_natcmm.jpg' },
+  { id: 'res_hardcoded_2', name: 'Naveen', phone: '81254 60218', roomId: 'r102', bedId: 'b102b', joinDate: '2026-04-22', paymentStatus: 'due', dueAmount: 6000, dueDate: '2026-04-26', photoUrl: 'https://res.cloudinary.com/dfkfysygf/image/upload/v1777448759/naveen_owner_rwbozn.jpg' },
+  { id: 'res_fake', name: 'fake', phone: '8076 091 804', roomId: 'r301', bedId: 'b301c', joinDate: '2026-04-20', paymentStatus: 'due', dueAmount: 5000, dueDate: '2026-04-25' },
+  { id: 'res_reserved_1', name: 'Alia Bhatt', phone: '+91 98765 00001', roomId: 'r202', bedId: 'b202a', joinDate: '2026-05-01', paymentStatus: 'due', dueAmount: 5000 },
+  { id: 'res_reserved_2', name: 'Ranbir Kapoor', phone: '+91 98765 00002', roomId: 'r202', bedId: 'b202b', joinDate: '2026-05-05', paymentStatus: 'due', dueAmount: 5000 },
+  { id: 'res1', name: 'Ravi Kumar', phone: '+91 98765 43210', roomId: 'r301', bedId: 'b301a', joinDate: '2025-01-15', paymentStatus: 'paid', dueAmount: 0 },
+  { id: 'res2', name: 'Amit Singh', phone: '+91 98765 43211', roomId: 'r301', bedId: 'b301b', joinDate: '2025-02-01', paymentStatus: 'due', dueAmount: 5500, dueDate: '2026-04-10' },
+  { id: 'res3', name: 'Suresh Patel', phone: '+91 98765 43212', roomId: 'r201', bedId: 'b201a', joinDate: '2025-03-10', paymentStatus: 'due', dueAmount: 9000, dueDate: '2026-03-15' },
+  { id: 'res4', name: 'Vikram Sharma', phone: '+91 98765 43213', roomId: 'r201', bedId: 'b201b', joinDate: '2025-04-01', paymentStatus: 'due', dueAmount: 6500, dueDate: '2026-04-05' },
+  { id: 'res5', name: 'Neha Gupta', phone: '+91 98765 43214', roomId: 'r201', bedId: 'b201c', joinDate: '2025-11-20', paymentStatus: 'paid', dueAmount: 0 },
+  { id: 'res6', name: 'Pooja Reddy', phone: '+91 98765 43215', roomId: 'r101', bedId: 'b101a', joinDate: '2026-02-12', paymentStatus: 'due', dueAmount: 8500, dueDate: '2026-03-25' },
+  { id: 'res7', name: 'Arjun Das', phone: '+91 98765 43216', roomId: 'r101', bedId: 'b101b', joinDate: '2026-01-05', paymentStatus: 'due', dueAmount: 6000, dueDate: '2026-04-12' },
+  { id: 'res8', name: 'Manoj Tiwari', phone: '+91 98765 43217', roomId: 'r102', bedId: 'b102a', joinDate: '2026-03-15', paymentStatus: 'paid', dueAmount: 0 },
+  { id: 'res9', name: 'Karan Mehta', phone: '+91 98765 43218', roomId: 'r302', bedId: 'b302a', joinDate: '2026-01-10', paymentStatus: 'due', dueAmount: 8000, dueDate: '2026-03-30' },
 ];
 
 export const MockPastResidents: PastResident[] = [

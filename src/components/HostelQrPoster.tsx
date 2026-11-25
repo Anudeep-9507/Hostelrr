@@ -37,7 +37,7 @@ export default function HostelQrPoster({ hostelName, joinUrl, posterRef, logoBas
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '70px 80px 60px',
-          fontFamily: "'Plus Jakarta Sans', 'Inter', 'Segoe UI', Arial, sans-serif",
+          fontFamily: '"Manrope", ui-sans-serif, system-ui, sans-serif',
           boxSizing: 'border-box',
           position: 'relative',
           overflow: 'hidden',
@@ -137,15 +137,20 @@ export default function HostelQrPoster({ hostelName, joinUrl, posterRef, logoBas
         </div>
 
         {/* ── Footer ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
           {/* "Powered by Hostelrr" inline */}
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
-            <span style={{ fontSize: '22px', color: '#64748B', fontWeight: '400' }}>Powered by</span>
+            <span style={{ fontSize: '24px', color: '#64748B', fontWeight: '400' }}>Powered by</span>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-              <span style={{ fontSize: '26px', fontWeight: '800', color: '#1D4ED8', letterSpacing: '-0.5px' }}>Hostelrr</span>
+              <span style={{ fontSize: '28px', fontWeight: '800', background: 'linear-gradient(90deg, #1e3a8a 0%, #2563eb 48%, #06b6d4 100%)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '-0.5px' }}>Hostelrr</span>
               {/* Underline beneath "Hostelrr" */}
               <div style={{ width: '48px', height: '3px', background: '#1D4ED8', borderRadius: '99px' }} />
             </div>
+          </div>
+
+          {/* Contact email for demo */}
+          <div style={{ fontSize: '20px', color: '#64748B', fontWeight: '500' }}>
+            For free demo, contact hostelrr.support@gmail.com or 7330744800
           </div>
 
           {/* URL row with globe */}
@@ -155,8 +160,8 @@ export default function HostelQrPoster({ hostelName, joinUrl, posterRef, logoBas
               <circle cx="12" cy="12" r="10" />
               <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
             </svg>
-            <span style={{ fontSize: '20px', color: '#94A3B8', fontWeight: '500', letterSpacing: '0.2px' }}>
-              hostelrr.vercel.app
+            <span style={{ fontSize: '22px', color: '#94A3B8', fontWeight: '500', letterSpacing: '0.2px' }}>
+              hostelrr-app.vercel.app
             </span>
           </div>
         </div>

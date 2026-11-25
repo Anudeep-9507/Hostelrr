@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { CheckCircle2, Banknote, Smartphone, X } from 'lucide-react';
 import { Resident, Floor } from '../data/mock';
-import { cn, getResidentDueDisplayAmount } from '../lib/utils';
+import { cn, getResidentDueDisplayAmount, isValidPartialPaymentAmount } from '../lib/utils';
 
 interface MarkRentPaidModalProps {
   resident: Resident | null;
@@ -39,6 +39,7 @@ export function MarkRentPaidModal({
   if (!resident) return null;
 
   const dueAmount = getResidentDueDisplayAmount(resident, floors);
+  const invalidPartialAmount = isPartialPayment && !isValidPartialPaymentAmount(partialAmount, dueAmount);
 
   return (
     <AnimatePresence>
@@ -147,12 +148,20 @@ export function MarkRentPaidModal({
                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">₹</span>
                             <input 
                               type="number" 
+                              min={1}
+                              max={dueAmount}
+                              step={1}
                               value={partialAmount}
                               onChange={(e) => onPartialAmountChange(e.target.value)}
                               placeholder="Enter amount"
                               className="w-full pl-8 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all font-medium text-gray-900"
                             />
                           </div>
+                          {invalidPartialAmount && (
+                            <p className="text-xs font-medium text-red-700" role="alert">
+                              Enter a whole amount from ₹1 to ₹{dueAmount.toLocaleString('en-IN')}.
+                            </p>
+                          )}
                         </div>
                         <div className="flex-1 space-y-2">
                           <label className="text-sm font-medium text-gray-900 block">Date</label>
@@ -203,10 +212,10 @@ export function MarkRentPaidModal({
               </button>
               <button 
                 onClick={onConfirm}
-                disabled={isLoading}
+                disabled={isLoading || invalidPartialAmount}
                 className="w-full sm:w-auto min-h-11 justify-center px-6 py-2.5 text-[15px] font-bold text-white bg-green-600 hover:bg-green-700 rounded-xl transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
               >
-                {isLoading ? 'Confirming...' : 'Confirm Paid'}
+                {isLoading ? 'Confirming...' : isPartialPayment ? 'Confirm Partial' : 'Confirm Paid'}
               </button>
             </div>
           </motion.div>

@@ -1,5 +1,6 @@
 import React from 'react';
-import { AlertTriangle, RefreshCw, LayoutDashboard } from 'lucide-react';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
+import ErrorReportButton from './ErrorReportButton';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -8,6 +9,7 @@ interface ErrorBoundaryProps {
 interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
+  componentStack: string;
 }
 
 /**
@@ -18,23 +20,20 @@ interface ErrorBoundaryState {
 export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, componentStack: '' };
   }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return { hasError: true, error };
+    return { hasError: true, error, componentStack: '' };
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('ErrorBoundary caught:', error, errorInfo);
+    this.setState({ componentStack: errorInfo.componentStack || '' });
   }
 
   handleReload = () => {
     window.location.reload();
-  };
-
-  handleNavigateDashboard = () => {
-    window.location.href = '/dashboard';
   };
 
   render() {
@@ -57,13 +56,7 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
                 <RefreshCw className="w-4 h-4" />
                 Reload Page
               </button>
-              <button
-                onClick={this.handleNavigateDashboard}
-                className="inline-flex items-center gap-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-sm"
-              >
-                <LayoutDashboard className="w-4 h-4" />
-                Dashboard
-              </button>
+              {this.state.error && <ErrorReportButton error={this.state.error} componentStack={this.state.componentStack} />}
             </div>
             {this.state.error && (
               <details className="mt-6 text-left bg-gray-50 rounded-xl p-4 border border-gray-100">

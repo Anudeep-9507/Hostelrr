@@ -1,4 +1,4 @@
-import { LucideIcon, LayoutDashboard, BedDouble, Users, IndianRupee, Settings } from 'lucide-react';
+import { LucideIcon, LayoutDashboard, BedDouble, Users, IndianRupee, Settings, StickyNote } from 'lucide-react';
 
 // Route metadata with path + label
 export interface RouteConfig {
@@ -14,14 +14,17 @@ export const ROUTES = {
   residents: { path: '/residents', label: 'Residents', icon: Users },
   payments: { path: '/payments', label: 'Payments', icon: IndianRupee },
   settings: { path: '/settings', label: 'Settings', icon: Settings },
+  notes: { path: '/notes', label: 'Notes', icon: StickyNote },
   monthlyOverview: { path: '/monthly-overview', label: 'Monthly Overview' },
+  subscription: { path: '/subscription', label: 'Subscription' },
+  adminSubscriptions: { path: '/admin/subscriptions', label: 'Subscription Admin' },
   signin: { path: '/signin', label: 'Sign In' },
   signup: { path: '/signup', label: 'Sign Up' },
   onboarding: { path: '/onboarding', label: 'Onboarding' },
   join: { path: '/join', label: 'Join' }, // used as prefix: /join/:slug
 } as const;
 // Route keys that have icons (for sidebar use)
-export type SidebarRouteKey = 'dashboard' | 'rooms' | 'residents' | 'payments' | 'settings';
+export type SidebarRouteKey = 'dashboard' | 'rooms' | 'residents' | 'payments' | 'notes' | 'settings';
 
 // Sidebar navigation items in display order
 export const SIDEBAR_NAV_ITEMS: { routeKey: SidebarRouteKey; tabId: string }[] = [
@@ -29,6 +32,7 @@ export const SIDEBAR_NAV_ITEMS: { routeKey: SidebarRouteKey; tabId: string }[] =
   { routeKey: 'rooms', tabId: 'building' },
   { routeKey: 'residents', tabId: 'residents' },
   { routeKey: 'payments', tabId: 'payments' },
+  { routeKey: 'notes', tabId: 'notes' },
   { routeKey: 'settings', tabId: 'settings' },
 ];
 
@@ -38,6 +42,7 @@ export const TAB_TO_ROUTE: Record<string, string> = {
   building: ROUTES.rooms.path,
   residents: ROUTES.residents.path,
   payments: ROUTES.payments.path,
+  notes: ROUTES.notes.path,
   settings: ROUTES.settings.path,
 };
 
@@ -47,5 +52,6 @@ export const ROUTE_TO_TAB: Record<string, string> = {
   [ROUTES.rooms.path]: 'building',
   [ROUTES.residents.path]: 'residents',
   [ROUTES.payments.path]: 'payments',
+  [ROUTES.notes.path]: 'notes',
   [ROUTES.settings.path]: 'settings',
 };

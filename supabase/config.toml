@@ -1,0 +1,5 @@
+[functions.resident-photo]
+# Public join-photo intents and function-level JWT validation share one endpoint.
+# Owner actions validate the bearer token internally; public join actions are
+# constrained by one-time upload intents, rate limits, and database checks.
+verify_jwt = false

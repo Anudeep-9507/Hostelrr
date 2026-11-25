@@ -1,74 +1,19 @@
-# Hostelrr Cron Jobs — Setup Guide
+# Hostelrr scheduled billing jobs
 
-Two Edge Functions are created under `supabase/functions/`. They call existing DB RPCs.
+Billing schedules run inside PostgreSQL through `pg_cron`; they do not call the public Edge Function URLs.
 
-## Functions
+| Job | Database function | IST schedule | pg_cron schedule (UTC) |
+|---|---|---:|---:|
+| Generate cycles | `public.generate_all_payment_cycles()` | Daily 00:00 | `30 18 * * *` |
+| Tag late cycles | `public.tag_late_cycles()` | Daily 00:02 | `32 18 * * *` |
 
-| Function | RPC Called | Schedule |
-|---|---|---|
-| `tag-late-cycles` | `public.tag_late_cycles()` | Daily at 00:00 UTC |
-| `generate-payment-cycles` | `public.generate_payment_cycles(p_hostel_id)` | 1st of each month at 00:05 UTC |
+The migration `048_ist_billing_and_cron_hardening.sql` updates the existing jobs. It uses PostgreSQL date calculations in `Asia/Kolkata` regardless of the database session timezone. The UTC cron entries are the equivalent of the listed IST times.
 
----
-
-## Step 1 — Deploy Functions
+The Edge Functions remain available for restricted manual operations. They require a valid platform JWT and then check that the bearer value exactly matches `SUPABASE_SERVICE_ROLE_KEY`. Never call these functions from browser code or place the service-role key in cron SQL. Deploy with JWT verification enabled:
 
 ```bash
-# From project root (requires Supabase CLI)
-npx supabase functions deploy tag-late-cycles --project-ref <YOUR_PROJECT_REF>
-npx supabase functions deploy generate-payment-cycles --project-ref <YOUR_PROJECT_REF>
+npx supabase functions deploy generate-payment-cycles --project-ref <PROJECT_REF>
+npx supabase functions deploy tag-late-cycles --project-ref <PROJECT_REF>
 ```
 
-Get `YOUR_PROJECT_REF` from: Supabase Dashboard → Project Settings → General → Reference ID
-
----
-
-## Step 2 — Set Env Vars in Supabase Dashboard
-
-Dashboard → Project → Edge Functions → Manage Secrets:
-
-| Key | Value |
-|---|---|
-| `SUPABASE_URL` | Your project URL (auto-injected, no action needed) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Your service role key (auto-injected, no action needed) |
-| `CRON_SECRET` | A random secret string you choose (e.g. `openssl rand -hex 32`) |
-
-> `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are auto-available inside Edge Functions — no need to set them.
-
----
-
-## Step 3 — Schedule via Supabase Dashboard
-
-Dashboard → Project → Edge Functions → [function name] → Schedules → Add Schedule:
-
-**tag-late-cycles:**
-- Cron: `0 0 * * *` (midnight UTC daily)
-- HTTP Method: POST
-- Authorization: `Bearer <YOUR_CRON_SECRET>`
-
-**generate-payment-cycles:**
-- Cron: `5 0 1 * *` (1st of each month, 00:05 UTC)
-- HTTP Method: POST
-- Authorization: `Bearer <YOUR_CRON_SECRET>`
-
----
-
-## Manual Test (curl)
-
-```bash
-curl -X POST \
-  https://<YOUR_PROJECT_REF>.supabase.co/functions/v1/tag-late-cycles \
-  -H "Authorization: Bearer <YOUR_CRON_SECRET>"
-
-curl -X POST \
-  https://<YOUR_PROJECT_REF>.supabase.co/functions/v1/generate-payment-cycles \
-  -H "Authorization: Bearer <YOUR_CRON_SECRET>"
-```
-
----
-
-## Notes
-
-- Both functions are **idempotent** — safe to run multiple times (DB RPCs use `ON CONFLICT DO NOTHING`).
-- `generate-payment-cycles` iterates over all hostels — scales automatically as you add new customers.
-- If `CRON_SECRET` env var is not set, the functions are open (fine for dev, not for prod).
+Scheduled runs are verified from PostgreSQL cron execution history and function return values. `cron.job_run_details` only reports that a cron command ran; inspect its results or the database state to confirm cycles/statuses changed.

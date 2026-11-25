@@ -30,14 +30,14 @@ export default function SignIn() {
         setErrorMsg(error.message);
         toast.error(error.message);
       } else {
-        toast.success('Successfully signed in!');
+        toast.success('Successfully logged in!');
         navigate(ROUTES.home.path, { replace: true });
       }
     } catch (err: any) {
       console.error(err);
       const isNetworkError = err.message === 'Failed to fetch' || err.message.includes('timed out');
-      const msg = isNetworkError 
-        ? 'Failed to connect to the database. Please check your network connection or verify that your Supabase project is active.' 
+      const msg = isNetworkError
+        ? 'Failed to connect to the database. Please check your network connection or verify that your Supabase project is active.'
         : err.message || 'An error occurred';
       setErrorMsg(msg);
       toast.error(msg);
@@ -78,32 +78,30 @@ export default function SignIn() {
     }
   };
 
-  const navigateToSignUp = (e: React.MouseEvent) => {
+  const openDemoRequest = (e: React.MouseEvent) => {
     e.preventDefault();
-    navigate(ROUTES.signup.path);
+    navigate(ROUTES.home.path, { state: { openDemoRequest: true } });
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+    <div className="relative h-dvh overflow-y-auto overscroll-contain bg-gradient-to-br from-slate-50 via-white to-blue-50/70 flex flex-col justify-start py-8 sm:justify-center sm:py-12 sm:px-6 lg:px-8 font-sans">
+      <div className="mx-auto w-full max-w-md px-4 sm:px-0"><button type="button" onClick={() => navigate(ROUTES.home.path)} className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-blue-700"><ArrowLeft size={16}/> Back to Hostelrr</button>
         <div className="flex justify-center text-blue-600">
-          <img 
-            src="https://res.cloudinary.com/dfkfysygf/image/upload/v1778354944/20260510_005330_xrv4xj.jpg" 
-            alt="Hostelrr Logo" 
+          <img
+            src="https://res.cloudinary.com/dfkfysygf/image/upload/v1795005162/hostelrr_selected_logo_sgnck0.png"
+            alt="Hostelrr Logo"
             className="w-16 h-16 rounded-2xl object-cover shadow-sm"
           />
         </div>
         <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900">
-          {isResetView ? 'Reset your password' : 'Sign in to your account'}
+          {isResetView ? 'Reset your password' : 'Log in to your account'}
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600">
           Or{' '}
-          <a href="/signup" onClick={navigateToSignUp} className="font-medium text-blue-600 hover:text-blue-500 transition-colors">
+          <button type="button" onClick={openDemoRequest} className="font-medium text-blue-600 hover:text-blue-500 transition-colors">
             create a new account
-          </a>
+          </button>
         </p>
-      </div>
-
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow-xl shadow-gray-200/50 sm:rounded-2xl sm:px-10 border border-gray-100">
           <form className="space-y-6" onSubmit={isResetView ? handleResetPassword : handleSignIn}>
@@ -187,11 +185,11 @@ export default function SignIn() {
               {loading ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  {isResetView ? 'Sending...' : 'Signing in...'}
+                  {isResetView ? 'Sending...' : 'Logging in...'}
                 </>
               ) : (
                 <>
-                  {isResetView ? 'Send Reset Link' : 'Sign in'}
+                  {isResetView ? 'Send Reset Link' : 'Log in'}
                   {!isResetView && <ArrowRight className="w-4 h-4" />}
                 </>
               )}
@@ -214,7 +212,7 @@ export default function SignIn() {
             )}
           </form>
         </div>
-      </div>
+      </div></div>
     </div>
   );
 }

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '../routes/routes';
 import { supabase } from '../supabaseClient';
-import { Mail, Lock, Loader2, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, Loader2, ArrowRight, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function SignUp() {
@@ -19,13 +19,13 @@ export default function SignUp() {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (loading) return;
-    
+
     if (password !== confirmPassword) {
       setErrorMsg('Passwords do not match');
       toast.error('Passwords do not match');
       return;
     }
-    
+
     setLoading(true);
     setErrorMsg('');
 
@@ -45,8 +45,8 @@ export default function SignUp() {
     } catch (err: any) {
       console.error(err);
       const isNetworkError = err.message === 'Failed to fetch' || err.message.includes('timed out');
-      const msg = isNetworkError 
-        ? 'Failed to connect to the database. Please check your network connection or verify that your Supabase project is active.' 
+      const msg = isNetworkError
+        ? 'Failed to connect to the database. Please check your network connection or verify that your Supabase project is active.'
         : err.message || 'An error occurred';
       setErrorMsg(msg);
       toast.error(msg);
@@ -61,12 +61,12 @@ export default function SignUp() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+    <div className="relative h-dvh overflow-y-auto overscroll-contain bg-gradient-to-br from-slate-50 via-white to-blue-50/70 flex flex-col justify-start py-8 sm:justify-center sm:py-12 sm:px-6 lg:px-8 font-sans">
+      <div className="mx-auto w-full max-w-md px-4 sm:px-0"><button type="button" onClick={() => navigate(ROUTES.home.path)} className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-blue-700"><ArrowLeft size={16}/> Back to Hostelrr</button>
         <div className="flex justify-center text-blue-600">
-          <img 
-            src="https://res.cloudinary.com/dfkfysygf/image/upload/v1778354944/20260510_005330_xrv4xj.jpg" 
-            alt="Hostelrr Logo" 
+          <img
+            src="https://res.cloudinary.com/dfkfysygf/image/upload/v1795005162/hostelrr_selected_logo_sgnck0.png"
+            alt="Hostelrr Logo"
             className="w-16 h-16 rounded-2xl object-cover shadow-sm"
           />
         </div>
@@ -76,11 +76,9 @@ export default function SignUp() {
         <p className="mt-2 text-center text-sm text-gray-600">
           Already have an account?{' '}
           <a href="/signin" onClick={navigateToSignIn} className="font-medium text-blue-600 hover:text-blue-500 transition-colors">
-            Sign in
+            Log in
           </a>
         </p>
-      </div>
-
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow-xl shadow-gray-200/50 sm:rounded-2xl sm:px-10 border border-gray-100">
           {isSignedUp ? (
@@ -91,7 +89,7 @@ export default function SignUp() {
               <div className="space-y-2">
                 <h3 className="text-xl font-bold text-gray-900">Verify your email</h3>
                 <p className="text-sm text-gray-600">
-                  We've sent a confirmation link to <span className="font-semibold text-gray-900">{email}</span>. 
+                  We've sent a confirmation link to <span className="font-semibold text-gray-900">{email}</span>.
                   Please check your Gmail inbox and click the link to activate your account.
                 </p>
               </div>
@@ -218,7 +216,7 @@ export default function SignUp() {
             </form>
           )}
         </div>
-      </div>
+      </div></div>
     </div>
   );
 }

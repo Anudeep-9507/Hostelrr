@@ -4,17 +4,20 @@ import { ROUTES } from '../routes/routes';
 import { useApp } from '../context/AppContext';
 import { Room, Bed, Resident } from '../data/mock';
 import DefaultAvatar from '../components/DefaultAvatar';
-import { cn, compareBedLabels, formatDate, getNamesFromIds, normalizeBedLabel, getTodayIST, getResidentDueDisplayAmount } from '../lib/utils';
-import { X, UserPlus, LogOut, FileText, Phone, Plus, User, LayoutTemplate, Trash2, BedDouble, Search, ChevronDown, Copy, Eye } from 'lucide-react';
+import { PrivatePhoto } from '../components/PrivatePhoto';
+import { cn, compareBedLabels, compareRoomNumbers, formatDate, getNamesFromIds, normalizeBedLabel, getTodayIST, getResidentDueDisplayAmount, getWhatsAppUrl } from '../lib/utils';
+import { X, UserPlus, LogOut, FileText, Phone, Plus, User, LayoutTemplate, Trash2, BedDouble, Search, ChevronDown, Copy, Eye, ArrowRightLeft } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import EmptyState from '../components/EmptyState';
 import { toast } from 'sonner';
 import BedLayoutBuilder, { LAYOUT_COLORS, Template } from '../components/BedLayoutBuilder';
-import { getBedLayoutTemplates } from '../lib/supabaseAPI';
+import { getBedLayoutTemplates, moveResidentToBedDb } from '../lib/supabaseAPI';
 import useAsyncAction from '../hooks/useAsyncAction';
 import ResidentStatusCard from '../components/ResidentStatusCard';
 import { MarkRentPaidModal } from '../components/MarkRentPaidModal';
 import { MarkDepositPaidModal } from '../components/MarkDepositPaidModal';
+import { buildRentReminderMessage } from '../lib/reminderTemplate';
+import ResidentAvatar from '../components/ResidentAvatar';
 
 function getStatusColor(status: Bed['status']) {
   switch (status) {
@@ -28,15 +31,15 @@ function getStatusColor(status: Bed['status']) {
 
 function getBedPillStyles(status: Bed['status']) {
   switch (status) {
-    case 'vacant': 
-      return { container: 'bg-[#FFEBEE] border-[#FFCDD2] text-[#C62828]', dot: 'bg-[#F44336]' };
-    case 'occupied': 
-      return { container: 'bg-[#E8F5E9] border-[#A5D6A7] text-[#2E7D32]', dot: 'bg-[#4CAF50]' };
-    case 'payment_due': 
-      return { container: 'bg-[#FFF8E1] border-[#FFE082] text-[#FF8F00]', dot: 'bg-[#FFC107]' };
-    case 'reserved': 
-      return { container: 'bg-[#E3F2FD] border-[#90CAF9] text-[#1565C0]', dot: 'bg-[#2196F3]' };
-    default: 
+    case 'vacant':
+      return { container: 'bg-[#FFEBEE] border-[#EF9A9A] text-[#B71C1C]', dot: 'bg-[#F44336]' };
+    case 'occupied':
+      return { container: 'bg-[#E8F5E9] border-[#81C784] text-[#1B5E20]', dot: 'bg-[#4CAF50]' };
+    case 'payment_due':
+      return { container: 'bg-[#FFF8E1] border-[#F4C95D] text-[#A85D00]', dot: 'bg-[#FFC107]' };
+    case 'reserved':
+      return { container: 'bg-[#E3F2FD] border-[#64B5F6] text-[#0D47A1]', dot: 'bg-[#2196F3]' };
+    default:
       return { container: 'bg-gray-50 border-gray-300 text-gray-700', dot: 'bg-gray-500' };
   }
 }
@@ -48,7 +51,7 @@ function isBedMatch(status: Bed['status'], filter: Bed['status'] | 'all') {
 
 export default function BuildingView() {
   const navigate = useNavigate();
-  const { floors, residents, activeBuildingFilter: filterStatus, setActiveBuildingFilter: setFilterStatus, globalSelectedRoomId, setGlobalSelectedRoomId, vacateResident, setGlobalSelectedResidentId, addRoom, editRoomBeds, updateRoomSetup, deleteRoom, moveBeds, sharingRentMap, copyFloorLayout, hostelProfile, showBedLayout, setShowBedLayout, editResident, markAsPaid, markReminderSent } = useApp();
+  const { floors, residents, activeBuildingFilter: filterStatus, setActiveBuildingFilter: setFilterStatus, globalSelectedRoomId, setGlobalSelectedRoomId, vacateResident, setGlobalSelectedResidentId, addRoom, editRoomBeds, updateRoomSetup, deleteRoom, moveBeds, sharingRentMap, copyFloorLayout, hostelProfile, showBedLayout, setShowBedLayout, editResident, markAsPaid, syncStateWithDb } = useApp();
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [residentToVacate, setResidentToVacate] = useState<Resident | null>(null);
   const [residentToMarkPaid, setResidentToMarkPaid] = useState<Resident | null>(null);
@@ -71,6 +74,10 @@ export default function BuildingView() {
   const [editCustomSharingValue, setEditCustomSharingValue] = useState('');
   const [moveTargetRoomId, setMoveTargetRoomId] = useState('');
   const [selectedBedsToMove, setSelectedBedsToMove] = useState<string[]>([]);
+  const [residentMoveTargetRoom, setResidentMoveTargetRoom] = useState('');
+  const [residentMoveTargetBed, setResidentMoveTargetBed] = useState('');
+  const [isMovingResident, setIsMovingResident] = useState(false);
+  const [selectedResidentForMoveId, setSelectedResidentForMoveId] = useState<string | null>(null);
   const [addRoomFloorId, setAddRoomFloorId] = useState<string | null>(null);
   const [isBedLayoutModalOpen, setIsBedLayoutModalOpen] = useState(false);
   const [newRoomNumber, setNewRoomNumber] = useState('');
@@ -149,7 +156,7 @@ export default function BuildingView() {
     }
   }, [editRoomBedsNum, isEditRoomModalOpen, editModalTab, allTemplates]);
 
-  
+
 
   const { execute: executeMarkPaid, isLoading: isMarkingPaid } = useAsyncAction(async (id: string, method: string, amount?: number, date?: string) => {
     await markAsPaid(id, method as 'UPI' | 'Cash', amount, date);
@@ -164,12 +171,17 @@ export default function BuildingView() {
   });
 
   const openWhatsAppReminder = (resident: Resident, message: string) => {
-    const phoneDigits = (resident.phone || '').replace(/\D/g, '');
-    const waPhone = phoneDigits.startsWith('91') && phoneDigits.length === 12 ? phoneDigits : (phoneDigits.length === 10 ? `91${phoneDigits}` : phoneDigits);
-    const waUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(message)}`;
+    const waUrl = getWhatsAppUrl(resident.phone, message);
+    if (!waUrl) {
+      toast.error('Invalid Indian mobile number');
+      return;
+    }
 
-    markReminderSent(resident.id);
-    window.open(waUrl, '_blank');
+    const whatsappTab = window.open(waUrl, '_blank');
+    if (!whatsappTab) {
+      toast.error('Your browser blocked the WhatsApp tab. Allow pop-ups for Hostelrr and try again.');
+      return;
+    }
     toast.success(`Opening WhatsApp for ${resident.name}`);
   };
 
@@ -178,9 +190,8 @@ export default function BuildingView() {
       toast.error('Resident phone number not available');
       return;
     }
-    
-    const phoneDigits = (resident.phone || '').replace(/\D/g, '');
-    if (phoneDigits.length < 10) {
+
+    if (!getWhatsAppUrl(resident.phone, '')) {
       toast.error('Invalid phone number');
       return;
     }
@@ -188,10 +199,15 @@ export default function BuildingView() {
     const hostelName = hostelProfile?.hostelName || "My Hostel";
     const { roomName: roomNum } = getNamesFromIds(floors, resident.roomId, resident.bedId);
     const rentAmount = getResidentDueDisplayAmount(resident, floors);
-    const isPartial = resident.paymentStatus === 'partially_paid';
     const dueDate = resident.dueDate ? formatDate(resident.dueDate) : 'Today';
 
-    const message = `Hello ${resident.name}, your hostel rent ${isPartial ? `(remaining *₹${rentAmount}*)` : `of *₹${rentAmount}*`} for Room ${roomNum} is currently pending.\n\nDue Date: *${dueDate}*\n\nPlease make the payment soon and reply *PAID* once done.\n\nThank you,\n${hostelName}\nPowered by Hostelrr`;
+    const message = buildRentReminderMessage(hostelProfile?.reminderTemplate, {
+      name: resident.name,
+      amount: rentAmount,
+      room: roomNum,
+      dueDate,
+      hostelName,
+    });
 
     openWhatsAppReminder(resident, message);
   };
@@ -202,8 +218,7 @@ export default function BuildingView() {
       return;
     }
 
-    const phoneDigits = (resident.phone || '').replace(/\D/g, '');
-    if (phoneDigits.length < 10) {
+    if (!getWhatsAppUrl(resident.phone, '')) {
       toast.error('Invalid phone number');
       return;
     }
@@ -248,7 +263,7 @@ export default function BuildingView() {
       });
       toast.success(`Room ${newRoomNumber} added successfully`);
     }
-    
+
     setIsAddRoomModalOpen(false);
     setNewRoomNumber('');
     setNewRoomBeds('');
@@ -288,13 +303,13 @@ export default function BuildingView() {
 
   const { execute: executeSaveEditRoomBeds, isLoading: isSavingEditRoomBeds } = useAsyncAction(async () => {
     if (!currentRoom || !currentRoomFloorId) return;
-    
+
     const numBeds = isEditCustomSharing ? parseInt(editCustomSharingValue) : parseInt(editRoomBedsNum);
     if (isNaN(numBeds) || numBeds < 0) {
       toast.error("Invalid number of beds");
       return;
     }
-    
+
     if (!editRoomNumber.trim()) {
       toast.error("Room number cannot be empty");
       return;
@@ -316,7 +331,7 @@ export default function BuildingView() {
 
   const { execute: executeMoveBeds, isLoading: isMovingBeds } = useAsyncAction(async () => {
     if (!currentRoom || !moveTargetRoomId || selectedBedsToMove.length === 0) return;
-    
+
     await moveBeds(currentRoom.id, moveTargetRoomId, selectedBedsToMove);
     toast.success(`Moved ${selectedBedsToMove.length} bed(s) to selected room successfully`);
     setIsEditRoomModalOpen(false);
@@ -325,16 +340,16 @@ export default function BuildingView() {
 
   const { execute: executeCopyLayout, isLoading: isCopyingLayout } = useAsyncAction(async (sourceFloorId: string) => {
     if (!targetFloorForCopy) return;
-    
+
     // Check if target floor has residents
     const targetFloor = floors.find(f => f.id === targetFloorForCopy);
     const hasResidents = targetFloor?.rooms.some(r => r.beds.some(b => b.status !== 'vacant'));
-    
+
     if (hasResidents) {
       toast.error("Cannot copy layout to a floor with residents. Vacate them first.");
       return;
     }
-    
+
     await copyFloorLayout(sourceFloorId, targetFloorForCopy);
     toast.success(`Layout copied from ${floors.find(f => f.id === sourceFloorId)?.name} successfully`);
     setIsCopyLayoutModalOpen(false);
@@ -400,7 +415,7 @@ export default function BuildingView() {
   };
 
   const allBeds = floors.flatMap(f => f.rooms).flatMap(r => r.beds);
-  
+
   const configuredBedsCount = allBeds.length;
   const occupiedCount = allBeds.filter(b => b.status === "occupied" || b.status === "payment_due").length;
   const reservedCount = allBeds.filter(b => b.status === "reserved").length;
@@ -422,14 +437,14 @@ export default function BuildingView() {
   };
 
   return (
-    <div className="h-[calc(100vh-64px)] flex relative overflow-hidden">
-      
+    <div className="h-full min-h-0 flex relative overflow-hidden">
+
       {/* Scrollable Layout Area */}
       <div className={cn(
         "flex-1 overflow-y-auto p-4 md:p-8 transition-all duration-300"
       )}>
         <div className="max-w-7xl mx-auto space-y-6 pb-12">
-          
+
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-5 md:mb-8 shrink-0 min-w-0">
             <div className="min-w-0 shrink-0">
               <div className="flex items-center gap-3 mb-1">
@@ -445,71 +460,73 @@ export default function BuildingView() {
               <p className="text-sm sm:text-base text-gray-500 whitespace-nowrap">Live status of all floors and rooms.</p>
             </div>
           </div>
-            
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 md:gap-4 mb-5 md:mb-6 shrink-0 min-w-0">
-              <select 
-                value={selectedFloorFilter} 
-                onChange={(e) => setSelectedFloorFilter(e.target.value)}
-                className="bg-white border border-gray-200 text-gray-900 text-sm rounded-xl focus:ring-blue-500 focus:border-blue-500 block px-4 py-2 outline-none font-medium shadow-sm transition-all h-full"
-              >
-                <option value="all">All Floors</option>
-                {floors.map(f => (
-                  <option key={f.id} value={f.id}>{f.name}</option>
-                ))}
-              </select>
 
-              {/* Legend / Filters */}
-              <div className="bg-gray-100/80 p-1.5 rounded-[14px] flex gap-1.5 items-center justify-start overflow-x-auto w-full sm:w-auto border border-gray-200/60 shadow-sm no-scrollbar">
-              <button 
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 md:gap-4 mb-5 md:mb-6 shrink-0 min-w-0">
+            {/* Legend / Filters */}
+            <div className="bg-gray-100/80 p-1.5 rounded-[14px] flex gap-1.5 items-center justify-start overflow-x-auto w-full sm:w-auto border border-gray-200/60 shadow-sm no-scrollbar">
+              <button
                 onClick={() => setFilterStatus('all')}
                 className={cn("px-4 py-2 rounded-xl text-[14px] font-semibold transition-all flex items-center gap-2 whitespace-nowrap", filterStatus === 'all' ? "bg-white text-gray-900 shadow-md ring-1 ring-black/5" : "text-gray-600 hover:text-gray-900 hover:bg-gray-200/50")}
               >
                 All
                 <span className={cn("px-2 py-0.5 rounded-md text-xs", filterStatus === 'all' ? "bg-gray-100 text-gray-900" : "bg-gray-200/50 text-gray-500")}>{counts.all}</span>
               </button>
-              <button 
+              <button
                 onClick={() => setFilterStatus('occupied')}
                 className={cn("px-4 py-2 rounded-xl text-[14px] font-semibold transition-all flex items-center gap-2 whitespace-nowrap", filterStatus === 'occupied' ? "bg-white text-green-700 shadow-md ring-1 ring-black/5" : "text-gray-600 hover:text-gray-900 hover:bg-gray-200/50")}
               >
                 <div className="w-2.5 h-2.5 rounded-full bg-green-500"></div>Occupied
                 <span className={cn("px-2 py-0.5 rounded-md text-xs", filterStatus === 'occupied' ? "bg-green-100 text-green-700" : "bg-gray-200/50 text-gray-500")}>{counts.occupied}</span>
               </button>
-              <button 
+              <button
                 onClick={() => setFilterStatus('vacant')}
                 className={cn("px-4 py-2 rounded-xl text-[14px] font-semibold transition-all flex items-center gap-2 whitespace-nowrap", filterStatus === 'vacant' ? "bg-white text-red-700 shadow-md ring-1 ring-black/5" : "text-gray-600 hover:text-gray-900 hover:bg-gray-200/50")}
               >
                 <div className="w-2.5 h-2.5 rounded-full bg-red-500"></div>Vacant
                 <span className={cn("px-2 py-0.5 rounded-md text-xs", filterStatus === 'vacant' ? "bg-red-100 text-red-700" : "bg-gray-200/50 text-gray-500")}>{counts.vacant}</span>
               </button>
-              <button 
+              <button
                 onClick={() => setFilterStatus('payment_due')}
                 className={cn("px-4 py-2 rounded-xl text-[14px] font-semibold transition-all flex items-center gap-2 whitespace-nowrap", filterStatus === 'payment_due' ? "bg-white text-amber-700 shadow-md ring-1 ring-black/5" : "text-gray-600 hover:text-gray-900 hover:bg-gray-200/50")}
               >
                 <div className="w-2.5 h-2.5 rounded-full bg-amber-500"></div>Payment Due
                 <span className={cn("px-2 py-0.5 rounded-md text-xs", filterStatus === 'payment_due' ? "bg-amber-100 text-amber-700" : "bg-gray-200/50 text-gray-500")}>{counts.payment_due}</span>
               </button>
-              <button 
+              <button
                 onClick={() => setFilterStatus('reserved')}
                 className={cn("px-4 py-2 rounded-xl text-[14px] font-semibold transition-all flex items-center gap-2 whitespace-nowrap", filterStatus === 'reserved' ? "bg-white text-blue-700 shadow-md ring-1 ring-black/5" : "text-gray-600 hover:text-gray-900 hover:bg-gray-200/50")}
               >
                 <div className="w-2.5 h-2.5 rounded-full bg-blue-500"></div>Reserved
                 <span className={cn("px-2 py-0.5 rounded-md text-xs", filterStatus === 'reserved' ? "bg-blue-100 text-blue-700" : "bg-gray-200/50 text-gray-500")}>{counts.reserved}</span>
               </button>
-              
-              <div className="w-px h-8 bg-gray-200 mx-1 hidden sm:block"></div>
+            </div>
 
-              {/* Bed Layout toggle moved to Settings (global). Removed duplicate control here. */}
+            {/* Floor Filter Dropdown */}
+            <div className="relative w-full sm:w-auto">
+              <select
+                value={selectedFloorFilter}
+                onChange={(e) => setSelectedFloorFilter(e.target.value)}
+                className="appearance-none w-full sm:w-48 bg-white border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-2.5 pr-10 text-sm font-medium outline-none transition-all cursor-pointer shadow-sm text-gray-700"
+              >
+                <option value="all">All Floors</option>
+                {floors.map(f => (
+                  <option key={f.id} value={f.id}>{f.name}</option>
+                ))}
+              </select>
+              <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-500">
+                <ChevronDown className="w-4 h-4" />
               </div>
             </div>
+          </div>
 
           <div className="space-y-6">
             {(() => {
               const floorsToRender = floors.filter(floor => selectedFloorFilter === 'all' || floor.id === selectedFloorFilter);
-              
+
               if (floorsToRender.length === 0) {
                 return (
                   <div className="py-12 flex justify-center">
-                    <EmptyState 
+                    <EmptyState
                       icon={LayoutTemplate}
                       title="No floors found"
                       subtitle="There are no floors matching your current view."
@@ -519,9 +536,10 @@ export default function BuildingView() {
               }
 
               const renderedFloors = floorsToRender.map((floor) => {
+                const orderedRooms = [...floor.rooms].sort((a, b) => compareRoomNumbers(a.number, b.number));
                 const filteredRooms = filterStatus === 'all'
-                  ? floor.rooms
-                  : floor.rooms.filter(room => {
+                  ? orderedRooms
+                  : orderedRooms.filter(room => {
                       if (filterStatus === 'vacant' && room.beds.length === 0) return true;
                       return room.beds.some(b => isBedMatch(b.status, filterStatus));
                     });
@@ -548,7 +566,7 @@ export default function BuildingView() {
                       {filteredRooms.length} rooms
                     </span>
                   </div>
-                  
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {filteredRooms.map((room, idx) => {
                       const labelSorter = (a: any, b: any) => compareBedLabels(a.name, b.name);
@@ -561,7 +579,7 @@ export default function BuildingView() {
                       if (isEmpty) {
                         const floorObj = floors.find(f => f.rooms.some(r => r.id === room.id));
                         return (
-                          <div 
+                          <div
                             key={`${room.id}-${idx}`}
                             onClick={() => floorObj && openSetupRoomModal(floorObj.id, room)}
                             className="rounded-2xl border-2 border-dashed border-gray-200 p-5 bg-white transition-all duration-300 hover:-translate-y-1.5 hover:shadow-lg hover:border-blue-200 hover:bg-blue-50/10 group cursor-pointer"
@@ -582,7 +600,7 @@ export default function BuildingView() {
                       }
 
                       return (
-                      <div 
+                      <div
                         key={`${room.id}-${idx}`}
                         onClick={() => handleRoomClick(room)}
                         className={cn(
@@ -592,12 +610,12 @@ export default function BuildingView() {
                         )}
                       >
                         <div className="flex justify-between items-start mb-4">
-                          <h3 className="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors">Room {room.number}</h3>
+                          <h3 className="text-xl font-extrabold text-slate-950 transition-colors">Room {room.number}</h3>
                           <span className="text-sm font-medium text-gray-500">
                             {room.beds.filter(b => b.status === 'occupied' || b.status === 'payment_due').length}/{room.beds.length} beds
                           </span>
                         </div>
-                        
+
                         {showBedLayout ? (
                           (() => {
                             let template: Template | null = null;
@@ -607,12 +625,12 @@ export default function BuildingView() {
                                 template = null;
                               }
                             }
-                            
+
                             // Fallback to searching by sharing type if no layoutId or template not found
                             if (!template) {
                               template = allTemplates.find(t => t.sharing === room.beds.length) || null;
                             }
-                            
+
                             const resolvedTemplate = template;
                             if (!resolvedTemplate) {
                               return (
@@ -622,7 +640,7 @@ export default function BuildingView() {
                                     .map((bed, bedIdx) => {
                                     const styles = getBedPillStyles(bed.status);
                                     return (
-                                      <div key={`${bed.id}-${bedIdx}`} className={cn("flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-sm font-semibold", styles.container)}>
+                                      <div key={`${bed.id}-${bedIdx}`} className={cn("flex items-center gap-2 px-3.5 py-1.5 rounded-xl border-2 text-sm font-bold", styles.container)}>
                                         <span>{bed.name}</span>
                                       </div>
                                     )
@@ -641,7 +659,7 @@ export default function BuildingView() {
                                     .map((bed, bedIdx) => {
                                     const styles = getBedPillStyles(bed.status);
                                     return (
-                                      <div key={`${bed.id}-${bedIdx}`} className={cn("flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-sm font-semibold", styles.container)}>
+                                      <div key={`${bed.id}-${bedIdx}`} className={cn("flex items-center gap-2 px-3.5 py-1.5 rounded-xl border-2 text-sm font-bold", styles.container)}>
                                         <span>{bed.name}</span>
                                       </div>
                                     )
@@ -669,12 +687,12 @@ export default function BuildingView() {
                                   const pos = resolvedTemplate.positions[label];
                                   if (!pos) return null;
                                   const styles = getBedPillStyles(bed.status);
-                                  
+
                                   const scaleX = (pos.x / 320) * 100;
                                   const scaleY = (pos.y / 400) * 100;
                                   const xOffsetPct = 16;
                                   const yOffsetPct = 2;
-    
+
 
                                   const isFiltered = !isBedMatch(bed.status, filterStatus);
 
@@ -710,7 +728,7 @@ export default function BuildingView() {
                                         pointerEvents: 'auto'
                                       }}
                                       className={cn(
-                                        "absolute flex items-center justify-center rounded-lg border text-sm font-medium transition-all shadow-sm bg-white overflow-hidden",
+                                        "absolute flex items-center justify-center rounded-lg border-2 text-sm font-bold transition-all shadow-sm bg-white overflow-hidden",
                                         styles.container
                                       )}
                                     >
@@ -728,7 +746,7 @@ export default function BuildingView() {
                               .map((bed, bedIdx) => {
                               const styles = getBedPillStyles(bed.status);
                               return (
-                                <div key={`${bed.id}-${bedIdx}`} className={cn("flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-sm font-semibold", styles.container)}>
+                                <div key={`${bed.id}-${bedIdx}`} className={cn("flex items-center gap-2 px-3.5 py-1.5 rounded-xl border-2 text-sm font-bold", styles.container)}>
                                   <span>{bed.name}</span>
                                 </div>
                               )
@@ -738,9 +756,9 @@ export default function BuildingView() {
                       </div>
                       );
                     })}
-                    
+
                     {/* Add Room Card - show for each floor regardless of current filter */}
-                    <div 
+                    <div
                       onClick={() => {
                         setIsSetupMode(false);
                         setNewRoomNumber('');
@@ -783,33 +801,33 @@ export default function BuildingView() {
       <AnimatePresence>
         {isAddRoomModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div 
-              className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" 
+            <div
+              className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"
               onClick={() => setIsAddRoomModalOpen(false)}
             ></div>
-            
+
             <div className="bg-white rounded-3xl shadow-xl w-full max-w-[480px] relative z-10 overflow-hidden flex flex-col">
               <div className="flex justify-between items-center p-6 pb-2">
                 <div>
                   <h2 className="text-2xl font-bold text-gray-900">{isSetupMode ? `Set Up Room ${newRoomNumber}` : 'Add New Room'}</h2>
                   <p className="text-sm text-gray-500 mt-1">Floor {floors.find(f => f.id === addRoomFloorId)?.name}</p>
                 </div>
-                <button 
+                <button
                   onClick={() => setIsAddRoomModalOpen(false)}
                   className="p-2 text-gray-400 hover:bg-gray-100 rounded-full transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              
+
               <div className="p-6 space-y-5">
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-gray-900 block">Room Number <span className="text-red-500">*</span></label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={newRoomNumber}
                     onChange={(e) => setNewRoomNumber(e.target.value)}
-                    placeholder="e.g. 101" 
+                    placeholder="e.g. 101"
                     className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400"
                   />
                 </div>
@@ -817,7 +835,7 @@ export default function BuildingView() {
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-gray-900 block">Sharing Type <span className="text-red-500">*</span></label>
                   <div className="relative">
-                    <select 
+                    <select
                       value={isCustomSharing ? 'custom' : newRoomBeds}
                       onChange={(e) => {
                         const val = e.target.value;
@@ -851,32 +869,32 @@ export default function BuildingView() {
                 </div>
 
                 {isCustomSharing && (
-                  <motion.div 
+                  <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                     className="space-y-1.5"
                   >
                     <label className="text-sm font-medium text-gray-900 block">Enter Sharing Count <span className="text-red-500">*</span></label>
-                    <input 
-                      type="number" 
+                    <input
+                      type="number"
                       min="1"
                       value={customSharingValue}
                       onChange={(e) => setCustomSharingValue(e.target.value)}
-                      placeholder="e.g. 5" 
+                      placeholder="e.g. 5"
                       className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400"
                     />
                   </motion.div>
                 )}
-                
+
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-gray-900 block">Base Monthly Rent <span className="text-red-500">*</span></label>
                   <div className="relative">
                     <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">₹</div>
-                    <input 
-                      type="number" 
+                    <input
+                      type="number"
                       value={newRoomRent}
                       onChange={(e) => setNewRoomRent(e.target.value)}
-                      placeholder="7,500" 
+                      placeholder="7,500"
                       className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl pl-8 pr-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400"
                     />
                   </div>
@@ -901,8 +919,8 @@ export default function BuildingView() {
                               key={t.id}
                               onClick={() => setSelectedLayoutId(t.id)}
                               className={`flex items-center gap-3 p-3 rounded-2xl border-2 transition-all text-left group/version ${
-                                isSelected 
-                                  ? `${colorConfig.class} border-opacity-100 ring-4 ring-blue-500/5` 
+                                isSelected
+                                  ? `${colorConfig.class} border-opacity-100 ring-4 ring-blue-500/5`
                                   : 'border-gray-100 hover:border-gray-200 text-gray-600'
                               }`}
                             >
@@ -950,16 +968,16 @@ export default function BuildingView() {
                 })()}
 
                   <div className="pt-4 flex flex-col gap-3">
-                    <button 
+                    <button
                       onClick={() => executeSaveRoom()}
                       disabled={(!isCustomSharing && !newRoomBeds) || (isCustomSharing && !customSharingValue) || !newRoomNumber || isSavingRoom}
                       className="w-full bg-[#1D4ED8] hover:bg-[#1e40af] disabled:bg-blue-300 disabled:cursor-not-allowed text-white py-3.5 rounded-xl text-base font-semibold shadow-sm transition-colors"
                     >
                       {isSavingRoom ? 'Saving...' : (isSetupMode ? 'Confirm Room Setup' : 'Add Room')}
                     </button>
-                    
+
                     {isSetupMode && (
-                      <button 
+                      <button
                         onClick={() => setShowDeleteRoomConfirmation(true)}
                         className="w-full bg-white hover:bg-red-50 text-red-600 border border-red-200 py-3 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2"
                       >
@@ -976,12 +994,12 @@ export default function BuildingView() {
       {/* Side Drawer */}
       <AnimatePresence>
         {currentRoom && selectedRoom && (
-          <motion.div 
+          <motion.div
             initial={{ x: "100%", opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: "100%", opacity: 0 }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="w-full sm:w-[400px] bg-white border-l border-gray-200 shadow-2xl h-[calc(100vh-64px)] fixed right-0 top-16 z-30 flex flex-col overflow-hidden"
+            className="fixed inset-0 z-50 flex h-dvh w-full flex-col overflow-hidden bg-white shadow-2xl sm:bottom-auto sm:left-auto sm:right-0 sm:top-16 sm:h-[calc(100dvh-4rem)] sm:w-[400px] sm:border-l sm:border-gray-200 sm:z-30"
           >
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
               <div>
@@ -989,7 +1007,7 @@ export default function BuildingView() {
                 <p className="text-sm text-gray-500">{currentRoom.beds.length} Beds Total</p>
               </div>
               <div className="flex items-center gap-3">
-                <button 
+                <button
                   onClick={() => {
                     const bedCount = currentRoom.beds.length;
                     setEditRoomBedsNum(bedCount.toString());
@@ -1003,13 +1021,13 @@ export default function BuildingView() {
                     setShowDeleteConfirmation(false);
                     setSelectedLayoutId(currentRoom.layoutId || '');
                     setIsEditRoomModalOpen(true);
-                  }} 
+                  }}
                   className="px-3 py-1.5 text-[13px] font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 hover:text-gray-900 rounded-lg transition-all shadow-sm"
                 >
                   Edit
                 </button>
                 <div className="w-px h-6 bg-gray-200"></div>
-                <button 
+                <button
                   onClick={closeDrawer}
                   className="p-1.5 hover:bg-gray-200 rounded-full transition-colors"
                 >
@@ -1070,7 +1088,7 @@ export default function BuildingView() {
                           <UserPlus className="w-6 h-6" />
                         </div>
                         <p className="text-sm font-medium text-gray-600">This bed is currently empty.</p>
-                        <button 
+                        <button
                           onClick={() => {
                             window.dispatchEvent(new CustomEvent('open-add-resident-modal', { detail: { roomId: currentRoom.id, bedId: bed.id } }));
                           }}
@@ -1082,13 +1100,7 @@ export default function BuildingView() {
                     ) : (
                       <div className="p-5 space-y-4">
                         <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-full bg-gray-50 border-2 border-white ring-1 ring-gray-200 shadow-sm flex items-center justify-center text-gray-400 overflow-hidden shrink-0">
-                            {resident.photoUrl ? (
-                              <img src={resident.photoUrl} alt={resident.name} className="w-full h-full object-cover" />
-                            ) : (
-                              <DefaultAvatar className="w-full h-full" />
-                            )}
-                          </div>
+                          <ResidentAvatar resident={resident} floors={floors} className="h-12 w-12" dotClassName="h-3 w-3" />
                           <div>
                             <h4 className="font-bold text-gray-900 text-lg">{resident.name}</h4>
                             <p className="text-xs text-gray-500">Joined {resident.joinDate}</p>
@@ -1103,7 +1115,7 @@ export default function BuildingView() {
                             <Phone className="w-4 h-4 text-gray-400" />
                             <span className="text-sm font-semibold text-gray-900">{resident.phone}</span>
                           </div>
-                          <button 
+                          <button
                             onClick={() => {
                               navigator.clipboard.writeText(resident.phone);
                               toast.success('Phone number copied');
@@ -1139,30 +1151,63 @@ export default function BuildingView() {
                           isCompact={true}
                         />
 
-                        <div className="flex gap-2 pt-2">
-                           <button 
+                        <div className="grid grid-cols-3 gap-2 pt-2">
+                           <button
                              onClick={() => {
                                setGlobalSelectedResidentId(resident.id);
                                navigate(ROUTES.residents.path);
                              }}
-                             className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                             className="group flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs font-bold text-slate-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:shadow-md active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
                            >
                             <User className="w-4 h-4" /> Profile
                            </button>
-                           <button 
+                           <button
+                             onClick={() => {
+                               setResidentMoveTargetRoom('');
+                               setResidentMoveTargetBed('');
+                               setSelectedResidentForMoveId(resident.id);
+                             }}
+                             className="group flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-2 py-2 text-xs font-bold text-blue-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-100 hover:shadow-md active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                           >
+                             <ArrowRightLeft className="h-4 w-4" /> Move
+                           </button>
+                           <button
                              onClick={() => setResidentToVacate(resident)}
-                             className="flex-1 bg-white border border-red-200 hover:bg-red-50 text-red-600 px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                             className="group flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-white px-2 py-2 text-xs font-bold text-red-600 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-red-300 hover:bg-red-50 hover:shadow-md active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
                            >
                              <LogOut className="w-4 h-4" /> {bed.status === 'reserved' ? 'Cancel' : 'Vacate'}
                            </button>
                         </div>
+                         {selectedResidentForMoveId === resident.id && (
+                           <div className="space-y-2 rounded-xl border border-blue-100 bg-blue-50/50 p-3">
+                             <select value={residentMoveTargetRoom} onChange={e => { setResidentMoveTargetRoom(e.target.value); setResidentMoveTargetBed(''); }} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm">
+                               <option value="">Choose destination room</option>
+                               {floors.flatMap(f => f.rooms).filter(r => r.id !== currentRoom.id && r.beds.some(b => b.status === 'vacant')).map(r => <option key={r.id} value={r.id}>Room {r.number}</option>)}
+                             </select>
+                             <select value={residentMoveTargetBed} onChange={e => setResidentMoveTargetBed(e.target.value)} disabled={!residentMoveTargetRoom} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm disabled:bg-gray-100">
+                               <option value="">Choose vacant bed</option>
+                               {floors.flatMap(f => f.rooms).find(r => r.id === residentMoveTargetRoom)?.beds.filter(b => b.status === 'vacant').map(b => <option key={b.id} value={b.id}>Bed {b.name}</option>)}
+                             </select>
+                             <button disabled={!residentMoveTargetRoom || !residentMoveTargetBed || isMovingResident} onClick={async () => {
+                               setIsMovingResident(true);
+                               try {
+                                 await moveResidentToBedDb(resident.id, residentMoveTargetRoom, residentMoveTargetBed);
+                                 await syncStateWithDb();
+                                 setSelectedResidentForMoveId(null);
+                                 toast.success('Resident moved successfully');
+                               } catch (error: any) {
+                                 toast.error(error?.message || 'Could not move resident. Refresh and try again.');
+                               } finally { setIsMovingResident(false); }
+                             }} className="w-full rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">{isMovingResident ? 'Moving…' : 'Move Resident'}</button>
+                           </div>
+                         )}
                       </div>
                     )}
                   </div>
                 )
               })}
             </div>
-            
+
           </motion.div>
         )}
       </AnimatePresence>
@@ -1176,20 +1221,20 @@ export default function BuildingView() {
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm"
           >
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="bg-white rounded-2xl shadow-xl w-full max-w-4xl overflow-hidden flex flex-col relative"
             >
-              <button 
+              <button
                 onClick={() => setIsBedLayoutModalOpen(false)}
                 className="absolute top-4 right-4 p-2 bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-900 rounded-full transition-colors z-50"
               >
                 <X className="w-5 h-5" />
               </button>
-              
-              <div className="max-h-[90vh] overflow-y-auto">
+
+              <div className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
                 <BedLayoutBuilder
                   hostelId={hostelProfile?.id}
                   onSaveComplete={() => setIsBedLayoutModalOpen(false)}
@@ -1208,19 +1253,19 @@ export default function BuildingView() {
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm"
           >
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col relative"
             >
-              <button 
+              <button
                 onClick={() => setResidentToVacate(null)}
                 className="absolute top-4 right-4 p-2 bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-900 rounded-full transition-colors z-50"
               >
                 <X className="w-5 h-5" />
               </button>
-              
+
               <div className="p-6 pb-0">
                 <div className="w-12 h-12 rounded-full bg-red-50 text-red-600 flex items-center justify-center mb-4">
                   <LogOut className="w-6 h-6" />
@@ -1232,13 +1277,13 @@ export default function BuildingView() {
               </div>
 
               <div className="p-6 flex items-center justify-end gap-3 mt-2">
-                <button 
+                <button
                   onClick={() => setResidentToVacate(null)}
                   className="px-5 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors"
                 >
                   Cancel
                 </button>
-                <button 
+                <button
                   onClick={executeVacateResident}
                   disabled={isVacatingResident}
                   className="px-5 py-2.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
@@ -1254,13 +1299,13 @@ export default function BuildingView() {
       {/* Edit Room Modal */}
       <AnimatePresence>
         {isEditRoomModalOpen && currentRoom && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm"
           >
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.95, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 20 }}
@@ -1268,7 +1313,7 @@ export default function BuildingView() {
             >
               <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                 <h3 className="text-xl font-bold text-gray-900">Manage Room {currentRoom.number}</h3>
-                <button 
+                <button
                   onClick={() => setIsEditRoomModalOpen(false)}
                   className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-500"
                 >
@@ -1276,11 +1321,11 @@ export default function BuildingView() {
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto max-h-[70vh]">
+              <div className="flex-1 overflow-y-auto max-h-[70dvh]">
                 <div className="px-6 py-4 border-b border-gray-100 space-y-4">
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium text-gray-900 block">Room Number <span className="text-red-500">*</span></label>
-                    <input 
+                    <input
                       type="text"
                       value={editRoomNumber}
                       onChange={(e) => setEditRoomNumber(e.target.value)}
@@ -1293,11 +1338,11 @@ export default function BuildingView() {
                       <label className="text-sm font-medium text-gray-900 block">Rent <span className="text-red-500">*</span></label>
                       <div className="relative">
                         <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">₹</div>
-                        <input 
-                          type="number" 
+                        <input
+                          type="number"
                           value={editRoomRent}
                           onChange={(e) => setEditRoomRent(e.target.value)}
-                          placeholder="7,500" 
+                          placeholder="7,500"
                           className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl pl-8 pr-4 py-3 text-sm outline-none transition-all"
                         />
                       </div>
@@ -1306,7 +1351,7 @@ export default function BuildingView() {
                 </div>
 
               <div className="flex border-b border-gray-200 px-6 pt-4 gap-6">
-                <button 
+                <button
                   onClick={() => setEditModalTab('move')}
                   className={cn("pb-3 text-sm font-medium transition-colors relative", editModalTab === 'move' ? "text-blue-600" : "text-gray-500 hover:text-gray-700")}
                 >
@@ -1315,7 +1360,7 @@ export default function BuildingView() {
                     <motion.div layoutId="editRoomTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-t-full" />
                   )}
                 </button>
-                <button 
+                <button
                   onClick={() => setEditModalTab('add')}
                   className={cn("pb-3 text-sm font-medium transition-colors relative", editModalTab === 'add' ? "text-blue-600" : "text-gray-500 hover:text-gray-700")}
                 >
@@ -1332,7 +1377,7 @@ export default function BuildingView() {
                     <div className="space-y-1.5">
                       <label className="text-sm font-medium text-gray-900 block">Sharing Type <span className="text-red-500">*</span></label>
                       <div className="relative">
-                        <select 
+                        <select
                           value={isEditCustomSharing ? 'custom' : editRoomBedsNum}
                           onChange={(e) => {
                             const val = e.target.value;
@@ -1364,18 +1409,18 @@ export default function BuildingView() {
                     </div>
 
                     {isEditCustomSharing && (
-                      <motion.div 
+                      <motion.div
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
                         className="space-y-1.5"
                       >
                         <label className="text-sm font-medium text-gray-900 block">Enter Sharing Count <span className="text-red-500">*</span></label>
-                        <input 
-                          type="number" 
+                        <input
+                          type="number"
                           min="1"
                           value={editCustomSharingValue}
                           onChange={(e) => setEditCustomSharingValue(e.target.value)}
-                          placeholder="e.g. 5" 
+                          placeholder="e.g. 5"
                           className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all"
                         />
                       </motion.div>
@@ -1392,7 +1437,7 @@ export default function BuildingView() {
                     {(() => {
                       const currentSharing = parseInt(editRoomBedsNum);
                       if (isNaN(currentSharing) || currentSharing <= 0) return null;
-                      
+
                       const templates = allTemplates.filter(t => t.sharing === currentSharing);
                       if (templates.length <= 1) return null;
 
@@ -1408,8 +1453,8 @@ export default function BuildingView() {
                                   key={t.id}
                                   onClick={() => setSelectedLayoutId(t.id)}
                                   className={`flex items-center gap-3 p-3 rounded-2xl border-2 transition-all text-left ${
-                                    isSelected 
-                                      ? `${colorConfig.class} border-opacity-100 ring-4 ring-blue-50` 
+                                    isSelected
+                                      ? `${colorConfig.class} border-opacity-100 ring-4 ring-blue-50`
                                       : 'border-gray-100 hover:border-gray-200 text-gray-600'
                                   }`}
                                 >
@@ -1428,7 +1473,7 @@ export default function BuildingView() {
                       );
                     })()}
                   </div>
-                  
+
                   {editRoomBedsNum && parseInt(editRoomBedsNum) > 0 && (
                     <div className="space-y-1.5">
                       <label className="text-sm font-medium text-gray-900 block">Preview Beds</label>
@@ -1436,12 +1481,12 @@ export default function BuildingView() {
                           {Array.from({ length: Math.max(currentRoom.beds.length, parseInt(editRoomBedsNum)) }).map((_, idx) => {
                           const existingBed = currentRoom.beds[idx];
                           const isRemoving = existingBed && idx >= parseInt(editRoomBedsNum);
-                          
+
                           if (existingBed) {
                             const statusColors = getBedPillStyles(existingBed.status);
                             return (
-                              <div 
-                                key={existingBed.id} 
+                              <div
+                                key={existingBed.id}
                                 className={cn(
                                   "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all border",
                                   isRemoving ? "opacity-30 line-through bg-gray-100 border-gray-200 text-gray-500 shadow-none" : statusColors.container
@@ -1452,8 +1497,8 @@ export default function BuildingView() {
                             );
                           } else {
                             return (
-                              <div 
-                                key={`new-bed-${idx}`} 
+                              <div
+                                key={`new-bed-${idx}`}
                                 className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all border bg-white border-dashed border-gray-300 text-gray-500 shadow-sm"
                               >
                                 Bed {idx + 1}
@@ -1472,13 +1517,13 @@ export default function BuildingView() {
                     <div className="space-y-1.5">
                       <label className="text-sm font-medium text-gray-900 block">Destination Room <span className="text-red-500">*</span></label>
                       <div className="relative">
-                        <div 
+                        <div
                           onClick={() => setIsRoomDropdownOpen(!isRoomDropdownOpen)}
                           className="w-full border border-gray-200 hover:border-gray-300 focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all bg-white cursor-pointer flex items-center justify-between"
                         >
                           <span className={cn(!moveTargetRoomId && "text-gray-400")}>
-                            {moveTargetRoomId 
-                              ? `Room ${floors.flatMap(f => f.rooms).find(r => r.id === moveTargetRoomId)?.number}` 
+                            {moveTargetRoomId
+                              ? `Room ${floors.flatMap(f => f.rooms).find(r => r.id === moveTargetRoomId)?.number}`
                               : "Select Room"}
                           </span>
                           <ChevronDown className={cn("w-4 h-4 text-gray-400 transition-transform", isRoomDropdownOpen && "rotate-180")} />
@@ -1497,11 +1542,12 @@ export default function BuildingView() {
                                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                                   <input
                                     autoFocus
-                                    type="text"
+                                    type="search"
+                                    aria-label="Search room number"
                                     placeholder="Search room number..."
                                     value={roomSearchQuery}
                                     onChange={(e) => setRoomSearchQuery(e.target.value)}
-                                    className="w-full bg-white border border-gray-200 rounded-lg pl-9 pr-4 py-2 text-sm outline-none focus:border-blue-500 transition-all"
+                                    className="h-11 w-full appearance-none rounded-xl border border-slate-200 bg-white pl-9 pr-4 text-sm font-medium text-slate-800 outline-none placeholder:font-normal placeholder:text-slate-400 hover:border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 [&::-webkit-search-cancel-button]:hidden"
                                   />
                                 </div>
                               </div>
@@ -1538,26 +1584,28 @@ export default function BuildingView() {
                       </div>
                     </div>
                   </div>
-                  
+
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium text-gray-900 block">Select Beds to Move <span className="text-red-500">*</span></label>
                     <div className="flex flex-wrap gap-2 border border-gray-100 p-3 rounded-lg bg-gray-50/50">
                       {currentRoom.beds.map((bed, idx) => {
                         const isSelected = selectedBedsToMove.includes(bed.id);
                         const statusColors = getBedPillStyles(bed.status);
-                        
+
                         return (
                           <button
                             key={`${bed.id}-${idx}`}
+                            type="button"
+                            disabled={bed.status !== 'vacant'}
                             onClick={() => {
-                              setSelectedBedsToMove(prev => 
+                              setSelectedBedsToMove(prev =>
                                 isSelected ? prev.filter(id => id !== bed.id) : [...prev, bed.id]
                               );
                             }}
                             className={cn(
-                              "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all border",
-                              isSelected 
-                                ? "bg-blue-50 border-blue-600 text-blue-700 ring-1 ring-blue-600" 
+                              "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all border disabled:cursor-not-allowed disabled:opacity-50",
+                              isSelected
+                                ? "bg-blue-50 border-blue-600 text-blue-700 ring-1 ring-blue-600"
                                 : cn(statusColors.container, "hover:opacity-80 hover:shadow-sm")
                             )}
                           >
@@ -1571,18 +1619,18 @@ export default function BuildingView() {
                 </div>
               )}
               </div>
-              
+
               <div className="p-6 pt-4 bg-gray-50 border-t border-gray-100 flex justify-between items-center gap-3">
                 {showDeleteConfirmation ? (
                   <div className="flex items-center gap-3 w-full">
                     <span className="text-sm font-medium text-red-600 flex-1">Are you sure?</span>
-                    <button 
+                    <button
                       onClick={() => setShowDeleteConfirmation(false)}
                       className="px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors"
                     >
                       Cancel
                     </button>
-                    <button 
+                    <button
                       onClick={executeDeleteRoom}
                       disabled={isDeletingRoom}
                       className="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors shadow-sm disabled:opacity-50"
@@ -1592,26 +1640,36 @@ export default function BuildingView() {
                   </div>
                 ) : (
                   <>
-                    <button 
+                    <button
                       onClick={() => setShowDeleteConfirmation(true)}
                       className="px-4 py-2.5 text-sm font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl transition-colors flex items-center gap-2"
                     >
                       <Trash2 className="w-4 h-4" /> Delete Room
                     </button>
                     <div className="flex gap-3">
-                      <button 
+                      <button
                         onClick={() => setIsEditRoomModalOpen(false)}
                         className="px-5 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors"
                       >
                         Cancel
                       </button>
-                      <button 
+                    {editModalTab === 'move' ? (
+                      <button
+                        onClick={executeMoveBeds}
+                        disabled={isMovingBeds || !moveTargetRoomId || selectedBedsToMove.length === 0}
+                        className="px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-sm disabled:opacity-50"
+                      >
+                        {isMovingBeds ? 'Moving...' : 'Move Selected Beds'}
+                      </button>
+                    ) : (
+                      <button
                         onClick={executeSaveEditRoomBeds}
                         disabled={isSavingEditRoomBeds}
                         className="px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-sm disabled:opacity-50"
                       >
                         {isSavingEditRoomBeds ? 'Saving...' : 'Save Changes'}
                       </button>
+                    )}
                     </div>
                   </>
                 )}
@@ -1629,19 +1687,19 @@ export default function BuildingView() {
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm"
           >
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col relative"
             >
-              <button 
+              <button
                 onClick={() => setShowDeleteRoomConfirmation(false)}
                 className="absolute top-4 right-4 p-2 bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-900 rounded-full transition-colors z-50"
               >
                 <X className="w-5 h-5" />
               </button>
-              
+
               <div className="p-6 pb-0">
                 <div className="w-12 h-12 rounded-full bg-red-50 text-red-600 flex items-center justify-center mb-4">
                   <Trash2 className="w-6 h-6" />
@@ -1653,13 +1711,13 @@ export default function BuildingView() {
               </div>
 
               <div className="p-6 flex items-center justify-end gap-3 mt-2">
-                <button 
+                <button
                   onClick={() => setShowDeleteRoomConfirmation(false)}
                   className="px-5 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors"
                 >
                   Cancel
                 </button>
-                <button 
+                <button
                   onClick={executeDeleteSetupRoom}
                   disabled={isDeletingSetupRoom}
                   className="px-5 py-2.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
@@ -1680,7 +1738,7 @@ export default function BuildingView() {
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm"
           >
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -1692,7 +1750,7 @@ export default function BuildingView() {
                     <h3 className="text-2xl font-bold text-gray-900">Copy Layout</h3>
                     <p className="text-sm text-gray-500 mt-1">Select a floor to copy layout from to {floors.find(f => f.id === targetFloorForCopy)?.name}</p>
                   </div>
-                  <button 
+                  <button
                     onClick={() => setIsCopyLayoutModalOpen(false)}
                     className="p-2 text-gray-400 hover:bg-gray-100 rounded-full transition-colors"
                   >
@@ -1712,8 +1770,8 @@ export default function BuildingView() {
                           disabled={setupRoomsCount === 0}
                           className={cn(
                             "w-full flex items-center justify-between p-4 rounded-2xl border transition-all text-left group",
-                            setupRoomsCount > 0 
-                              ? "border-gray-100 hover:border-blue-200 hover:bg-blue-50/50" 
+                            setupRoomsCount > 0
+                              ? "border-gray-100 hover:border-blue-200 hover:bg-blue-50/50"
                               : "border-gray-50 opacity-50 cursor-not-allowed"
                           )}
                         >
@@ -1737,7 +1795,7 @@ export default function BuildingView() {
                         </button>
                       );
                     })}
-                  
+
                   {floors.filter(f => f.id !== targetFloorForCopy).length === 0 && (
                     <div className="py-8 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
                       <p className="text-gray-500 text-sm font-medium">No other floors available to copy from.</p>
@@ -1745,9 +1803,9 @@ export default function BuildingView() {
                   )}
                 </div>
               </div>
-              
+
               <div className="p-6 bg-gray-50 border-t border-gray-100 flex gap-3">
-                <button 
+                <button
                   onClick={() => setIsCopyLayoutModalOpen(false)}
                   className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-3.5 rounded-2xl text-sm font-bold transition-colors"
                 >
@@ -1763,11 +1821,11 @@ export default function BuildingView() {
       <AnimatePresence>
         {previewTemplateId && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-            <div 
-              className="absolute inset-0 bg-gray-900/60 backdrop-blur-md" 
+            <div
+              className="absolute inset-0 bg-gray-900/60 backdrop-blur-md"
               onClick={() => setPreviewTemplateId(null)}
             ></div>
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -1783,7 +1841,7 @@ export default function BuildingView() {
                     })()}
                   </p>
                 </div>
-                <button 
+                <button
                   onClick={() => setPreviewTemplateId(null)}
                   className="p-2 text-gray-400 hover:bg-gray-100 rounded-full transition-colors"
                 >
@@ -1812,14 +1870,14 @@ export default function BuildingView() {
                       {Object.entries(template.positions).map(([label, pos]) => {
                         const bedWidthPx = (pos.rotated ? 48 : 96) * (template.pillSize || 1.0);
                         const bedHeightPx = (pos.rotated ? 96 : 44) * (template.pillSize || 1.0);
-                        
+
                         // Template is based on 320x400
                         // Preview is 280x350
                         const scaleX = (pos.x / 320) * 100;
                         const scaleY = (pos.y / 400) * 100;
                         const widthPct = (bedWidthPx / 320) * 100;
                         const heightPct = (bedHeightPx / 400) * 100;
-                        
+
                         return (
                           <div
                             key={label}
@@ -1845,7 +1903,7 @@ export default function BuildingView() {
               </div>
 
               <div className="p-6 bg-white flex justify-center">
-                <button 
+                <button
                   onClick={() => setPreviewTemplateId(null)}
                   className="w-full bg-[#1D4ED8] text-white py-3.5 rounded-2xl font-bold hover:bg-[#1e40af] transition-colors shadow-lg shadow-blue-200"
                 >

@@ -19,6 +19,7 @@ interface ResidentStatusCardProps {
   isSendingReminder?: boolean;
   isMarkingPayment?: boolean;
   isMarkingDeposit?: boolean;
+  showSecurityDeposit?: boolean;
   isCompact?: boolean;
 }
 
@@ -32,19 +33,25 @@ export default function ResidentStatusCard({
   isSendingReminder = false,
   isMarkingPayment = false,
   isMarkingDeposit = false,
+  showSecurityDeposit = true,
   isCompact = false,
 }: ResidentStatusCardProps) {
-  const rentStatus = resident.paymentStatus === 'paid'
+  const isReserved = resident.status === 'reserved';
+  const rentStatus = isReserved
+    ? 'Reserved'
+    : resident.paymentStatus === 'paid'
     ? 'Paid'
     : resident.paymentStatus === 'partially_paid'
       ? 'Partial'
       : resident.paymentStatus === 'late'
         ? 'Late'
         : 'Due';
-  const rentStatusColor = (resident.paymentStatus === 'paid')
+  const rentStatusColor = isReserved
+    ? 'text-blue-700 bg-blue-50 border-blue-100'
+    : resident.paymentStatus === 'paid'
     ? 'text-green-600 bg-green-50 border-green-100'
-    : (resident.paymentStatus === 'partially_paid')
-      ? 'text-amber-600 bg-amber-50 border-amber-100'
+    : resident.paymentStatus === 'partially_paid'
+      ? 'text-purple-600 bg-purple-50 border-purple-100'
       : 'text-red-600 bg-red-50 border-red-100';
   const depositStatus = resident.securityDeposit && resident.isDepositPaid ? 'Paid' : 'Pending';
   const depositStatusColor = resident.securityDeposit && resident.isDepositPaid
@@ -65,12 +72,12 @@ export default function ResidentStatusCard({
               {rentStatus} ₹{rentAmount.toLocaleString('en-IN')}
             </span>
           </div>
-          {rentStatus !== 'Paid' && !isMarkingPayment ? (
+          {rentStatus !== 'Paid' && !isReserved && !isMarkingPayment ? (
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => onSendReminder?.()}
                 disabled={isSendingReminder}
-                className="h-10 min-w-0 w-full justify-center whitespace-nowrap bg-[#25D366] hover:bg-[#22c35e] disabled:opacity-60 disabled:cursor-not-allowed text-white px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                className="h-10 min-w-0 w-full justify-center whitespace-nowrap bg-[#28a745] hover:bg-[#218838] disabled:opacity-60 disabled:cursor-not-allowed text-white px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
               >
                 <WhatsAppIcon className="w-3.5 h-3.5" /> Remind
               </button>
@@ -84,7 +91,7 @@ export default function ResidentStatusCard({
           ) : null}
         </div>
 
-        {resident.securityDeposit ? (
+        {showSecurityDeposit && resident.securityDeposit && !isReserved ? (
           <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 flex flex-col gap-3">
             <div className="flex items-center justify-between gap-3">
               <span className="font-medium text-sm text-gray-700">Security Deposit</span>
@@ -97,7 +104,7 @@ export default function ResidentStatusCard({
                 <button
                   onClick={() => onSendDepositReminder?.()}
                   disabled={isSendingReminder}
-                  className="h-10 min-w-0 w-full justify-center whitespace-nowrap bg-[#25D366] hover:bg-[#22c35e] disabled:opacity-60 disabled:cursor-not-allowed text-white px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                  className="h-10 min-w-0 w-full justify-center whitespace-nowrap bg-[#28a745] hover:bg-[#218838] disabled:opacity-60 disabled:cursor-not-allowed text-white px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
                 >
                   <WhatsAppIcon className="w-3.5 h-3.5" /> Remind
                 </button>

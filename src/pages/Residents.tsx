@@ -1,20 +1,25 @@
 import React, { useState, useMemo } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { FLAGS } from '../core/env';
 import DefaultAvatar from '../components/DefaultAvatar';
-import { Plus, Phone, X, History, ArrowLeft, Calendar, LogOut, UserPlus, Users, IndianRupee, FileText, CheckCircle2, Edit, User, Upload, Image as ImageIcon } from 'lucide-react';
-import { cn, formatDate, getNamesFromIds, getTodayIST, convertToIST, getCurrentTimeIST, getResidentRentAmount, getResidentDueDisplayAmount } from '../lib/utils';
+import { Plus, Phone, X, History, ArrowLeft, Calendar, LogOut, UserPlus, Users, IndianRupee, FileText, CheckCircle2, Edit, User, Upload, Image as ImageIcon, Trash2, BedDouble } from 'lucide-react';
+import { cn, formatDate, getNamesFromIds, getTodayIST, convertToIST, getCurrentTimeIST, getTransactionSortTimestamp, getResidentRentAmount, getResidentDueDisplayAmount, getWhatsAppUrl, isResidentReserved } from '../lib/utils';
 import EmptyState from '../components/EmptyState';
 import { Resident, PastResident, MockPastResidents } from '../data/mock';
 import { AnimatePresence, motion } from 'motion/react';
 import { toast } from 'sonner';
-import { uploadResidentDocuments } from '../lib/supabaseAPI';
+import { deleteResidentPhoto, uploadResidentPhoto } from '../lib/supabaseAPI';
 import useAsyncAction from '../hooks/useAsyncAction';
 import { MarkRentPaidModal } from '../components/MarkRentPaidModal';
 import { MarkDepositPaidModal } from '../components/MarkDepositPaidModal';
 import ResidentStatusCard from '../components/ResidentStatusCard';
+import { PrivatePhoto } from '../components/PrivatePhoto';
+import { buildRentReminderMessage } from '../lib/reminderTemplate';
+import ResidentAvatar from '../components/ResidentAvatar';
 
-type ViewMode = 'all' | 'floor' | 'room' | 'vacating';
+type ViewMode = 'all' | 'floor' | 'room' | 'vacating' | 'reserved';
+const MAX_RESIDENT_PHOTO_SIZE = 1024 * 1024;
 
 export const WhatsAppIcon = ({ className }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="0" className={className}>
@@ -23,16 +28,30 @@ export const WhatsAppIcon = ({ className }: { className?: string }) => (
 );
 
 export default function Residents() {
-  const { residents, pastResidents, floors, hostelProfile, globalSelectedResidentId, setGlobalSelectedResidentId, vacateResident, addResident, confirmMoveIn, editResident, markAsPaid, markReminderSent, isDemoMode } = useApp();
-  const [viewMode, setViewMode] = useState<ViewMode>('all');
-  const [currentSort, setCurrentSort] = useState('all');
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { residents, pastResidents, floors, hostelProfile, globalSelectedResidentId, setGlobalSelectedResidentId, vacateResident, addResident, confirmMoveIn, editResident, markAsPaid, isDemoMode, deletePastResident, syncStateWithDb, isDataLoading } = useApp();
+  const collectsSecurityDeposit = Boolean(hostelProfile?.collectSecurityDeposit ?? Number(hostelProfile?.security_deposit || 0) > 0);
+  const initialSearchFilter = new URLSearchParams(location.search).get('filter');
+  const initialRouteState = location.state as any;
+  const isInitialReserved = Boolean(initialRouteState?.showReserved || initialSearchFilter === 'reserved');
+  const isInitialVacating = Boolean(initialRouteState?.showVacatingSoon || initialSearchFilter === 'vacating');
+
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    if (isInitialReserved) return 'reserved';
+    if (isInitialVacating) return 'vacating';
+    return 'all';
+  });
+  const [currentSort, setCurrentSort] = useState(() => (isInitialVacating ? 'vacating' : 'all'));
   const [showHistory, setShowHistory] = useState(false);
   const [selectedResident, setSelectedResident] = useState<Resident | PastResident | null>(null);
   const [profileTab, setProfileTab] = useState<'info' | 'payment'>('info');
   const [residentToVacate, setResidentToVacate] = useState<Resident | null>(null);
   const [residentToEdit, setResidentToEdit] = useState<Resident | null>(null);
-  const [residentEditFiles, setResidentEditFiles] = useState<{ photo?: File; aadhar?: File; hostelForm?: File }>({});
+  const [residentEditFiles, setResidentEditFiles] = useState<{ photo?: File }>({});
   const [isEditingFiles, setIsEditingFiles] = useState(false);
+  const [showPhotoRemovalConfirm, setShowPhotoRemovalConfirm] = useState(false);
+  const [historyResidentToDelete, setHistoryResidentToDelete] = useState<PastResident | null>(null);
   const [isUploadingProfileDoc, setIsUploadingProfileDoc] = useState(false);
   const [residentToMarkDepositPaid, setResidentToMarkDepositPaid] = useState<Resident | null>(null);
   const [depositPaymentMethod, setDepositPaymentMethod] = useState<'UPI' | 'Cash'>('UPI');
@@ -48,6 +67,61 @@ export default function Residents() {
   const [partialAmount, setPartialAmount] = useState<string>('');
   const [paymentDate, setPaymentDate] = useState<string>(getTodayIST());
   const [isSendingReminder, setIsSendingReminder] = useState(false);
+  const [deletingHistoryId, setDeletingHistoryId] = useState<string | null>(null);
+  const reservedResidents = residents.filter(resident => isResidentReserved(resident, floors));
+  const todayIST = getTodayIST();
+  const vacatingResidents = residents.filter(r => {
+    if (r.status === 'reserved' || !r.vacatingDate) return false;
+    return r.vacatingDate >= todayIST;
+  });
+  const initialFilterApplied = React.useRef(isInitialReserved || isInitialVacating);
+
+  React.useEffect(() => {
+    const currentSearchFilter = new URLSearchParams(location.search).get('filter');
+    const currentRouteState = location.state as any;
+    const shouldShowReserved = Boolean(currentRouteState?.showReserved || currentSearchFilter === 'reserved');
+    const shouldShowVacating = Boolean(currentRouteState?.showVacatingSoon || currentSearchFilter === 'vacating');
+
+    if (shouldShowReserved) {
+      setViewMode('reserved');
+      setCurrentSort('all');
+      initialFilterApplied.current = true;
+      if (currentRouteState?.showReserved) {
+        navigate(location.pathname + location.search, { replace: true, state: {} });
+      }
+      return;
+    }
+
+    if (shouldShowVacating) {
+      setViewMode('vacating');
+      setCurrentSort('vacating');
+      initialFilterApplied.current = true;
+      if (currentRouteState?.showVacatingSoon) {
+        navigate(location.pathname + location.search, { replace: true, state: {} });
+      }
+      return;
+    }
+
+    if (!initialFilterApplied.current && !isDataLoading) {
+      initialFilterApplied.current = true;
+      if (vacatingResidents.length > 0) {
+        setViewMode('vacating');
+        setCurrentSort('vacating');
+      } else {
+        setViewMode('all');
+        setCurrentSort('all');
+      }
+    }
+  }, [isDataLoading, location.pathname, location.search, location.state, navigate, vacatingResidents.length]);
+
+  React.useEffect(() => {
+    if (isDataLoading) return;
+    const currentSearchFilter = new URLSearchParams(location.search).get('filter');
+    if (viewMode === 'reserved' && reservedResidents.length === 0 && currentSearchFilter !== 'reserved') {
+      setViewMode('all');
+      setCurrentSort('all');
+    }
+  }, [isDataLoading, reservedResidents.length, viewMode, location.search]);
 
   const getDayAndMonth = (dateString: string) => {
     return formatDate(dateString);
@@ -78,12 +152,17 @@ export default function Residents() {
   });
 
   const openWhatsAppReminder = (resident: Resident, message: string) => {
-    const phoneDigits = (resident.phone || '').replace(/\D/g, '');
-    const waPhone = phoneDigits.startsWith('91') && phoneDigits.length === 12 ? phoneDigits : (phoneDigits.length === 10 ? `91${phoneDigits}` : phoneDigits);
-    const waUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(message)}`;
+    const waUrl = getWhatsAppUrl(resident.phone, message);
+    if (!waUrl) {
+      toast.error('Invalid Indian mobile number');
+      return;
+    }
 
-    markReminderSent(resident.id);
-    window.open(waUrl, '_blank');
+    const whatsappTab = window.open(waUrl, '_blank');
+    if (!whatsappTab) {
+      toast.error('Your browser blocked the WhatsApp tab. Allow pop-ups for Hostelrr and try again.');
+      return;
+    }
     toast.success(`Opening WhatsApp for ${resident.name}`);
   };
 
@@ -93,8 +172,7 @@ export default function Residents() {
       return;
     }
     
-    const phoneDigits = (resident.phone || '').replace(/\D/g, '');
-    if (phoneDigits.length < 10) {
+    if (!getWhatsAppUrl(resident.phone, '')) {
       toast.error('Invalid phone number');
       return;
     }
@@ -102,10 +180,15 @@ export default function Residents() {
     const hostelName = hostelProfile?.hostelName || "My Hostel";
     const { roomName: roomNum } = getNamesFromIds(floors, resident.roomId, resident.bedId);
     const rentAmount = getResidentDueDisplayAmount(resident, floors);
-    const isPartial = resident.paymentStatus === 'partially_paid';
     const dueDateDisplay = resident.dueDate ? getDayAndMonth(resident.dueDate) : 'Today';
 
-    const message = `Hello ${resident.name}, your hostel rent ${isPartial ? `(remaining *₹${rentAmount}*)` : `of *₹${rentAmount}*`} for Room ${roomNum} is currently pending.\n\nDue Date: *${dueDateDisplay}*\n\nPlease make the payment soon and reply *PAID* once done.\n\nThank you,\n${hostelName}\nPowered by Hostelrr`;
+    const message = buildRentReminderMessage(hostelProfile?.reminderTemplate, {
+      name: resident.name,
+      amount: rentAmount,
+      room: roomNum,
+      dueDate: dueDateDisplay,
+      hostelName,
+    });
 
     openWhatsAppReminder(resident, message);
   };
@@ -116,8 +199,7 @@ export default function Residents() {
       return;
     }
 
-    const phoneDigits = (resident.phone || '').replace(/\D/g, '');
-    if (phoneDigits.length < 10) {
+    if (!getWhatsAppUrl(resident.phone, '')) {
       toast.error('Invalid phone number');
       return;
     }
@@ -173,13 +255,14 @@ export default function Residents() {
     else if (mode === 'floor') setCurrentSort('floor_asc');
     else if (mode === 'room') setCurrentSort('room_asc');
     else if (mode === 'vacating') setCurrentSort('vacating');
+    else if (mode === 'reserved') setCurrentSort('all');
   };
 
   const handleProfileDocumentUpload = async (
     type: 'aadhar' | 'hostelForm' | 'photo',
     file?: File
   ) => {
-    if (!file || !selectedResident || !('paymentStatus' in selectedResident)) return;
+    if (!file || type !== 'photo' || !selectedResident || !('paymentStatus' in selectedResident)) return;
     if (!hostelProfile?.id) {
       toast.error('Hostel profile not found. Please refresh and try again.');
       return;
@@ -187,27 +270,52 @@ export default function Residents() {
 
     setIsUploadingProfileDoc(true);
     try {
-      const uploadParams: any = {};
-      if (type === 'aadhar') uploadParams.aadhar = file;
-      else if (type === 'hostelForm') uploadParams.hostelForm = file;
-      else if (type === 'photo') uploadParams.photo = file;
-
-      const uploaded = await uploadResidentDocuments(
-        uploadParams,
-        hostelProfile.id
-      );
-
-      editResident(selectedResident.id, {
-        aadharPath: uploaded.aadharPath,
-        hostelFormPath: uploaded.hostelFormPath,
-        photoPath: uploaded.photoPath,
-      });
+      await uploadResidentPhoto(selectedResident.id, file);
+      await syncStateWithDb();
 
       toast.success(`${type === 'photo' ? 'Photo' : (type === 'aadhar' ? 'Aadhar' : 'Hostel form')} uploaded successfully`);
     } catch (error: any) {
       toast.error(error?.message || 'Failed to upload');
     } finally {
       setIsUploadingProfileDoc(false);
+    }
+  };
+
+  const handleResidentPhotoRemoval = async () => {
+    if (!residentToEdit?.photoPath && !residentToEdit?.photoUrl) return;
+
+    setIsEditingFiles(true);
+    try {
+      await deleteResidentPhoto(residentToEdit.id);
+      await syncStateWithDb();
+      setShowPhotoRemovalConfirm(false);
+      setResidentEditFiles({});
+      setResidentToEdit(null);
+      toast.success('Resident photo removed');
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to remove photo');
+    } finally {
+      setIsEditingFiles(false);
+    }
+  };
+
+  const handleHistoryDeletion = async () => {
+    if (!historyResidentToDelete) return;
+
+    const resident = historyResidentToDelete;
+    setDeletingHistoryId(resident.id);
+    try {
+      const disposition = await deletePastResident(resident.id);
+      setSelectedResident(current => current?.id === resident.id ? null : current);
+      setHistoryResidentToDelete(null);
+      toast.success(disposition === 'anonymized'
+        ? 'Personal details removed; required financial records retained'
+        : 'Resident history deleted');
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to delete resident history');
+    } finally {
+      setDeletingHistoryId(null);
     }
   };
 
@@ -273,6 +381,7 @@ export default function Residents() {
         id: 'sec_dep',
         // keep raw ISO/timestamp here for reliable sorting and parsing
         date: r.depositPaidDate ? r.depositPaidDate : r.joinDate,
+        recordedAt: r.depositPaidDate || r.createdAt,
         amount: r.securityDeposit,
         status: 'paid',
         title: 'Security Deposit'
@@ -284,7 +393,7 @@ export default function Residents() {
       { id: 'm2', date: '05 Feb 2026', amount: rentAmount, status: 'paid' as string, method: undefined as string | undefined, title: 'Rent Payment' },
       { id: 'm3', date: '05 Jan 2026', amount: rentAmount, status: 'paid' as string, method: undefined as string | undefined, title: 'Rent Payment' },
     ] : [];
-      return [...history, ...mock].sort((a: any, b: any) => getTransactionDateForSort(b.date).getTime() - getTransactionDateForSort(a.date).getTime());
+      return [...history, ...mock].sort((a: any, b: any) => getTransactionSortTimestamp(b) - getTransactionSortTimestamp(a));
   };
 
   // Past residents logic (sorted by recents)
@@ -294,20 +403,23 @@ export default function Residents() {
     return dateB - dateA;
   });
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const vacatingResidents = residents.filter(r => {
-    if (!r.vacatingDate) return false;
-    const vacateDate = new Date(r.vacatingDate);
-    return vacateDate >= today;
-  });
-
-  let sortedResidents = viewMode === 'vacating' ? [...vacatingResidents] : [...residents];
+  let sortedResidents =
+    viewMode === 'vacating'
+      ? [...vacatingResidents]
+      : viewMode === 'reserved'
+        ? [...reservedResidents]
+        : [...residents];
   if (viewMode === 'all') {
-    if (currentSort === 'paid') {
-      sortedResidents = sortedResidents.filter(r => r.isDepositPaid);
-    } else if (currentSort === 'unpaid') {
-      sortedResidents = sortedResidents.filter(r => !r.isDepositPaid);
+    if (collectsSecurityDeposit) {
+      if (currentSort === 'paid') {
+        sortedResidents = sortedResidents.filter(r => r.isDepositPaid);
+      } else if (currentSort === 'unpaid') {
+        sortedResidents = sortedResidents.filter(r => !r.isDepositPaid);
+      }
+    } else if (currentSort === 'rent_paid') {
+      sortedResidents = sortedResidents.filter(r => !isResidentReserved(r, floors) && r.paymentStatus === 'paid');
+    } else if (currentSort === 'rent_unpaid') {
+      sortedResidents = sortedResidents.filter(r => isResidentReserved(r, floors) || r.paymentStatus !== 'paid');
     }
     
     // Always sort by recent as default behavior
@@ -326,7 +438,7 @@ export default function Residents() {
   }
 
   const getStatusPill = (resident: Resident) => {
-    if (resident.status === 'reserved') {
+    if (isResidentReserved(resident, floors)) {
       return null;
     }
     if (resident.paymentStatus === 'paid') {
@@ -365,11 +477,11 @@ export default function Residents() {
       >
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="w-12 h-12 bg-gray-50 border-2 border-white ring-1 ring-gray-200 shadow-sm rounded-full flex items-center justify-center text-gray-400 shrink-0 overflow-hidden">
-              {resident.photoUrl ? (
-                <img src={resident.photoUrl} alt={resident.name} className="w-full h-full object-cover" />
+            <div className="h-12 w-12 overflow-hidden rounded-[14px] border-2 border-white bg-slate-100 ring-1 ring-slate-200 shadow-sm">
+              {resident.photoPath || resident.photoUrl ? (
+                <PrivatePhoto kind="resident" id={resident.id} photoPath={resident.photoPath} fallbackSrc={resident.photoUrl} alt={resident.name} className="h-full w-full object-cover" />
               ) : (
-                <DefaultAvatar className="w-full h-full" />
+                <DefaultAvatar className="h-full w-full" />
               )}
             </div>
             <div className="min-w-0">
@@ -393,6 +505,19 @@ export default function Residents() {
             title="Re-add Resident"
           >
             <UserPlus className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            disabled={deletingHistoryId === resident.id}
+            onClick={async (e) => {
+              e.stopPropagation();
+              setHistoryResidentToDelete(resident);
+            }}
+            className="min-h-10 min-w-10 p-2 border border-red-200 rounded-lg text-red-600 hover:bg-red-50 transition-colors shrink-0 disabled:opacity-50"
+            title="Permanently delete history"
+            aria-label={`Permanently delete ${resident.name}'s history`}
+          >
+            <Trash2 className="w-4 h-4" />
           </button>
         </div>
         
@@ -426,13 +551,7 @@ export default function Residents() {
         className="bg-white rounded-2xl p-4 md:p-5 border border-gray-200 shadow-sm flex flex-col gap-3 md:gap-4 transition-all hover:shadow-md cursor-pointer min-w-0"
       >
         <div className="flex min-w-0 items-center gap-3">
-          <div className="w-12 h-12 bg-gray-50 border-2 border-white ring-1 ring-gray-200 shadow-sm rounded-full flex items-center justify-center text-gray-400 shrink-0 overflow-hidden">
-            {resident.photoUrl ? (
-              <img src={resident.photoUrl} alt={resident.name} className="w-full h-full object-cover" />
-            ) : (
-              <DefaultAvatar className="w-full h-full" />
-            )}
-          </div>
+          <ResidentAvatar resident={resident} floors={floors} className="h-12 w-12" dotClassName="h-3 w-3" />
           <div className="min-w-0">
             <div className="font-bold text-gray-900 leading-tight truncate">{resident.name}</div>
             <div className="text-sm text-gray-500 mt-1">Room {roomNum} · {bedLetter}</div>
@@ -478,13 +597,18 @@ export default function Residents() {
           <EmptyState 
             icon={History}
             title="No history yet"
-            subtitle="Past residents will appear here once they vacate."
+            subtitle="Past residents appear here after they leave. Personal details and photos are removed after two calendar months; required financial records are retained."
           />
         );
       }
       return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
-          {sortedPastResidents.map(res => renderPastCard(res))}
+        <div className="space-y-4">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            Resident personal details and photos are removed two calendar months after departure or archive. Required financial records remain. You can also remove an individual resident from History using its trash button.
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+            {sortedPastResidents.map(res => renderPastCard(res))}
+          </div>
         </div>
       );
     }
@@ -613,6 +737,10 @@ export default function Residents() {
     if (viewMode === 'vacating') {
       return renderGrid(sortedResidents);
     }
+
+    if (viewMode === 'reserved') {
+      return renderGrid(sortedResidents);
+    }
   };
 
   const getSelectedBedStatus = () => {
@@ -632,9 +760,13 @@ export default function Residents() {
     paid: residents.filter(r => r.isDepositPaid).length,
     unpaid: residents.filter(r => !r.isDepositPaid).length,
   };
+  const rentFilterCounts = {
+    paid: residents.filter(r => !isResidentReserved(r, floors) && r.paymentStatus === 'paid').length,
+    unpaid: residents.filter(r => isResidentReserved(r, floors) || r.paymentStatus !== 'paid').length,
+  };
 
   return (
-    <div className="p-3 sm:p-4 md:p-8 max-w-7xl mx-auto md:h-[calc(100vh-64px)] overflow-x-hidden md:overflow-hidden flex flex-col relative w-full min-w-0">
+    <div className="p-3 sm:p-4 md:p-8 max-w-7xl mx-auto md:h-[calc(100dvh-4rem)] overflow-x-hidden md:overflow-hidden flex flex-col relative w-full min-w-0">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-5 md:mb-8 shrink-0 min-w-0">
         <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight mb-1">Residents</h1>
@@ -666,12 +798,19 @@ export default function Residents() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 md:gap-4 mb-5 md:mb-6 shrink-0 min-w-0">
         {/* Toggle Buttons */}
         <div className={cn("bg-gray-100/80 p-1.5 rounded-[14px] flex gap-1.5 items-center justify-start overflow-x-auto w-full sm:w-auto border border-gray-200/60 shadow-sm no-scrollbar", showHistory ? "hidden sm:invisible" : "visible")}>
-          {(['all', 'floor', 'room', 'vacating'] as ViewMode[]).map((mode) => {
+          {([
+            ...(reservedResidents.length > 0 || viewMode === 'reserved' ? ['reserved'] : []),
+            'vacating',
+            'all',
+            'floor',
+            'room',
+          ] as ViewMode[]).map((mode) => {
             let countNum = 0;
             if (mode === 'all') countNum = residents.length;
             if (mode === 'floor') countNum = floors.length;
             if (mode === 'room') countNum = floors.reduce((acc, f) => acc + f.rooms.length, 0);
             if (mode === 'vacating') countNum = vacatingResidents.length;
+            if (mode === 'reserved') countNum = reservedResidents.length;
 
             return (
               <button
@@ -684,7 +823,13 @@ export default function Residents() {
                     : "text-gray-600 hover:text-gray-900 hover:bg-gray-200/50"
                 )}
               >
-                {mode === 'all' ? 'All' : mode === 'vacating' ? 'Vacating Soon' : `${mode} wise`}
+                {mode === 'all'
+                  ? 'All'
+                  : mode === 'vacating'
+                    ? 'Vacating Soon'
+                    : mode === 'reserved'
+                      ? 'Reserved'
+                      : `${mode} wise`}
                 <span className={cn(
                   "px-2.5 py-0.5 rounded-lg text-xs font-black",
                   viewMode === mode ? "bg-blue-600 text-white shadow-sm" : "bg-gray-200/80 text-gray-700"
@@ -705,10 +850,14 @@ export default function Residents() {
               className="appearance-none w-full sm:w-48 bg-white border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-2.5 pr-10 text-sm font-medium outline-none transition-all cursor-pointer shadow-sm text-gray-700"
             >
               {viewMode === 'all' && (
-                <>
+                collectsSecurityDeposit ? <>
                   <option value="all">Deposit: All ({depositFilterCounts.all})</option>
                   <option value="paid">Deposit: Paid ({depositFilterCounts.paid})</option>
                   <option value="unpaid">Deposit: Unpaid ({depositFilterCounts.unpaid})</option>
+                </> : <>
+                  <option value="all">Rent: All ({residents.length})</option>
+                  <option value="rent_paid">Rent: Paid ({rentFilterCounts.paid})</option>
+                  <option value="rent_unpaid">Rent: Unpaid ({rentFilterCounts.unpaid})</option>
                 </>
               )}
               {viewMode === 'floor' && (
@@ -731,6 +880,20 @@ export default function Residents() {
         )}
       </div>
 
+      {viewMode === 'reserved' && !showHistory && (
+        <div className="mb-5 flex items-start gap-3 rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3.5 text-sm text-blue-900">
+          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-blue-200 bg-white text-blue-600">
+            <BedDouble className="h-4 w-4" />
+          </div>
+          <div>
+            <p className="font-bold">Reserved beds are not occupied or vacant yet</p>
+            <p className="mt-1 text-xs leading-5 text-blue-700/80">
+              These residents have a bed held for them, but move-in confirmation is pending. Confirm move-in to activate rent billing and occupancy.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Grid Content */}
       <div className={cn(
         "flex-1 overflow-y-visible md:overflow-y-auto pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-12 pr-0 md:pr-2 custom-scrollbar transition-all duration-300 min-w-0"
@@ -746,53 +909,59 @@ export default function Residents() {
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: "100%", opacity: 0 }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="w-full sm:w-[400px] bg-white border-l border-gray-200 shadow-2xl h-dvh sm:h-[calc(100vh-64px)] fixed right-0 top-0 sm:top-16 z-50 sm:z-30 flex flex-col overflow-hidden"
+            className="w-full sm:w-[440px] bg-[#f8fafc] border-l border-slate-200/80 shadow-[-18px_0_50px_rgba(15,23,42,0.12)] h-dvh sm:h-[calc(100dvh-4rem)] fixed right-0 top-0 sm:top-16 z-50 sm:z-30 flex flex-col overflow-hidden"
           >
-            <div className="p-4 sm:p-6 border-b border-gray-100 flex justify-between items-center gap-3 bg-gray-50/50 shrink-0">
+            <div className="px-5 py-4 sm:px-6 border-b border-slate-200/80 flex justify-between items-center gap-3 bg-white shrink-0">
               <div className="min-w-0">
-                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">Resident Profile</h2>
-                <p className="text-sm text-gray-500">Details & Documents</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">Resident profile</p>
+                <h2 className="mt-0.5 text-lg sm:text-xl font-extrabold tracking-tight text-slate-950 truncate">{selectedResident.name}</h2>
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-2">
                 {('paymentStatus' in selectedResident) && (
                   <button
                     onClick={() => setResidentToEdit(selectedResident as Resident)}
-                    className="px-3 py-1.5 text-[13px] font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 hover:text-gray-900 rounded-lg transition-all shadow-sm"
+                    className="min-h-10 px-3.5 text-[13px] font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-950 rounded-xl transition-all"
                   >
                     Edit
                   </button>
                 )}
                 <button 
                   onClick={() => setSelectedResident(null)}
-                  className="min-h-10 min-w-10 p-2 hover:bg-gray-200 rounded-full transition-colors"
+                  aria-label="Close resident profile"
+                  className="min-h-10 min-w-10 p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-colors"
                 >
                   <X className="w-5 h-5 text-gray-600" />
                 </button>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 sm:space-y-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+              <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
               <div className="flex min-w-0 items-center gap-4">
                 <div className="relative group">
-                  <div className="w-16 h-16 rounded-full bg-gray-50 border-2 border-white ring-1 ring-gray-200 shadow-sm flex items-center justify-center text-gray-400 overflow-hidden shrink-0">
-                    {selectedResident.photoUrl ? (
-                      <img src={selectedResident.photoUrl} alt={selectedResident.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="relative w-full h-full flex items-center justify-center">
-                        <DefaultAvatar className="w-full h-full" />
+                  <ResidentAvatar resident={selectedResident as Resident} floors={floors} className="h-16 w-16" dotClassName="h-3.5 w-3.5" />
+                  {('paymentStatus' in selectedResident) && (
+                    <div className="absolute inset-0">
                         <label className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
                           <Plus className="w-6 h-6 text-white" />
                           <input 
                             type="file" 
-                            accept="image/*" 
+                            accept="image/jpeg,image/png,image/webp"
                             className="hidden" 
                             disabled={isUploadingProfileDoc}
-                            onChange={(e) => handleProfileDocumentUpload('photo', e.target.files?.[0])}
+                            onChange={(e) => {
+                              const file = e.currentTarget.files?.[0];
+                              if (file && file.size > MAX_RESIDENT_PHOTO_SIZE) {
+                                e.currentTarget.value = '';
+                                toast.error('Photo must be 1 MB or smaller.');
+                                return;
+                              }
+                              void handleProfileDocumentUpload('photo', file);
+                            }}
                           />
                         </label>
                       </div>
-                    )}
-                  </div>
+                  )}
                   {isUploadingProfileDoc && (
                     <div className="absolute inset-0 flex items-center justify-center bg-white/60 rounded-full">
                       <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
@@ -800,30 +969,31 @@ export default function Residents() {
                   )}
                 </div>
                 <div className="min-w-0">
-                  <h3 className="text-lg sm:text-xl font-bold text-gray-900 flex flex-wrap items-center gap-2">
+                  <h3 className="text-lg sm:text-xl font-extrabold tracking-tight text-slate-950 flex flex-wrap items-center gap-2">
                     {selectedResident.name}
-                    {('paymentStatus' in selectedResident) && selectedResident.vacatingDate && (
-                      <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-xs tracking-wider rounded-md">VACATING</span>
+                    {('paymentStatus' in selectedResident) && selectedResident.status !== 'reserved' && selectedResident.vacatingDate && (
+                      <span className="px-2 py-1 bg-orange-100 text-orange-700 text-[10px] font-bold tracking-wider rounded-md">VACATING</span>
                     )}
                     {selectedBedStatus === 'reserved' && (
-                      <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs tracking-wider rounded-md">RESERVED</span>
+                      <span className="px-2 py-1 bg-blue-100 text-blue-700 text-[10px] font-bold tracking-wider rounded-md">RESERVED</span>
                     )}
                   </h3>
-                  <p className="text-sm text-gray-500">Room {getNamesFromIds(floors, selectedResident.roomId, selectedResident.bedId).roomName} • Bed {getNamesFromIds(floors, selectedResident.roomId, selectedResident.bedId).bedName}</p>
-                  {('paymentStatus' in selectedResident) && selectedResident.vacatingDate && (
-                    <p className="text-sm text-orange-600 font-medium mt-1">Vacating on {formatDate(selectedResident.vacatingDate)}</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-500">Room {getNamesFromIds(floors, selectedResident.roomId, selectedResident.bedId).roomName} <span className="text-slate-300 px-1">•</span> Bed {getNamesFromIds(floors, selectedResident.roomId, selectedResident.bedId).bedName}</p>
+                  {('paymentStatus' in selectedResident) && selectedResident.status !== 'reserved' && selectedResident.vacatingDate && (
+                    <p className="text-xs text-orange-700 font-bold mt-1.5">Vacating on {formatDate(selectedResident.vacatingDate)}</p>
                   )}
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
-                <a href={`tel:${selectedResident.phone}`} className="min-h-11 flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold transition-colors border border-gray-200">
-                  <Phone className="w-4 h-4" /> Call
+              <div className="mt-4 grid grid-cols-2 gap-2.5">
+                <a href={`tel:${selectedResident.phone}`} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-semibold text-indigo-700 transition-colors hover:bg-indigo-100">
+                  <Phone className="h-4 w-4" /> Call
                 </a>
-                <a href={`https://wa.me/${(selectedResident.phone || '').replace(/[^0-9]/g, '').startsWith('91') && (selectedResident.phone || '').replace(/[^0-9]/g, '').length === 12 ? (selectedResident.phone || '').replace(/[^0-9]/g, '') : ((selectedResident.phone || '').replace(/[^0-9]/g, '').length === 10 ? '91' + (selectedResident.phone || '').replace(/[^0-9]/g, '') : (selectedResident.phone || '').replace(/[^0-9]/g, ''))}`} target="_blank" rel="noopener noreferrer" className="min-h-11 flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-[#25D366] hover:bg-[#22c35e] text-white rounded-xl text-sm font-bold transition-colors shadow-sm">
+                <a href={`https://wa.me/${(selectedResident.phone || '').replace(/[^0-9]/g, '').startsWith('91') && (selectedResident.phone || '').replace(/[^0-9]/g, '').length === 12 ? (selectedResident.phone || '').replace(/[^0-9]/g, '') : ((selectedResident.phone || '').replace(/[^0-9]/g, '').length === 10 ? '91' + (selectedResident.phone || '').replace(/[^0-9]/g, '') : (selectedResident.phone || '').replace(/[^0-9]/g, ''))}`} target="_blank" rel="noopener noreferrer" className="min-h-11 flex items-center justify-center gap-2 px-4 py-2 bg-[#28a745] hover:bg-[#218838] text-white rounded-xl text-sm font-bold transition-colors shadow-sm">
                   <WhatsAppIcon className="w-5 h-5" /> WhatsApp
                 </a>
               </div>
+              </section>
 
               {('paymentStatus' in selectedResident) && (selectedResident as Resident).status === 'reserved' && (
                 <button
@@ -859,21 +1029,21 @@ export default function Residents() {
                 />
               )}
 
-              <div className="flex bg-gray-100/80 p-1 rounded-xl">
+              <div className="grid grid-cols-2 rounded-xl border border-slate-200 bg-white p-1">
                 <button
                   onClick={() => setProfileTab('info')}
                   className={cn(
-                    "flex-1 py-2 text-sm font-semibold rounded-lg transition-all",
-                    profileTab === 'info' ? "bg-white text-gray-900 shadow-sm ring-1 ring-black/5" : "text-gray-500 hover:text-gray-900"
+                    "py-2.5 text-sm font-bold rounded-lg transition-all",
+                    profileTab === 'info' ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
                   )}
                 >
-                  Info
+                  Overview
                 </button>
                 <button
                   onClick={() => setProfileTab('payment')}
                   className={cn(
-                    "flex-1 py-2 text-sm font-semibold rounded-lg transition-all",
-                    profileTab === 'payment' ? "bg-white text-gray-900 shadow-sm ring-1 ring-black/5" : "text-gray-500 hover:text-gray-900"
+                    "py-2.5 text-sm font-bold rounded-lg transition-all",
+                    profileTab === 'payment' ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
                   )}
                 >
                   Payment History
@@ -882,21 +1052,25 @@ export default function Residents() {
 
               {profileTab === 'info' && (
                 <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-extrabold text-slate-950">Resident details</h4>
+                    <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">Personal</span>
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                      <span className="flex items-center gap-2 text-xs text-gray-500 font-medium mb-1.5"><Phone className="w-4 h-4" /> Phone</span>
-                      <span className="text-sm font-semibold text-gray-900">{selectedResident.phone}</span>
+                    <div className="bg-white p-4 rounded-xl border border-slate-200/80">
+                      <span className="flex items-center gap-2 text-[11px] text-slate-500 font-bold uppercase tracking-[0.08em] mb-1.5"><Phone className="w-3.5 h-3.5" /> Phone</span>
+                      <span className="text-sm font-bold tabular-nums text-slate-900">{selectedResident.phone}</span>
                     </div>
-                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                      <span className="flex items-center gap-2 text-xs text-gray-500 font-medium mb-1.5"><Calendar className="w-4 h-4" /> Joined</span>
-                      <span className="text-sm font-semibold text-gray-900">
+                    <div className="bg-white p-4 rounded-xl border border-slate-200/80">
+                      <span className="flex items-center gap-2 text-[11px] text-slate-500 font-bold uppercase tracking-[0.08em] mb-1.5"><Calendar className="w-3.5 h-3.5" /> Joined</span>
+                      <span className="text-sm font-bold text-slate-900">
                         {formatDate(selectedResident.joinDate)}
                       </span>
                     </div>
-                    {('paymentStatus' in selectedResident) && selectedResident.vacatingDate && (
-                      <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 sm:col-span-2">
-                        <span className="flex items-center gap-2 text-xs text-gray-500 font-medium mb-1.5"><LogOut className="w-4 h-4" /> Vacating On</span>
-                        <span className="text-sm font-semibold text-orange-700">
+                    {('paymentStatus' in selectedResident) && selectedResident.status !== 'reserved' && selectedResident.vacatingDate && (
+                      <div className="bg-orange-50 p-4 rounded-xl border border-orange-100 sm:col-span-2">
+                        <span className="flex items-center gap-2 text-[11px] text-orange-700 font-bold uppercase tracking-[0.08em] mb-1.5"><LogOut className="w-3.5 h-3.5" /> Vacating On</span>
+                        <span className="text-sm font-bold text-orange-800">
                           {formatDate(selectedResident.vacatingDate)}
                         </span>
                       </div>
@@ -936,130 +1110,9 @@ export default function Residents() {
                       <span className="text-sm font-semibold text-gray-900">{(selectedResident as any).state || 'Not provided'}</span>
                     </div>
                     <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                      <span className="flex items-center gap-2 text-xs text-gray-500 font-medium mb-1.5">📍 Area & City</span>
-                      <span className="text-sm font-semibold text-gray-900">{(selectedResident as any).areaAndCity || 'Not provided'}</span>
-                    </div>
-                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
                       <span className="flex items-center gap-2 text-xs text-gray-500 font-medium mb-1.5">🌍 Country</span>
                       <span className="text-sm font-semibold text-gray-900">{(selectedResident as any).country || 'India'}</span>
                     </div>
-                  </div>
-
-                  {/* Documents Section */}
-                  <div className="space-y-3 pt-4 border-t border-gray-100">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Documents</h4>
-                      {'paymentStatus' in selectedResident && !selectedResident.documentsComplete && (
-                        <span className="bg-red-50 text-red-600 text-xs font-bold px-2 py-1 rounded-md">Missing</span>
-                      )}
-                    </div>
-
-                    {'paymentStatus' in selectedResident ? (
-                      <div className="space-y-2">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3 border border-gray-200 rounded-xl">
-                          <div className="flex min-w-0 items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
-                              <FileText className="w-5 h-5" />
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-sm font-medium text-gray-900">Aadhar Card</p>
-                              <p className="text-xs text-gray-500">
-                                {selectedResident.aadharDocumentUrl ? 'Uploaded' : 'Not uploaded'}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-3 sm:gap-2">
-                            {selectedResident.aadharDocumentUrl ? (
-                              <>
-                                <a
-                                  href={selectedResident.aadharDocumentUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="min-h-9 inline-flex items-center text-blue-600 text-sm font-medium"
-                                >
-                                  View
-                                </a>
-                                <button
-                                  type="button"
-                                  onClick={() => downloadFileInstantly(selectedResident.aadharDocumentUrl!, `${selectedResident.name}-aadhar`)}
-                                  className="min-h-9 inline-flex items-center text-gray-700 text-sm font-medium"
-                                >
-                                  Download
-                                </button>
-                              </>
-                            ) : (
-                              <label className="min-h-9 inline-flex items-center text-sm font-semibold bg-gray-900 text-white px-3 py-1.5 rounded-lg hover:bg-gray-800 transition-colors cursor-pointer">
-                                Upload
-                                <input
-                                  type="file"
-                                  accept="image/*,application/pdf"
-                                  className="hidden"
-                                  disabled={isUploadingProfileDoc}
-                                  onChange={(e) => handleProfileDocumentUpload('aadhar', e.target.files?.[0])}
-                                />
-                              </label>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3 border border-gray-200 rounded-xl">
-                          <div className="flex min-w-0 items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
-                              <FileText className="w-5 h-5" />
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-sm font-medium text-gray-900">Hostel Form</p>
-                              <p className="text-xs text-gray-500">
-                                {selectedResident.hostelFormUrl ? 'Uploaded' : 'Not uploaded'}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-3 sm:gap-2">
-                            {selectedResident.hostelFormUrl ? (
-                              <>
-                                <a
-                                  href={selectedResident.hostelFormUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="min-h-9 inline-flex items-center text-blue-600 text-sm font-medium"
-                                >
-                                  View
-                                </a>
-                                <button
-                                  type="button"
-                                  onClick={() => downloadFileInstantly(selectedResident.hostelFormUrl!, `${selectedResident.name}-hostel-form`)}
-                                  className="min-h-9 inline-flex items-center text-gray-700 text-sm font-medium"
-                                >
-                                  Download
-                                </button>
-                              </>
-                            ) : (
-                              <label className="min-h-9 inline-flex items-center text-sm font-semibold bg-gray-100 text-gray-900 border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer">
-                                Upload
-                                <input
-                                  type="file"
-                                  accept="application/pdf,image/*"
-                                  className="hidden"
-                                  disabled={isUploadingProfileDoc}
-                                  onChange={(e) => handleProfileDocumentUpload('hostelForm', e.target.files?.[0])}
-                                />
-                              </label>
-                            )}
-                          </div>
-                        </div>
-
-                        {!selectedResident.aadharDocumentUrl && !selectedResident.hostelFormUrl && (
-                          <div className="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center">
-                            <p className="text-sm text-gray-600 font-medium">No documents found</p>
-                            <p className="text-xs text-gray-500">Upload Aadhar and Hostel Form to complete profile</p>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="border border-gray-200 rounded-xl p-4 bg-gray-50">
-                        <p className="text-sm text-gray-600">Documents are available for active residents only.</p>
-                      </div>
-                    )}
                   </div>
                 </div>
               )}
@@ -1068,29 +1121,48 @@ export default function Residents() {
                 <div className="space-y-6">
                   {/* Payment History Section */}
                   <div className="space-y-3 pt-2">
-                    <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Payment History</h4>
-                    <div className="space-y-2">
-                      {getMockHistory(selectedResident as Resident).map(history => (
-                        <div key={history.id} className={cn("flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3 border rounded-xl transition-colors cursor-pointer group border-l-4", history.status === 'partial' ? "border-l-purple-500 bg-purple-50/50 hover:border-purple-300 border-gray-200" : "bg-white hover:border-blue-300 border-gray-200 border-l-transparent")}>
-                          <div className="flex min-w-0 items-center gap-3">
-                            <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center shrink-0", history.status === 'partial' ? "bg-purple-100 text-purple-600" : "bg-green-50 text-green-600")}>
-                              <CheckCircle2 className="w-5 h-5" />
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-sm font-semibold text-gray-900">{history.title || 'Rent Payment'}</p>
-                              <p className="text-xs text-gray-500">Paid on {getTransactionDateForDisplay(history.date)}</p>
-                            </div>
-                          </div>
-                          <div className="flex flex-row items-center justify-between gap-3 sm:flex-col sm:items-end">
-                            <span className="text-sm font-bold text-gray-900">₹{history.amount.toLocaleString('en-IN')}</span>
-                            <span className={cn("text-xs font-semibold flex items-center gap-1", history.status === 'partial' ? "text-purple-600" : "text-green-600")}>
-                              {history.status === 'partial' ? 'Partial' : 'Successful'}
-                              {history.method && <span className={history.status === 'partial' ? "bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-md text-[10px]" : "bg-green-100 text-green-700 px-1.5 py-0.5 rounded-md text-[10px]"}>{history.method}</span>}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-extrabold text-slate-950">Payment History</h4>
+                      <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">Transactions</span>
                     </div>
+                    {(() => {
+                      const history = getMockHistory(selectedResident as Resident);
+                      if (history.length === 0) {
+                        return (
+                          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white py-10 px-4 text-center">
+                            <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center mb-3">
+                              <FileText className="w-6 h-6 text-slate-400" />
+                            </div>
+                            <p className="text-sm font-bold text-slate-900 mb-1">No payment history</p>
+                            <p className="text-xs text-slate-500">No payments have been recorded for this resident.</p>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="space-y-2">
+                          {history.map(historyItem => (
+                            <div key={historyItem.id} className={cn("flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3 border rounded-xl transition-colors cursor-pointer group border-l-4", historyItem.status === 'partial' ? "border-l-purple-500 bg-purple-50/50 hover:border-purple-300 border-gray-200" : "bg-white hover:border-blue-300 border-gray-200 border-l-transparent")}>
+                              <div className="flex min-w-0 items-center gap-3">
+                                <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center shrink-0", historyItem.status === 'partial' ? "bg-purple-100 text-purple-600" : "bg-green-50 text-green-600")}>
+                                  <CheckCircle2 className="w-5 h-5" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-semibold text-gray-900">{historyItem.title || 'Rent Payment'}</p>
+                                  <p className="text-xs text-gray-500">Paid on {getTransactionDateForDisplay(historyItem.date)}</p>
+                                </div>
+                              </div>
+                              <div className="flex flex-row items-center justify-between gap-3 sm:flex-col sm:items-end">
+                                <span className="text-sm font-bold text-gray-900">₹{historyItem.amount.toLocaleString('en-IN')}</span>
+                                <span className={cn("text-xs font-semibold flex items-center gap-1", historyItem.status === 'partial' ? "text-purple-600" : "text-green-600")}>
+                                  {historyItem.status === 'partial' ? 'Partial' : 'Successful'}
+                                  {historyItem.method && <span className={historyItem.status === 'partial' ? "bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-md text-[10px]" : "bg-green-100 text-green-700 px-1.5 py-0.5 rounded-md text-[10px]"}>{historyItem.method}</span>}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               )}
@@ -1102,7 +1174,7 @@ export default function Residents() {
                     onClick={() => {
                       setResidentToVacate(selectedResident as Resident);
                     }}
-                    className="w-full bg-white border border-red-200 hover:bg-red-50 text-red-600 py-3 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                    className="w-full bg-white border border-red-200 hover:bg-red-50 text-red-700 py-3 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2"
                   >
                     <LogOut className="w-4 h-4" /> Vacate Resident
                   </button>
@@ -1286,12 +1358,11 @@ export default function Residents() {
                 
                 setIsEditingFiles(true);
                 try {
-                  let uploadedPaths: any = {};
-                  if (Object.keys(residentEditFiles).length > 0 && residentToEdit && hostelProfile?.id) {
-                    uploadedPaths = await uploadResidentDocuments(residentEditFiles, hostelProfile.id);
+                  if (residentEditFiles.photo && residentToEdit) {
+                    await uploadResidentPhoto(residentToEdit.id, residentEditFiles.photo);
                   }
 
-                  editResident(residentToEdit!.id, {
+                  await editResident(residentToEdit!.id, {
                     name: formData.get('name'),
                     phone: normalizedPhone,
                     aadhar: formData.get('aadhar'),
@@ -1301,10 +1372,7 @@ export default function Residents() {
                     country: formData.get('country'),
                     monthlyRent: formData.get('monthlyRent') ? parseInt(formData.get('monthlyRent') as string, 10) : undefined,
                     securityDeposit: formData.get('securityDeposit') ? parseInt(formData.get('securityDeposit') as string, 10) : undefined,
-                    vacatingDate: formData.get('vacatingDate') || undefined,
-                    photoPath: uploadedPaths.photoPath,
-                    aadharPath: uploadedPaths.aadharPath,
-                    hostelFormPath: uploadedPaths.hostelFormPath,
+                    vacatingDate: residentToEdit!.status === 'reserved' ? null : formData.get('vacatingDate') || undefined,
                   });
                   setResidentToEdit(null);
                   setResidentEditFiles({});
@@ -1337,9 +1405,7 @@ export default function Residents() {
 
                 <div className="grid grid-cols-1 gap-4 pt-1">
                   {[
-                    { label: 'Photo', key: 'photo', icon: ImageIcon, current: residentToEdit.photoUrl, accept: 'image/*' },
-                    { label: 'Aadhar', key: 'aadhar', icon: FileText, current: (residentToEdit as Resident).aadharDocumentUrl, accept: 'image/*,application/pdf' },
-                    { label: 'Hostel Form', key: 'hostelForm', icon: Upload, current: (residentToEdit as Resident).hostelFormUrl, accept: 'image/*,application/pdf' }
+                    { label: 'Photo', key: 'photo', icon: ImageIcon, current: residentToEdit.photoPath || residentToEdit.photoUrl, accept: 'image/jpeg,image/png,image/webp' },
                   ].map((file) => (
                     <div key={file.key} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3.5 bg-gray-50 border border-gray-100 rounded-2xl">
                       <div className="flex min-w-0 items-center gap-3">
@@ -1348,10 +1414,21 @@ export default function Residents() {
                         </div>
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-gray-900">{file.label}</p>
+                          <p className="text-[11px] text-gray-500 mt-0.5">JPG, PNG or WebP · up to 1 MB</p>
                           {(file.current || residentEditFiles[file.key as keyof typeof residentEditFiles]) && (
                             <p className="text-[11px] text-green-600 font-bold flex items-center gap-1 mt-0.5">
                               <CheckCircle2 className="w-3 h-3" /> {residentEditFiles[file.key as keyof typeof residentEditFiles] ? 'New file selected' : 'Uploaded'}
                             </p>
+                          )}
+                          {file.current && !residentEditFiles[file.key as keyof typeof residentEditFiles] && (
+                            <button
+                              type="button"
+                              disabled={isEditingFiles}
+                              onClick={() => setShowPhotoRemovalConfirm(true)}
+                              className="mt-1 text-[11px] font-semibold text-red-600 hover:text-red-700 disabled:opacity-50"
+                            >
+                              Remove photo
+                            </button>
                           )}
                         </div>
                       </div>
@@ -1362,8 +1439,14 @@ export default function Residents() {
                           accept={file.accept}
                           className="sr-only" 
                           onChange={(e) => {
-                            if (e.target.files?.[0]) {
-                              setResidentEditFiles(prev => ({ ...prev, [file.key]: e.target.files![0] }));
+                            const selectedFile = e.currentTarget.files?.[0];
+                            if (selectedFile && selectedFile.size > MAX_RESIDENT_PHOTO_SIZE) {
+                              e.currentTarget.value = '';
+                              toast.error('Photo must be 1 MB or smaller.');
+                              return;
+                            }
+                            if (selectedFile) {
+                              setResidentEditFiles(prev => ({ ...prev, [file.key]: selectedFile }));
                             }
                           }}
                         />
@@ -1399,10 +1482,6 @@ export default function Residents() {
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-gray-900 block">Aadhar No.</label>
                   <input type="text" name="aadhar" defaultValue={residentToEdit.aadhar || ''} className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-gray-900 block">Area & City</label>
-                  <input type="text" name="areaAndCity" defaultValue={(residentToEdit as any).areaAndCity || ''} className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all" />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
@@ -1447,7 +1526,7 @@ export default function Residents() {
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
+                {collectsSecurityDeposit && <div className="space-y-1.5">
                   <label className="text-sm font-medium text-gray-900 block">Security Deposit</label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -1455,13 +1534,13 @@ export default function Residents() {
                     </div>
                     <input type="number" name="securityDeposit" defaultValue={(residentToEdit as any).securityDeposit ?? 0} className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl pl-9 pr-4 py-3 text-sm outline-none transition-all" />
                   </div>
-                </div>
+                </div>}
 
-                <div className="space-y-1.5">
+                {residentToEdit.status !== 'reserved' && <div className="space-y-1.5">
                   <label className="text-sm font-medium text-gray-900 block">Vacating Date <span className="text-gray-400">(Optional)</span></label>
                   <input type="date" name="vacatingDate" defaultValue={residentToEdit.vacatingDate || ''} className="w-full border border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all" />
                   <p className="text-xs text-gray-500">For future planning only.</p>
-                </div>
+                </div>}
 
                 <div className="pt-4 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3 sticky bottom-0 bg-white border-t border-gray-100 mt-2 -mx-4 sm:-mx-6 px-4 sm:px-6 pb-[env(safe-area-inset-bottom)]">
                   <button 
@@ -1487,6 +1566,86 @@ export default function Residents() {
             </motion.div>
           </motion.div>
           </>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showPhotoRemovalConfirm && residentToEdit && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center bg-gray-900/50 p-3 backdrop-blur-sm sm:p-4"
+            onClick={() => !isEditingFiles && setShowPhotoRemovalConfirm(false)}
+          >
+            <motion.div
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="remove-resident-photo-title"
+              aria-describedby="remove-resident-photo-description"
+              initial={{ opacity: 0, scale: 0.96, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 16 }}
+              className="relative z-10 w-full max-w-md rounded-t-3xl bg-white shadow-xl sm:rounded-3xl"
+              onClick={event => event.stopPropagation()}
+            >
+              <div className="p-5 sm:p-6">
+                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600">
+                  <Trash2 className="h-5 w-5" />
+                </div>
+                <h2 id="remove-resident-photo-title" className="mb-2 text-xl font-bold text-gray-900">Remove resident photo?</h2>
+                <p id="remove-resident-photo-description" className="text-sm leading-relaxed text-gray-600">
+                  Remove the photo for <strong>{residentToEdit.name}</strong>? Resident record stays intact. The photo object is queued for reference-aware cleanup.
+                </p>
+              </div>
+              <div className="flex flex-col-reverse gap-3 border-t border-gray-100 bg-gray-50 p-4 sm:flex-row sm:justify-end">
+                <button type="button" disabled={isEditingFiles} onClick={() => setShowPhotoRemovalConfirm(false)} className="min-h-11 rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">Cancel</button>
+                <button type="button" disabled={isEditingFiles} onClick={() => void handleResidentPhotoRemoval()} className="min-h-11 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-red-700 disabled:opacity-50">
+                  {isEditingFiles ? 'Removing…' : 'Remove photo'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {historyResidentToDelete && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center bg-gray-900/50 p-3 backdrop-blur-sm sm:p-4"
+            onClick={() => !deletingHistoryId && setHistoryResidentToDelete(null)}
+          >
+            <motion.div
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="delete-history-title"
+              aria-describedby="delete-history-description"
+              initial={{ opacity: 0, scale: 0.96, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 16 }}
+              className="relative z-10 w-full max-w-md rounded-t-3xl bg-white shadow-xl sm:rounded-3xl"
+              onClick={event => event.stopPropagation()}
+            >
+              <div className="p-5 sm:p-6">
+                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600">
+                  <Trash2 className="h-5 w-5" />
+                </div>
+                <h2 id="delete-history-title" className="mb-2 text-xl font-bold text-gray-900">Delete resident from History?</h2>
+                <p id="delete-history-description" className="text-sm leading-relaxed text-gray-600">
+                  Remove <strong>{historyResidentToDelete.name}</strong>'s personal details and photo reference. Required financial records stay, with personal details removed. This action cannot be undone.
+                </p>
+              </div>
+              <div className="flex flex-col-reverse gap-3 border-t border-gray-100 bg-gray-50 p-4 sm:flex-row sm:justify-end">
+                <button type="button" disabled={deletingHistoryId === historyResidentToDelete.id} onClick={() => setHistoryResidentToDelete(null)} className="min-h-11 rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">Cancel</button>
+                <button type="button" disabled={deletingHistoryId === historyResidentToDelete.id} onClick={() => void handleHistoryDeletion()} className="min-h-11 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-red-700 disabled:opacity-50">
+                  {deletingHistoryId === historyResidentToDelete.id ? 'Deleting…' : 'Delete from History'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 

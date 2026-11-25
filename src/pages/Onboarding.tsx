@@ -31,7 +31,6 @@ export default function Onboarding() {
   const [hostelName, setHostelName] = useState('');
   const [ownerName, setOwnerName] = useState('');
   const [phone, setPhone] = useState('');
-  const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [country, setCountry] = useState('India');
   const [pincode, setPincode] = useState('');
@@ -50,12 +49,13 @@ export default function Onboarding() {
   // Step 5
   const [rentPerSharing, setRentPerSharing] = useState<Record<number, string>>({});
   const [securityDeposit, setSecurityDeposit] = useState<string>('');
+  const [collectSecurityDeposit, setCollectSecurityDeposit] = useState<boolean | null>(null);
   const [customSharing, setCustomSharing] = useState('');
   const [isCustomSharingActive, setIsCustomSharingActive] = useState(false);
 
 
   // Step 6
-  const [rentDueType, setRentDueType] = useState<'1st_of_month' | 'joining_date' | ''>('');
+  const [rentDueType, setRentDueType] = useState<'1st_of_month' | 'joining_date'>('joining_date');
 
   const toggleSharing = (num: number) => {
     setSelectedSharing(prev =>
@@ -83,17 +83,16 @@ export default function Onboarding() {
     return allFilled && !!totalBeds && parseInt(totalBeds) > 0;
   };
 
-  const calculateTotalBeds = () => {
-    return selectedSharing.reduce((acc, curr) => {
-      return acc + (parseInt(roomsPerSharing[curr] || '0') * curr);
-    }, 0);
-  };
+  const getEffectiveSharingTypes = () =>
+    [...selectedSharing, ...(isCustomSharingActive && customSharing ? [parseInt(customSharing)] : [])]
+      .filter(Number.isFinite)
+      .sort((a, b) => a - b);
 
-  const calculateTotalRoomsFromSharing = () => {
-    return selectedSharing.reduce((acc, curr) => {
-      return acc + (parseInt(roomsPerSharing[curr] || '0'));
-    }, 0);
-  };
+  const calculateTotalBeds = () => getEffectiveSharingTypes().reduce((acc, sharing) =>
+    acc + parseInt(roomsPerSharing[sharing] || '0') * sharing, 0);
+
+  const calculateTotalRoomsFromSharing = () => getEffectiveSharingTypes().reduce((acc, sharing) =>
+    acc + parseInt(roomsPerSharing[sharing] || '0'), 0);
 
   const handleFinish = async () => {
     setIsFinishing(true);
@@ -101,8 +100,8 @@ export default function Onboarding() {
 
     const bpR = Math.round(parseInt(totalBeds || '0') / Math.max(totalRooms, 1));
     // Use step-4 sharing configs if filled, otherwise derive from floor data
-    const effectiveSelectedSharing = [...selectedSharing, ...(isCustomSharingActive && customSharing ? [parseInt(customSharing)] : [])].sort((a, b) => a - b);
-    
+    const effectiveSelectedSharing = getEffectiveSharingTypes();
+
     const sharingConfigs = effectiveSelectedSharing.length > 0
       ? effectiveSelectedSharing.map(sharing => ({
           sharing,
@@ -114,15 +113,16 @@ export default function Onboarding() {
 
     try {
       await completeOnboarding({
-        hostelName, ownerName, phone, city, state, country, pincode,
+        hostelName, ownerName, phone, state, country, pincode,
         numFloors: getEffectiveFloors(),
         numRooms: calculateTotalRoomsFromSharing() || getTotalRoomsFromFloors() || parseInt(numRooms || '0'),
         roomsPerFloor,
         totalBeds: parseInt(totalBeds || '0'),
         sharingConfigs,
-        rentDueType: rentDueType || '1st_of_month',
+        rentDueType,
         rentDueDate: rentDueType === '1st_of_month' ? 1 : 0,
-        securityDeposit
+        securityDeposit: collectSecurityDeposit ? securityDeposit : '0',
+        collectSecurityDeposit: Boolean(collectSecurityDeposit),
       });
     } catch (e: any) {
       alert("Failed to create hostel: " + (e.message || JSON.stringify(e)));
@@ -168,20 +168,21 @@ export default function Onboarding() {
   const buttonClass = "w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 text-base shadow-sm";
   const inputClass = "w-full border border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400 bg-gray-50 hover:bg-gray-100/50 focus:bg-white";
   const labelClass = "text-sm font-bold text-gray-800 block mb-1.5";
-  const isStep2Valid = Boolean(hostelName.trim()) && 
-    Boolean(ownerName.trim()) && 
-    phone.length === 10 && 
-    Boolean(city.trim()) && 
-    Boolean(state) && 
+  const isStep2Valid = Boolean(hostelName.trim()) &&
+    Boolean(ownerName.trim()) &&
+    phone.length === 10 &&
+    Boolean(state) &&
     /^\d{6}$/.test(pincode);
 
-  const isStep4Valid = (selectedSharing.length > 0 || isCustomSharingActive) && 
-    [...selectedSharing, ...(isCustomSharingActive && customSharing ? [parseInt(customSharing)] : [])].every(num => 
-      parseInt(roomsPerSharing[num] || '0') > 0 && 
+  const isStep4Valid = (selectedSharing.length > 0 || isCustomSharingActive) &&
+    [...selectedSharing, ...(isCustomSharingActive && customSharing ? [parseInt(customSharing)] : [])].every(num =>
+      parseInt(roomsPerSharing[num] || '0') > 0 &&
       parseInt(rentPerSharing[num] || '0') >= 0
-    ) && 
+    ) &&
     (!isCustomSharingActive || (parseInt(customSharing) > 10)) &&
-    securityDeposit !== '';
+    calculateTotalRoomsFromSharing() === getTotalRoomsFromFloors() &&
+    calculateTotalBeds() === parseInt(totalBeds || '0') &&
+    collectSecurityDeposit !== null && (!collectSecurityDeposit || Number(securityDeposit) > 0);
 
 
 
@@ -189,7 +190,7 @@ export default function Onboarding() {
     <div className="h-[100dvh] bg-[#F8FAFC] overflow-y-auto no-scrollbar overscroll-y-contain touch-pan-y flex flex-col items-center justify-start py-8 px-4 sm:px-6 font-sans relative">
       <div className="w-full max-w-lg relative">
         <div className="mb-6">
-          <button 
+          <button
             onClick={handleBackToSignIn}
             className="flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors"
           >
@@ -210,14 +211,14 @@ export default function Onboarding() {
                 className="text-center space-y-6 py-4"
               >
                 <div className="w-20 h-20 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto text-blue-600 overflow-hidden shadow-sm">
-                  <img 
-                    src="https://res.cloudinary.com/dfkfysygf/image/upload/v1778354944/20260510_005330_xrv4xj.jpg" 
-                    alt="Hostelrr Logo" 
+                  <img
+                    src="https://res.cloudinary.com/dfkfysygf/image/upload/v1795005162/hostelrr_selected_logo_sgnck0.png"
+                    alt="Hostelrr Logo"
                     className="w-full h-full object-cover"
                   />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight mb-2">Welcome to Hostelrr</h1>
+                  <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight mb-2">Welcome to <span className="brand-gradient">Hostelrr</span></h1>
                   <p className="text-base text-gray-500 font-medium">Let's set up your hostel in 3 minutes.</p>
                 </div>
                 <button onClick={nextStep} className={buttonClass}>
@@ -266,15 +267,10 @@ export default function Onboarding() {
                           placeholder="98765 43210"
                           className={cn(inputClass, "rounded-l-none")}
                         />
-                      </div>
+</div>
                     </div>
                     <div>
-                      <label className={labelClass}>Area & City</label>
-                      <input type="text" value={city} onChange={e => setCity(e.target.value)} placeholder="e.g. Madhapur, Hyderabad" className={inputClass} />
-                    </div>
-                  </div>
-                  <div>
-                    <label className={labelClass}>State</label>
+                      <label className={labelClass}>State</label>
                     <select
                       value={state}
                       onChange={e => setState(e.target.value)}
@@ -308,6 +304,7 @@ export default function Onboarding() {
                         className={inputClass}
                       />
                   </div>
+                </div>
                 </div>
 
                 <div className="pt-3 flex gap-3">
@@ -552,23 +549,52 @@ export default function Onboarding() {
                       ))}
                     </div>
                     <div className="space-y-4 bg-gray-50 p-5 rounded-2xl border border-gray-100 mt-4">
-                      <label className="text-sm font-bold tracking-wide text-gray-800 uppercase block mb-1">Security Deposit</label>
-                      <p className="text-sm text-gray-500 mb-2">If deposit is not charged, mention '0'</p>
-
-                      <div className="relative">
-                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">₹</div>
-                        <input
-                          type="number"
-                          min="0"
-                          placeholder="e.g. 1000"
-                          value={securityDeposit}
-                          onChange={(e) => setSecurityDeposit(e.target.value)}
-                          className="w-full border border-gray-200 rounded-xl pl-8 pr-4 py-3 text-base outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 bg-white font-semibold"
-                        />
+                      <div>
+                        <label className="text-sm font-bold tracking-wide text-gray-800 uppercase block mb-1">Do you collect security deposits?</label>
+                        <p className="text-sm text-gray-500">Choose whether your hostel charges residents a security deposit.</p>
                       </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        {[{ value: true, label: 'Yes, we do' }, { value: false, label: 'No, we don’t' }].map(option => (
+                          <button
+                            key={String(option.value)}
+                            type="button"
+                            onClick={() => {
+                              setCollectSecurityDeposit(option.value);
+                              if (!option.value) setSecurityDeposit('');
+                            }}
+                            className={`rounded-xl border px-4 py-3 text-sm font-semibold transition-colors ${collectSecurityDeposit === option.value ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-600 hover:border-blue-300'}`}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                      {collectSecurityDeposit && (
+                        <div className="space-y-2">
+                          <label className="text-sm font-semibold text-gray-800 block">Default security deposit amount</label>
+                          <div className="relative">
+                            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">₹</div>
+                            <input
+                              type="number"
+                              min="1"
+                              placeholder="e.g. 1000"
+                              value={securityDeposit}
+                              onChange={(e) => setSecurityDeposit(e.target.value)}
+                              className="w-full border border-gray-200 rounded-xl pl-8 pr-4 py-3 text-base outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 bg-white font-semibold"
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </>
                 )}
+
+                <div className={`rounded-xl border p-4 text-sm ${calculateTotalRoomsFromSharing() === getTotalRoomsFromFloors() && calculateTotalBeds() === parseInt(totalBeds || '0') ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
+                  <div className="font-semibold">Configured inventory</div>
+                  <div className="mt-1">Rooms: {calculateTotalRoomsFromSharing()} of {getTotalRoomsFromFloors()} · Beds: {calculateTotalBeds()} of {parseInt(totalBeds || '0')}</div>
+                  {(calculateTotalRoomsFromSharing() !== getTotalRoomsFromFloors() || calculateTotalBeds() !== parseInt(totalBeds || '0')) && (
+                    <div className="mt-1">Match the room sharing counts to the floor room total, and the resulting bed count to total beds, to continue.</div>
+                  )}
+                </div>
 
                 <div className="pt-2 flex gap-3">
                   <button onClick={prevStep} className="p-3 bg-gray-50 text-gray-600 hover:bg-gray-100 rounded-xl transition-colors shrink-0">
@@ -595,30 +621,6 @@ export default function Onboarding() {
 
                 <div className="space-y-4">
                   <button
-                    onClick={() => setRentDueType('1st_of_month')}
-                    className={cn(
-                      "w-full flex items-center gap-3 p-4 rounded-xl border-2 text-left transition-all",
-                      rentDueType === '1st_of_month'
-                        ? "border-blue-600 bg-blue-50"
-                        : "border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50"
-                    )}
-                  >
-                    <div className={cn(
-                      "w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0",
-                      rentDueType === '1st_of_month' ? "border-blue-600 bg-blue-600" : "border-gray-300"
-                    )}>
-                      {rentDueType === '1st_of_month' && <div className="w-2 h-2 bg-white rounded-full" />}
-                    </div>
-                    <div>
-                      <div className={cn("font-bold text-sm", rentDueType === '1st_of_month' ? "text-blue-900" : "text-gray-800")}>
-                        1st of every month
-                      </div>
-                      <div className="text-xs text-gray-500 mt-0.5">All residents pay on the 1st</div>
-                    </div>
-                    <CalendarDays className={cn("w-5 h-5 ml-auto shrink-0", rentDueType === '1st_of_month' ? "text-blue-500" : "text-gray-300")} />
-                  </button>
-
-                  <button
                     onClick={() => setRentDueType('joining_date')}
                     className={cn(
                       "w-full flex items-center gap-3 p-4 rounded-xl border-2 text-left transition-all",
@@ -640,6 +642,30 @@ export default function Onboarding() {
                       <div className="text-xs text-gray-500 mt-0.5">Each resident's due date matches their join date</div>
                     </div>
                     <User2 className={cn("w-5 h-5 ml-auto shrink-0", rentDueType === 'joining_date' ? "text-blue-500" : "text-gray-300")} />
+                  </button>
+
+                  <button
+                    onClick={() => setRentDueType('1st_of_month')}
+                    className={cn(
+                      "w-full flex items-center gap-3 p-4 rounded-xl border-2 text-left transition-all",
+                      rentDueType === '1st_of_month'
+                        ? "border-blue-600 bg-blue-50"
+                        : "border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0",
+                      rentDueType === '1st_of_month' ? "border-blue-600 bg-blue-600" : "border-gray-300"
+                    )}>
+                      {rentDueType === '1st_of_month' && <div className="w-2 h-2 bg-white rounded-full" />}
+                    </div>
+                    <div>
+                      <div className={cn("font-bold text-sm", rentDueType === '1st_of_month' ? "text-blue-900" : "text-gray-800")}>
+                        1st of every month
+                      </div>
+                      <div className="text-xs text-gray-500 mt-0.5">All residents pay on the 1st</div>
+                    </div>
+                    <CalendarDays className={cn("w-5 h-5 ml-auto shrink-0", rentDueType === '1st_of_month' ? "text-blue-500" : "text-gray-300")} />
                   </button>
                 </div>
 

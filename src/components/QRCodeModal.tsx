@@ -9,7 +9,7 @@ import { toPng } from 'html-to-image';
 import HostelQrPoster from './HostelQrPoster';
 
 const LOGO_URL =
-  'https://res.cloudinary.com/dfkfysygf/image/upload/v1778354944/20260510_005330_xrv4xj.jpg';
+  'https://res.cloudinary.com/dfkfysygf/image/upload/v1795005162/hostelrr_selected_logo_sgnck0.png';
 
 /** Fetch an image URL and return a base64 data URL (avoids CORS taint in html-to-image). */
 async function fetchBase64(url: string): Promise<string> {
@@ -41,10 +41,18 @@ export default function QRCodeModal({ isOpen, onClose }: { isOpen: boolean; onCl
       .catch(() => setLogoBase64(null)); // fallback to "H" block in poster
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (isOpen && !hostelProfile?.id) {
+      toast.error('Hostel details are still loading. Please reopen the QR code in a moment.');
+    }
+  }, [isOpen, hostelProfile?.id]);
+
+  if (!isOpen || !hostelProfile?.id) return null;
 
   const hostelName = hostelProfile?.hostelName || 'My Hostel';
-  const urlSlug = hostelName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  // The hostel ID makes the QR link unique and lets public visitors resolve the
+  // correct hostel without relying on the owner's signed-in browser state.
+  const urlSlug = hostelProfile.id;
   const joinUrl = `${window.location.origin}/join/${urlSlug}`;
 
   const handleCopyLink = () => {
@@ -111,7 +119,7 @@ export default function QRCodeModal({ isOpen, onClose }: { isOpen: boolean; onCl
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
-        <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm relative z-10 overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm relative z-10 overflow-hidden flex flex-col max-h-[calc(100dvh-2rem)]">
           {/* Header */}
           <div className="flex justify-between items-center p-5 border-b border-gray-100 shrink-0">
             <h2 className="text-xl font-bold text-gray-900">Your Hostel QR Code</h2>
@@ -138,13 +146,15 @@ export default function QRCodeModal({ isOpen, onClose }: { isOpen: boolean; onCl
 
             <div className="flex flex-col gap-3">
               {/* Open form */}
-              <button
-                onClick={() => { onClose(); navigate(`${ROUTES.join.path}/${urlSlug}`); }}
+              <a
+                href={`${ROUTES.join.path}/${urlSlug}`}
+                target="_blank"
+                rel="noopener noreferrer"
                 type="button"
                 className="flex items-center justify-center gap-2 bg-[#1D4ED8] hover:bg-[#1e40af] text-white py-3 rounded-xl text-sm font-semibold transition-colors shadow-sm"
               >
                 Open Form to Test <ExternalLink className="w-4 h-4" />
-              </button>
+              </a>
 
               {/* URL copy row */}
               <div className="flex bg-gray-100 p-1.5 rounded-xl border border-gray-200 truncate mt-2">
@@ -191,7 +201,7 @@ export default function QRCodeModal({ isOpen, onClose }: { isOpen: boolean; onCl
             onClick={() => setShowPreview(false)}
           />
 
-          <div className="relative z-10 bg-white rounded-3xl shadow-2xl flex flex-col max-h-[92vh] w-full max-w-xs sm:max-w-sm overflow-hidden">
+          <div className="relative z-10 bg-white rounded-3xl shadow-2xl flex flex-col max-h-[calc(100dvh-2rem)] w-full max-w-xs sm:max-w-sm overflow-hidden">
             {/* Preview header */}
             <div className="flex justify-between items-center px-5 py-4 border-b border-gray-100 shrink-0">
               <div>

@@ -3,7 +3,48 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { ROUTES } from '../routes/routes';
 import { BedDouble, Users, AlertCircle, IndianRupee, PieChart, CheckCircle, Clock, LogOut, UserPlus, Shield, ChevronLeft } from 'lucide-react';
-import { cn, formatDate, getNamesFromIds, isSecurityDepositPayment } from '../lib/utils';
+import { cn, formatDate, getNamesFromIds, getTodayIST, isSecurityDepositPayment, isResidentReserved } from '../lib/utils';
+import { getDailyOverviewSnapshots, getMonthlyOverviewSnapshots, saveDailyOverviewSnapshot, saveMonthlyOverviewSnapshot, type DailyOverviewSnapshot, type MonthlyOverviewSnapshot } from '../lib/supabaseAPI';
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+
+type TrendSeries = { key: string; label: string; color: string; format?: 'money' | 'percent' };
+
+function TrendChart({ title, subtitle, data, series, emptyText }: { title: string; subtitle: string; data: Array<Record<string, any>>; series: TrendSeries[]; emptyText: string }) {
+  const formatValue = (value: number, format?: TrendSeries['format']) => {
+    if (format === 'money') return `₹${Number(value).toLocaleString('en-IN')}`;
+    if (format === 'percent') return `${Number(value).toFixed(0)}%`;
+    return Number(value).toLocaleString('en-IN');
+  };
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+      <header className="border-b border-gray-100 px-5 py-4">
+        <h3 className="text-base font-bold text-gray-900">{title}</h3>
+        <p className="mt-1 text-xs text-gray-500">{subtitle}</p>
+      </header>
+      {data.length > 0 ? <>
+        <div className="h-64 px-4 pt-4" role="img" aria-label={`${title} trend: ${subtitle}`}>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={data} margin={{ left: -12, right: 12, top: 8, bottom: 0 }}>
+              <CartesianGrid stroke="#edf0f5" vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={48} />
+              <Tooltip wrapperStyle={{ outline: 'none' }} contentStyle={{ borderRadius: 12, borderColor: '#e2e8f0', boxShadow: '0 8px 24px rgba(15, 23, 42, 0.10)' }} formatter={(value, name) => {
+                const item = series.find(entry => entry.label === name);
+                return [formatValue(Number(value), item?.format), name];
+              }} />
+              {series.map(item => <Line key={item.key} type="monotone" dataKey={item.key} name={item.label} stroke={item.color} strokeWidth={2.75} strokeLinecap="round" dot={{ r: 3, fill: item.color, strokeWidth: 0 }} activeDot={{ r: 5, stroke: '#fff', strokeWidth: 2 }} />)}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="flex flex-wrap gap-x-5 gap-y-1 px-6 pb-4 pt-2">
+          {series.map(item => <span key={item.key} className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-gray-500"><i className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />{item.label}</span>)}
+        </div>
+        {data.length === 1 && <p className="px-6 pb-4 text-[10px] text-gray-400">Live snapshot shown. Trend line will form as more snapshots are captured.</p>}
+      </> : <p className="grid h-64 place-items-center px-5 text-center text-xs text-gray-500">{emptyText}</p>}
+    </section>
+  );
+}
 
 function KpiCard({ title, value, icon: Icon, trend, className, cardBg = "bg-white", onClick, trendColor }: any) {
   return (
@@ -45,7 +86,13 @@ function parseDate(value?: string): Date | null {
 }
 
 function getMonthKey(date: Date): string {
-  return `${date.getFullYear()}-${date.getMonth()}`;
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return `${values.year}-${values.month}`;
 }
 
 function isSuccessfulPayment(status?: string) {
@@ -104,13 +151,43 @@ function getCardStyles(tone: CardTone) {
 
 export default function MonthlyOverview() {
   const navigate = useNavigate();
-  const { floors, residents, pastResidents, activities, joinRequests, rejectJoinRequest, markAsPaid, setActiveBuildingFilter, setActivePaymentsFilter, hostelProfile, dashboardStats } = useApp();
+  const { floors, residents, pastResidents, activities, joinRequests, rejectJoinRequest, markAsPaid, setActiveBuildingFilter, setActivePaymentsFilter, hostelProfile, dashboardStats, isDemoMode } = useApp();
   const [liveNow, setLiveNow] = React.useState(() => new Date());
+  const currentMonthKeyIST = getMonthKey(liveNow);
+  const [snapshots, setSnapshots] = React.useState<MonthlyOverviewSnapshot[]>([]);
+  const [dailySnapshots, setDailySnapshots] = React.useState<DailyOverviewSnapshot[]>([]);
+  const [selectedMonth, setSelectedMonth] = React.useState(currentMonthKeyIST);
+  const [trendMonth, setTrendMonth] = React.useState(currentMonthKeyIST);
+  const [trendYear, setTrendYear] = React.useState(Number(currentMonthKeyIST.slice(0, 4)));
+  const [trendPeriod, setTrendPeriod] = React.useState<'daily' | 'monthly' | 'yearly'>('daily');
+  const currentDateIST = getTodayIST(liveNow);
 
   React.useEffect(() => {
     const timer = window.setInterval(() => setLiveNow(new Date()), 60_000);
     return () => window.clearInterval(timer);
   }, []);
+
+  React.useEffect(() => {
+    if (!hostelProfile?.id || isDemoMode) return;
+    let active = true;
+    void getMonthlyOverviewSnapshots(hostelProfile.id)
+      .then(rows => { if (active) setSnapshots(rows); })
+      .catch(error => console.error('Could not load monthly overview snapshots:', error));
+    return () => { active = false; };
+  }, [hostelProfile?.id, isDemoMode]);
+
+  React.useEffect(() => setSelectedMonth(currentMonthKeyIST), [currentMonthKeyIST]);
+  React.useEffect(() => setTrendMonth(currentMonthKeyIST), [currentMonthKeyIST]);
+  React.useEffect(() => setTrendYear(Number(currentMonthKeyIST.slice(0, 4))), [currentMonthKeyIST]);
+
+  React.useEffect(() => {
+    if (!hostelProfile?.id || isDemoMode) return;
+    let active = true;
+    void getDailyOverviewSnapshots(hostelProfile.id, trendMonth)
+      .then(rows => { if (active) setDailySnapshots(rows); })
+      .catch(error => console.error('Could not load daily overview snapshots:', error));
+    return () => { active = false; };
+  }, [hostelProfile?.id, isDemoMode, trendMonth]);
 
   // Metrics Logic
   let occupiedBeds = 0;
@@ -129,12 +206,20 @@ export default function MonthlyOverview() {
 
   const totalBeds = Math.max(hostelProfile?.total_beds || 0, configuredBedsCount);
   const vacantBeds = configuredBedsCount - occupiedBeds - reservedBeds;
-  const activeResidents = residents.filter(r => r.status !== 'reserved');
+  const activeResidents = React.useMemo(() => residents.filter(r => !isResidentReserved(r, floors)), [residents, floors]);
 
-  const now = liveNow;
-  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const previousMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+  const monthParts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+  }).formatToParts(liveNow);
+  const monthValues = Object.fromEntries(monthParts.map(part => [part.type, part.value]));
+  const currentYear = Number(monthValues.year);
+  const currentMonthIndex = Number(monthValues.month) - 1;
+  const currentMonthStart = new Date(Date.UTC(currentYear, currentMonthIndex, 1));
+  const previousMonthStart = new Date(Date.UTC(currentYear, currentMonthIndex - 1, 1));
+  // UTC instant corresponding to 23:59:59.999 IST on the previous month end.
+  const previousMonthEnd = new Date(Date.UTC(currentYear, currentMonthIndex, 0, 18, 29, 59, 999));
 
   const monthlyStats = React.useMemo(() => {
     const currentMonthKey = getMonthKey(currentMonthStart);
@@ -166,10 +251,10 @@ export default function MonthlyOverview() {
     // FIX: Outstanding dues = ALL unpaid balances (rent only), regardless of month
     // This includes carry-forward dues, old late balances, partial balances, etc.
     // Source of truth: dueAmount > 0, NOT payment status (deposit status is separate)
-    const outstandingTotal = Number(dashboardStats?.pending_amount ?? activeResidents.reduce((sum, resident) => {
+    const outstandingTotal = activeResidents.reduce((sum, resident) => {
       if (!resident.dueAmount || resident.dueAmount <= 0) return sum;
       return sum + resident.dueAmount;
-    }, 0));
+    }, 0);
 
     // For trend comparison, calculate previous month's total outstanding at that time
     // (approximation: count residents who had dues in previous month by checking dueDate)
@@ -183,9 +268,9 @@ export default function MonthlyOverview() {
     }, 0);
 
     // FIX: Late payments = count of ALL overdue cycles, regardless of month
-    const lateCurrent = Number(dashboardStats?.late_count ?? activeResidents.reduce((count, resident) => {
+    const lateCurrent = activeResidents.reduce((count, resident) => {
       return resident.paymentStatus === 'late' ? count + 1 : count;
-    }, 0));
+    }, 0);
 
     // For trend comparison, use previous month's data as approximation
     const latePreviousApprox = activeResidents.reduce((count, resident) => {
@@ -220,30 +305,7 @@ export default function MonthlyOverview() {
     const collectionEfficiency = (() => {
       const currentMonthCollected = collectCurrent;
       
-      // Expected: total amount from all active cycles for current residents
-      // Use paymentHistory as proxy for active cycles in current month
-      let currentMonthExpected = 0;
-      activeResidents.forEach(resident => {
-        if (!resident.dueAmount || !['due', 'late', 'partially_paid', 'paid'].includes(resident.paymentStatus)) {
-          // Calculate expected from monthly rent
-          currentMonthExpected += resident.monthlyRent || 0;
-        } else {
-          // If has due/late/partial, it means there's an active cycle
-          // We count the due amount + collected amount = expected amount
-          const residualDue = resident.dueAmount || 0;
-          const collected = (resident.paymentHistory || [])
-            .filter(p => {
-              const dateKey = getMonthKeyForDate(p.date);
-              return dateKey === currentMonthKey && isSuccessfulPayment(p.status);
-            })
-            .reduce((sum, p) => sum + p.amount, 0);
-          currentMonthExpected += Math.max(residualDue + collected, resident.monthlyRent || 0);
-        }
-      });
-
-      if (dashboardStats?.collection_efficiency !== undefined && dashboardStats?.collection_efficiency !== null) {
-        return Number(dashboardStats.collection_efficiency);
-      }
+      const currentMonthExpected = activeResidents.reduce((sum, resident) => sum + (resident.monthlyRent || 0), 0);
       if (currentMonthExpected <= 0) return 0;
       const efficiency = Math.round((currentMonthCollected / currentMonthExpected) * 100);
       return Math.min(efficiency, 100); // Cap at 100%
@@ -281,34 +343,172 @@ export default function MonthlyOverview() {
   };
 
   const defaultSecurityDeposit = Number(hostelProfile?.security_deposit || 0);
+  const collectsSecurityDeposit = Boolean(hostelProfile?.collectSecurityDeposit ?? defaultSecurityDeposit > 0);
   const totalExpectedDeposit = occupiedBedsCount * defaultSecurityDeposit;
 
   const depositsCollectedThisMonth = activeResidents.reduce((sum, r) => {
     if (!r.isDepositPaid) return sum;
     const paymentDate = parseDate(r.depositPaidDate || r.joinDate);
     if (!paymentDate) return sum;
-    if (paymentDate.getFullYear() === now.getFullYear() && paymentDate.getMonth() === now.getMonth()) {
+    if (getMonthKey(paymentDate) === currentMonthKeyIST) {
       return sum + ((r.securityDeposit || 0));
     }
     return sum;
   }, 0);
-
-  // Placeholder for deposits refunded - no refund tracking in current schema
   const depositPendingCount = activeResidents.filter(resident => {
     const expectedDeposit = resident.securityDeposit ?? defaultSecurityDeposit;
     return expectedDeposit > 0 && !resident.isDepositPaid;
   }).length;
 
+  const currentMonthMetrics = React.useMemo(() => ({
+    collected: monthlyStats.collectCurrent,
+    outstanding: monthlyStats.outstandingCurrent,
+    occupancy: monthlyStats.occupancyCurrent,
+    late: monthlyStats.lateCurrent,
+    activeBeds: occupiedBedsCount,
+    vacantBeds: vacantBedsCount,
+    newResidents: activeResidents.filter(r => { const date = parseDate(r.joinDate); return date && getMonthKey(date) === currentMonthKeyIST; }).length,
+    vacatedResidents: pastResidents.filter(r => { const date = parseDate(r.vacateDate); return date && getMonthKey(date) === currentMonthKeyIST; }).length,
+    becomingVacant: activeResidents.filter(r => { const date = parseDate(r.vacatingDate); return date && getMonthKey(date) === currentMonthKeyIST; }).length,
+    collectionEfficiency: monthlyStats.collectionEfficiency,
+    expectedDeposit: totalExpectedDeposit,
+    depositsCollected: depositsCollectedThisMonth,
+    depositsPending: depositPendingCount,
+  }), [monthlyStats, occupiedBedsCount, vacantBedsCount, activeResidents, pastResidents, currentMonthKeyIST, totalExpectedDeposit, depositsCollectedThisMonth, depositPendingCount]);
+
+  React.useEffect(() => {
+    const hostelId = hostelProfile?.id;
+    if (!hostelId || isDemoMode || !currentMonthKeyIST) return;
+    let active = true;
+    void saveMonthlyOverviewSnapshot(hostelId, `${currentMonthKeyIST}-01`, currentMonthMetrics)
+      .then(saved => {
+        if (active) setSnapshots(current => [saved, ...current.filter(row => row.month_start !== saved.month_start)]
+          .sort((a, b) => b.month_start.localeCompare(a.month_start)));
+      })
+      .catch(error => console.error('Could not save monthly overview snapshot:', error));
+    return () => { active = false; };
+  }, [hostelProfile?.id, isDemoMode, currentMonthKeyIST, currentMonthMetrics]);
+
+  React.useEffect(() => {
+    const hostelId = hostelProfile?.id;
+    if (!hostelId || isDemoMode || !currentDateIST || trendMonth !== currentMonthKeyIST) return;
+    let active = true;
+    void saveDailyOverviewSnapshot(hostelId, currentDateIST, currentMonthMetrics)
+      .then(saved => {
+        if (active && trendMonth === currentMonthKeyIST) {
+          setDailySnapshots(current => [...current.filter(row => row.snapshot_date !== saved.snapshot_date), saved]
+            .sort((a, b) => a.snapshot_date.localeCompare(b.snapshot_date)));
+        }
+      })
+      .catch(error => console.error('Could not save daily overview snapshot:', error));
+    return () => { active = false; };
+  }, [hostelProfile?.id, isDemoMode, currentDateIST, currentMonthKeyIST, currentMonthMetrics, trendMonth]);
+
+  const selectedSnapshot = selectedMonth === currentMonthKeyIST
+    ? null
+    : snapshots.find(snapshot => snapshot.month_start.slice(0, 7) === selectedMonth);
+  const shownMetrics = selectedSnapshot?.metrics || currentMonthMetrics;
+  const chartData = React.useMemo(() => {
+    const monthlyByMonth = new Map(snapshots.map(snapshot => [snapshot.month_start.slice(0, 7), snapshot.metrics]));
+    if (trendYear === Number(currentMonthKeyIST.slice(0, 4))) monthlyByMonth.set(currentMonthKeyIST, currentMonthMetrics);
+
+    if (trendPeriod === 'daily') {
+      const byDate = new Map(dailySnapshots.map(snapshot => [snapshot.snapshot_date, snapshot.metrics]));
+      if (trendMonth === currentMonthKeyIST) byDate.set(currentDateIST, currentMonthMetrics);
+      return [...byDate.entries()]
+        .filter(([date]) => date.slice(0, 7) === trendMonth && (trendMonth !== currentMonthKeyIST || date <= currentDateIST))
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, metrics]) => ({
+          period: date,
+          label: String(Number(date.slice(8, 10))),
+          ...metrics,
+        }));
+    }
+
+    if (trendPeriod === 'monthly') {
+      return [...monthlyByMonth.entries()]
+        .filter(([month]) => Number(month.slice(0, 4)) === trendYear)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([month, metrics]) => ({
+          period: month,
+          label: new Date(`${month}-15T12:00:00`).toLocaleDateString('en-IN', { month: 'short' }),
+          ...metrics,
+        }));
+    }
+
+    const additive = ['collected', 'newResidents', 'vacatedResidents', 'becomingVacant', 'depositsCollected'];
+    const stateAtYearEnd = ['outstanding', 'occupancy', 'late', 'activeBeds', 'vacantBeds', 'collectionEfficiency', 'expectedDeposit', 'depositsPending'];
+    const byYear = new Map<number, Record<string, number>>();
+    [...monthlyByMonth.entries()].sort(([a], [b]) => a.localeCompare(b)).forEach(([month, metrics]) => {
+      const year = Number(month.slice(0, 4));
+      if (year > trendYear) return;
+      const totals = byYear.get(year) || Object.fromEntries(additive.map(key => [key, 0]));
+      additive.forEach(key => { totals[key] = (totals[key] || 0) + Number(metrics[key] || 0); });
+      stateAtYearEnd.forEach(key => { totals[key] = Number(metrics[key] || 0); });
+      byYear.set(year, totals);
+    });
+    return [...byYear.entries()].slice(-8).map(([year, metrics]) => ({ period: String(year), label: String(year), ...metrics }));
+  }, [snapshots, dailySnapshots, trendPeriod, trendMonth, trendYear, currentMonthKeyIST, currentDateIST, currentMonthMetrics]);
+
+  const trendYears = [...new Set([Number(currentMonthKeyIST.slice(0, 4)), ...snapshots.map(snapshot => Number(snapshot.month_start.slice(0, 4)))])]
+    .sort((a, b) => b - a);
+  const trendMonths = [...new Set([currentMonthKeyIST, ...snapshots.map(snapshot => snapshot.month_start.slice(0, 7))])]
+    .sort((a, b) => b.localeCompare(a));
+
   const tabItems = [
     { id: 'all', label: 'All' },
     { id: 'payments', label: 'Payments' },
     { id: 'occupancy', label: 'Occupancy' },
-    { id: 'deposits', label: 'Deposits' },
+    { id: 'analysis', label: 'Analysis' },
+    ...(collectsSecurityDeposit ? [{ id: 'deposits' as const, label: 'Deposits' }] : []),
   ] as const;
 
   type TabId = (typeof tabItems)[number]['id'];
 
   const [activeTab, setActiveTab] = React.useState<TabId>('all');
+  React.useEffect(() => {
+    if (!collectsSecurityDeposit && activeTab === 'deposits') setActiveTab('all');
+  }, [activeTab, collectsSecurityDeposit]);
+
+  const trendCharts: Array<{ title: string; series: TrendSeries[] }> = activeTab === 'payments'
+    ? [
+      { title: 'Collections and outstanding dues', series: [
+        { key: 'collected', label: 'Collected', color: '#059669', format: 'money' },
+        { key: 'outstanding', label: 'Outstanding', color: '#d97706', format: 'money' },
+      ] },
+      { title: 'Collection efficiency', series: [{ key: 'collectionEfficiency', label: 'Efficiency', color: '#4f46e5', format: 'percent' }] },
+      { title: 'Late payments', series: [{ key: 'late', label: 'Late payments', color: '#e11d48' }] },
+    ]
+    : activeTab === 'occupancy'
+      ? [
+        { title: 'Occupancy rate', series: [{ key: 'occupancy', label: 'Occupied', color: '#0284c7', format: 'percent' }] },
+        { title: 'Bed availability', series: [
+          { key: 'activeBeds', label: 'Occupied beds', color: '#059669' },
+          { key: 'vacantBeds', label: 'Empty beds', color: '#64748b' },
+        ] },
+      ]
+      : activeTab === 'deposits'
+        ? [{ title: 'Deposit collection', series: [
+          { key: 'expectedDeposit', label: 'Expected', color: '#0f766e', format: 'money' },
+          { key: 'depositsCollected', label: 'Collected this month', color: '#059669', format: 'money' },
+        ] }]
+        : activeTab === 'all' || activeTab === 'analysis'
+          ? [
+            { title: 'Collections and outstanding dues', series: [
+              { key: 'collected', label: 'Collected', color: '#059669', format: 'money' },
+              { key: 'outstanding', label: 'Outstanding', color: '#d97706', format: 'money' },
+            ] },
+            { title: 'Occupancy rate', series: [{ key: 'occupancy', label: 'Occupied', color: '#0284c7', format: 'percent' }] },
+            { title: 'Resident movement', series: [
+              { key: 'newResidents', label: 'New residents', color: '#4f46e5' },
+              { key: 'vacatedResidents', label: 'Vacated residents', color: '#8b5cf6' },
+            ] },
+            ...(collectsSecurityDeposit ? [{ title: 'Deposit collection', series: [
+              { key: 'expectedDeposit', label: 'Expected', color: '#0f766e', format: 'money' as const },
+              { key: 'depositsCollected', label: 'Collected this month', color: '#059669', format: 'money' as const },
+            ] }] : []),
+          ]
+          : [];
 
   type OverviewCard = {
     title: string;
@@ -321,10 +521,10 @@ export default function MonthlyOverview() {
     tone: CardTone;
   };
 
-  const monthlyOverviewCards: OverviewCard[] = [
+  const monthlyOverviewCards = ([
     {
       title: 'Total Collected This Month',
-      value: `₹${monthlyStats.collectCurrent.toLocaleString('en-IN')}`,
+      value: `₹${Number(shownMetrics.collected || 0).toLocaleString('en-IN')}`,
       icon: IndianRupee,
       trend: revenueTrend.label,
       trendColor: getTrendColor(revenueTrend.tone),
@@ -334,7 +534,7 @@ export default function MonthlyOverview() {
     },
     {
       title: 'Outstanding Dues',
-      value: `₹${monthlyStats.outstandingCurrent.toLocaleString('en-IN')}`,
+      value: `₹${Number(shownMetrics.outstanding || 0).toLocaleString('en-IN')}`,
       icon: AlertCircle,
       trend: duesTrend.label,
       trendColor: getTrendColor(duesTrend.tone),
@@ -344,7 +544,7 @@ export default function MonthlyOverview() {
     },
     {
       title: 'Occupancy Rate',
-      value: `${Math.round(monthlyStats.occupancyCurrent)}%`,
+      value: `${Math.round(Number(shownMetrics.occupancy || 0))}%`,
       icon: BedDouble,
       trend: occupancyTrend.label,
       trendColor: getTrendColor(occupancyTrend.tone),
@@ -354,7 +554,7 @@ export default function MonthlyOverview() {
     },
     {
       title: 'Late Payments',
-      value: `${monthlyStats.lateCurrent}`,
+      value: `${Number(shownMetrics.late || 0)}`,
       icon: Clock,
       trend: lateTrend.label,
       trendColor: getTrendColor(lateTrend.tone),
@@ -364,7 +564,7 @@ export default function MonthlyOverview() {
     },
     {
       title: 'Active Residents',
-      value: `${occupiedBedsCount}`,
+      value: `${Number(shownMetrics.activeBeds || 0)}`,
       icon: Users,
       trend: 'Live occupied beds',
       trendColor: 'text-emerald-600',
@@ -373,7 +573,7 @@ export default function MonthlyOverview() {
     },
     {
       title: 'Empty Beds',
-      value: `${vacantBedsCount}`,
+      value: `${Number(shownMetrics.vacantBeds || 0)}`,
       icon: PieChart,
       trend: 'Available beds right now',
       trendColor: 'text-slate-500',
@@ -383,10 +583,7 @@ export default function MonthlyOverview() {
     },
     {
       title: 'New Residents This Month',
-        value: `${activeResidents.filter(r => {
-        const joinDate = parseDate(r.joinDate);
-        return joinDate && joinDate.getFullYear() === now.getFullYear() && joinDate.getMonth() === now.getMonth();
-      }).length}`,
+      value: `${Number(shownMetrics.newResidents || 0)}`,
       icon: UserPlus,
       trend: 'Started this month',
       trendColor: 'text-sky-600',
@@ -395,10 +592,7 @@ export default function MonthlyOverview() {
     },
     {
       title: 'Vacated Residents This Month',
-      value: `${pastResidents.filter(p => {
-        const vacateDate = parseDate(p.vacateDate);
-        return vacateDate && vacateDate.getFullYear() === now.getFullYear() && vacateDate.getMonth() === now.getMonth();
-      }).length}`,
+      value: `${Number(shownMetrics.vacatedResidents || 0)}`,
       icon: LogOut,
       trend: 'Left this month',
       trendColor: 'text-violet-600',
@@ -407,10 +601,7 @@ export default function MonthlyOverview() {
     },
     {
       title: 'Beds Becoming Vacant',
-        value: `${activeResidents.filter(r => {
-        const vacateDate = parseDate(r.vacatingDate);
-        return vacateDate && vacateDate.getFullYear() === now.getFullYear() && vacateDate.getMonth() === now.getMonth();
-      }).length}`,
+      value: `${Number(shownMetrics.becomingVacant || 0)}`,
       icon: BedDouble,
       trend: 'Planning for vacancies this month',
       trendColor: 'text-indigo-600',
@@ -419,17 +610,17 @@ export default function MonthlyOverview() {
     },
     {
       title: 'Collection Efficiency',
-      value: `${monthlyStats.collectionEfficiency}%`,
+      value: `${Number(shownMetrics.collectionEfficiency || 0)}%`,
       icon: PieChart,
       trend: 'Rent collected vs expected',
-      trendColor: monthlyStats.collectionEfficiency >= 80 ? 'text-emerald-600' : 
-                  monthlyStats.collectionEfficiency >= 50 ? 'text-amber-600' : 'text-rose-600',
+      trendColor: Number(shownMetrics.collectionEfficiency || 0) >= 80 ? 'text-emerald-600' :
+                  Number(shownMetrics.collectionEfficiency || 0) >= 50 ? 'text-amber-600' : 'text-rose-600',
       categories: ['all', 'payments'],
-      tone: monthlyStats.collectionEfficiency >= 80 ? 'emerald' : monthlyStats.collectionEfficiency >= 50 ? 'amber' : 'rose',
+      tone: Number(shownMetrics.collectionEfficiency || 0) >= 80 ? 'emerald' : Number(shownMetrics.collectionEfficiency || 0) >= 50 ? 'amber' : 'rose',
     },
     {
       title: 'Total Expected Deposit',
-      value: `₹${totalExpectedDeposit.toLocaleString('en-IN')}`,
+      value: `₹${Number(shownMetrics.expectedDeposit || 0).toLocaleString('en-IN')}`,
       icon: Shield,
       trend: 'Expected from all active residents',
       trendColor: 'text-teal-600',
@@ -438,7 +629,7 @@ export default function MonthlyOverview() {
     },
     {
       title: 'Deposits Collected This Month',
-      value: `₹${depositsCollectedThisMonth.toLocaleString('en-IN')}`,
+      value: `₹${Number(shownMetrics.depositsCollected || 0).toLocaleString('en-IN')}`,
       icon: Shield,
       trend: 'From new residents this month',
       trendColor: 'text-emerald-600',
@@ -447,14 +638,14 @@ export default function MonthlyOverview() {
     },
     {
       title: 'Deposits Pending',
-      value: `${depositPendingCount}`,
+      value: `${Number(shownMetrics.depositsPending || 0)}`,
       icon: Shield,
       trend: 'Live unpaid deposits',
       trendColor: 'text-amber-600',
       categories: ['all', 'deposits'],
       tone: 'amber',
     },
-  ];
+  ] as OverviewCard[]).filter(card => collectsSecurityDeposit || !card.title.toLowerCase().includes('deposit'));
 
   const filteredCards = React.useMemo(() => {
     if (activeTab === 'all') return monthlyOverviewCards;
@@ -473,11 +664,14 @@ export default function MonthlyOverview() {
           </button>
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight leading-tight">Monthly Overview</h1>
-            <p className="text-sm sm:text-base text-gray-500">Live operational metrics for your hostel, updating every minute.</p>
+            <p className="text-sm sm:text-base text-gray-500">
+              {selectedSnapshot ? `Saved snapshot · ${new Date(`${selectedMonth}-01T00:00:00`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}` : 'Live operational metrics for your hostel, updating every minute.'}
+            </p>
           </div>
         </div>
 
-        <div className="overflow-x-auto pb-2">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="overflow-x-auto pb-2">
           <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white p-1 shadow-sm">
             {tabItems.map((tab) => {
               const isActive = tab.id === activeTab;
@@ -498,6 +692,20 @@ export default function MonthlyOverview() {
               );
             })}
           </div>
+          </div>
+          <label className="flex items-center gap-2 text-sm font-medium text-gray-600">
+            Overview month
+            <select value={selectedMonth} onChange={event => {
+              const month = event.target.value;
+              setSelectedMonth(month);
+              setTrendYear(Number(month.slice(0, 4)));
+              if (trendPeriod === 'daily') setTrendMonth(month);
+            }} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 shadow-sm">
+              {[...new Set([currentMonthKeyIST, ...snapshots.map(snapshot => snapshot.month_start.slice(0, 7))])]
+                .sort((a, b) => b.localeCompare(a))
+                .map(month => <option key={month} value={month}>{new Date(`${month}-01T00:00:00`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}{month === currentMonthKeyIST ? ' · Live' : ''}</option>)}
+            </select>
+          </label>
         </div>
       </div>
 
@@ -511,7 +719,7 @@ export default function MonthlyOverview() {
             title={card.title}
             value={card.value}
             icon={card.icon}
-            trend={card.trend}
+            trend={selectedSnapshot ? 'Saved monthly snapshot' : card.trend}
             trendColor={card.trendColor}
             className={styles.iconClassName}
             cardBg={styles.cardBg}
@@ -521,6 +729,56 @@ export default function MonthlyOverview() {
           })()
         ))}
       </div>
+
+      <section className="space-y-3" aria-label="Metric trends">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">{activeTab === 'analysis' ? 'Analysis' : 'Metric trends'}</h2>
+            <p className="text-xs text-gray-500">
+              {trendPeriod === 'daily' ? 'Live daily snapshots, from the first through selected month.' : trendPeriod === 'monthly' ? 'Compare saved monthly snapshots for selected year.' : 'Compare yearly totals and year-end values.'} Hover over a line for exact values.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex rounded-xl border border-gray-200 bg-white p-1" aria-label="Chart interval">
+              {(['daily', 'monthly', 'yearly'] as const).map(period => <button key={period} type="button" onClick={() => {
+                setTrendPeriod(period);
+                if (period !== 'daily') setTrendYear(Number(selectedMonth.slice(0, 4)));
+              }} className={cn('rounded-lg px-3 py-1.5 text-xs font-semibold capitalize', trendPeriod === period ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100')}>{period}</button>)}
+            </div>
+            {trendPeriod === 'daily' ? (
+              <label className="flex items-center gap-2 text-xs font-medium text-gray-600">
+                Month
+                <select value={trendMonth} onChange={event => {
+                  const month = event.target.value;
+                  setTrendMonth(month);
+                  setSelectedMonth(month);
+                }} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 shadow-sm">
+                  {trendMonths.map(month => <option key={month} value={month}>{new Date(`${month}-01T12:00:00`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}{month === currentMonthKeyIST ? ' · Live' : ''}</option>)}
+                </select>
+              </label>
+            ) : (
+              <label className="flex items-center gap-2 text-xs font-medium text-gray-600">
+                {trendPeriod === 'yearly' ? 'Show through' : 'Year'}
+                <select value={trendYear} onChange={event => setTrendYear(Number(event.target.value))} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 shadow-sm">
+                  {trendYears.map(year => <option key={year} value={year}>{year}</option>)}
+                </select>
+              </label>
+            )}
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+          {trendCharts.map(chart => <TrendChart
+            key={chart.title}
+            title={chart.title}
+            subtitle={trendPeriod === 'daily'
+              ? `Daily values · ${new Date(`${trendMonth}-01T12:00:00`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}`
+              : trendPeriod === 'monthly' ? `Monthly values · ${trendYear}` : `Yearly values · through ${trendYear}`}
+            data={chartData}
+            series={chart.series}
+            emptyText={trendPeriod === 'daily' ? 'No daily history for this month yet. Daily snapshots start when this overview is used.' : 'There is not enough saved history for this comparison yet.'}
+          />)}
+        </div>
+      </section>
     </div>
   );
 }

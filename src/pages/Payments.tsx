@@ -5,12 +5,16 @@ import { FLAGS } from '../core/env';
 import { useApp, PaymentsFilterType } from '../context/AppContext';
 import DefaultAvatar from '../components/DefaultAvatar';
 import { CheckCircle2, Wallet, Clock, AlertTriangle, Check, Send, X, Smartphone, Banknote, IndianRupee, AlertCircle, Info, PieChart, Users, ChevronRight, Search, Calendar, ArrowLeft, FileText } from 'lucide-react';
-import { cn, formatDate, getNamesFromIds, getTodayIST, formatTimeIST, convertToIST, getResidentRentAmount, getResidentDueDisplayAmount } from '../lib/utils';
+import { cn, formatDate, getAllPendingPaymentAmount, getNamesFromIds, getTodayIST, formatTimeIST, convertToIST, getTransactionSortTimestamp, getResidentRentAmount, getResidentDueDisplayAmount, getWhatsAppUrl, isResidentReserved, isValidPartialPaymentAmount } from '../lib/utils';
 import { Resident } from '../data/mock';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
 import EmptyState from '../components/EmptyState';
+import { PrivatePhoto } from '../components/PrivatePhoto';
 import useAsyncAction from '../hooks/useAsyncAction';
+import { buildRentReminderMessage } from '../lib/reminderTemplate';
+import { CurrencyNumberFlow } from '../components/ui/number-flow';
+import ResidentAvatar from '../components/ResidentAvatar';
 
 export const WhatsAppIcon = ({ className }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="0" className={className}>
@@ -21,11 +25,20 @@ export const WhatsAppIcon = ({ className }: { className?: string }) => (
 export default function Payments() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { floors, residents, pastResidents, markAsPaid, markReminderSent, activePaymentsFilter: filter, setActivePaymentsFilter: setFilter, setGlobalSelectedResidentId, hostelProfile, isDemoMode, sharingRentMap, dashboardStats } = useApp();
+  const { floors, residents, pastResidents, markAsPaid, activePaymentsFilter: filter, setActivePaymentsFilter: setFilter, setGlobalSelectedResidentId, hostelProfile, isDemoMode, sharingRentMap, dashboardStats } = useApp();
+  const collectsSecurityDeposit = Boolean(hostelProfile?.collectSecurityDeposit ?? Number(hostelProfile?.security_deposit || 0) > 0);
   const [showHistory, setShowHistory] = useState(false);
-  const [historyTimeFilter, setHistoryTimeFilter] = useState<'All' | 'Today' | 'Monthly' | 'Yearly'>('All');
-  const [historyPaymentFilter, setHistoryPaymentFilter] = useState<'All' | 'Rent' | 'Security Deposits'>('All');
+  const [historyTimeFilter, setHistoryTimeFilter] = useState<'All' | 'Today' | 'Monthly' | 'Yearly'>('Monthly');
+  const [historyPaymentFilter, setHistoryPaymentFilter] = useState<'All' | 'Rent' | 'Security Deposits'>(() => collectsSecurityDeposit ? 'All' : 'Rent');
+  const [hasUserChangedFilter, setHasUserChangedFilter] = useState(false);
   const [historySearchQuery, setHistorySearchQuery] = useState('');
+  React.useEffect(() => {
+    if (!hasUserChangedFilter) {
+      setHistoryPaymentFilter(collectsSecurityDeposit ? 'All' : 'Rent');
+    } else if (!collectsSecurityDeposit && (historyPaymentFilter === 'All' || historyPaymentFilter === 'Security Deposits')) {
+      setHistoryPaymentFilter('Rent');
+    }
+  }, [collectsSecurityDeposit, hasUserChangedFilter, historyPaymentFilter]);
   const [selectedHistoryMonth, setSelectedHistoryMonth] = useState(() => {
     const now = convertToIST(new Date());
     return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
@@ -36,6 +49,8 @@ export default function Payments() {
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [bulkReminderQueue, setBulkReminderQueue] = useState<Resident[]>([]);
+  const [bulkReminderQueueIndex, setBulkReminderQueueIndex] = useState(0);
   const [residentToMarkPaid, setResidentToMarkPaid] = useState<Resident | null>(null);
   const [paidUsing, setPaidUsing] = useState<'UPI' | 'Cash'>('UPI');
   const [isPartialPayment, setIsPartialPayment] = useState<boolean>(false);
@@ -85,7 +100,7 @@ export default function Payments() {
     if (!hasExplicitTimezone(dateString)) {
       const simpleDateMatch = dateString.match(/^(\d{4})-(\d{2})-(\d{2})$/);
       if (simpleDateMatch) {
-        return new Date(`${dateString}T00:00:00+05:30`);
+        return new Date(Date.UTC(Number(simpleDateMatch[1]), Number(simpleDateMatch[2]) - 1, Number(simpleDateMatch[3])));
       }
     }
 
@@ -123,38 +138,30 @@ export default function Payments() {
       return;
     }
     
-    // Validate phone number roughly (must contain digits)
-    const phoneDigits = (resident.phone || '').replace(/\D/g, '');
-    if (phoneDigits.length < 10) {
-      toast.error('Invalid phone number');
-      return;
-    }
-
     const hostelName = hostelProfile?.hostelName || "My Hostel";
     const roomNum = getNamesFromIds(floors, resident.roomId, resident.bedId).roomName;
     const rentAmount = getResidentDueDisplayAmount(resident, floors);
-    const isPartial = resident.paymentStatus === 'partially_paid';
     const dueDateDisplay = resident.dueDate ? getDayAndMonth(resident.dueDate) : 'Today';
 
-    const message = `Hello ${resident.name}, your hostel rent ${isPartial ? `(remaining *₹${rentAmount}*)` : `of *₹${rentAmount}*`} for Room ${roomNum} is currently pending.\n\nDue Date: *${dueDateDisplay}*\n\nPlease make the payment soon and reply *PAID* once done.\n\nThank you,\n${hostelName}\nPowered by Hostelrr`;
-
-    markReminderSent(resident.id);
-    
-    // Format phone to whatsapp URL format
-    const waPhone = phoneDigits.startsWith('91') && phoneDigits.length === 12 ? phoneDigits : (phoneDigits.length === 10 ? `91${phoneDigits}` : phoneDigits);
-    const waUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(message)}`;
-    
-    window.open(waUrl, '_blank');
+    const message = buildRentReminderMessage(hostelProfile?.reminderTemplate, { name: resident.name, amount: rentAmount, room: roomNum, dueDate: dueDateDisplay, hostelName });
+    const waUrl = getWhatsAppUrl(resident.phone, message);
+    if (!waUrl) {
+      toast.error('Invalid phone number');
+      return;
+    }
+    const whatsappTab = window.open(waUrl, '_blank');
+    if (!whatsappTab) {
+      toast.error('Your browser blocked the WhatsApp tab. Allow pop-ups for Hostelrr and try again.');
+      return;
+    }
     toast.success(`Opening WhatsApp for ${resident.name}`);
   };
 
   const startSendingBulkReminders = () => {
-    setIsBulkModalOpen(false);
-    
     const filteredToRemind = bulkReminderFilter === 'All' 
       ? dueResidents 
       : bulkReminderFilter === 'Pending' 
-        ? dueResidents.filter(r => r.paymentStatus === 'due')
+        ? dueResidents.filter(r => r.pendingDueToday === true || (r.pendingDueToday == null && r.paymentStatus === 'due' && r.dueDate === getTodayIST()))
         : bulkReminderFilter === 'Late'
           ? dueResidents.filter(r => r.paymentStatus === 'late')
           : dueResidents.filter(r => r.paymentStatus === 'partially_paid');
@@ -164,17 +171,32 @@ export default function Payments() {
       return;
     }
 
-    toast.info(`Starting ${bulkReminderFilter} reminders (${filteredToRemind.length})...`, { duration: 3000 });
-    
-    filteredToRemind.forEach((res, index) => {
-      // Small timeout to help browser open multiple tabs or at least not strictly block immediately
-      setTimeout(() => {
-        handleSendReminder(res);
-      }, index * 800);
-    });
+    const eligibleResidents = filteredToRemind.filter(resident => getWhatsAppUrl(resident.phone, '') !== null);
+    const skippedCount = filteredToRemind.length - eligibleResidents.length;
+    if (eligibleResidents.length === 0) {
+      toast.error('None of the selected residents has a valid Indian mobile number');
+      return;
+    }
+
+    setBulkReminderQueue(eligibleResidents);
+    setBulkReminderQueueIndex(0);
+    toast.info(`Ready to prepare ${eligibleResidents.length} WhatsApp reminders${skippedCount ? `; skipped ${skippedCount} invalid number${skippedCount === 1 ? '' : 's'}` : ''}.`);
   };
 
-  const getMockHistory = (resident: Resident) => {
+  const closeBulkReminderModal = () => {
+    setIsBulkModalOpen(false);
+    setBulkReminderQueue([]);
+    setBulkReminderQueueIndex(0);
+  };
+
+  const openNextBulkReminder = () => {
+    const resident = bulkReminderQueue[bulkReminderQueueIndex];
+    if (!resident) return;
+    handleSendReminder(resident);
+    setBulkReminderQueueIndex(index => index + 1);
+  };
+
+  const getMockHistory = (resident: Resident): any[] => {
     const rentAmount = getResidentRentAmount(resident, floors);
     const history = resident.paymentHistory ? [...resident.paymentHistory] : [];
     
@@ -193,32 +215,45 @@ export default function Payments() {
       { id: 'm2', date: '05 Feb 2026', amount: rentAmount, status: 'paid' as string, method: undefined as string | undefined, title: 'Rent Payment' },
       { id: 'm3', date: '05 Jan 2026', amount: rentAmount, status: 'paid' as string, method: undefined as string | undefined, title: 'Rent Payment' },
     ] : [];
-    return [...history, ...mock].sort((a: any, b: any) => getTransactionDateForSort(b.date).getTime() - getTransactionDateForSort(a.date).getTime());
+    return [...history, ...mock].sort((a: any, b: any) => getTransactionSortTimestamp(b) - getTransactionSortTimestamp(a));
   };
 
-  const activeResidents = residents.filter(r => r.status !== 'reserved');
-  const dueResidents = activeResidents.filter(r => (r.dueAmount || 0) > 0);
-  const paidResidents = activeResidents.filter(r => (r.dueAmount || 0) === 0);
+  const activeResidents = residents.filter(r => !isResidentReserved(r, floors));
+  const dueResidents = activeResidents.filter(r =>
+    r.paymentStatus === 'due' ||
+    r.paymentStatus === 'late' ||
+    r.paymentStatus === 'partially_paid'
+  );
+  const paidResidents = activeResidents.filter(r => r.paymentStatus === 'paid');
+  const selectedResidentDueAmount = getResidentDueDisplayAmount(residentToMarkPaid, floors);
+  const invalidPartialAmount = isPartialPayment && !isValidPartialPaymentAmount(partialAmount, selectedResidentDueAmount);
+
+  React.useEffect(() => {
+    if (!showHistory && filter === 'All') {
+      setFilter('Unpaid');
+    }
+  }, []);
 
   const occupiedBeds = Number(dashboardStats?.occupied_beds ?? 0);
-  const totalDueAmount = Number(dashboardStats?.pending_amount ?? dueResidents.reduce((acc, curr) => acc + curr.dueAmount, 0));
-  const expectedMonthlyRevenue = Number(dashboardStats?.expected_monthly_revenue ?? activeResidents.reduce((total, r) => {
+  const totalDueAmount = getAllPendingPaymentAmount(residents, floors);
+  const expectedMonthlyRevenue = activeResidents.reduce((total, r) => {
     return total + (r.monthlyRent || 0);
-  }, 0));
+  }, 0);
 
   const defaultSecurityDeposit = Number(hostelProfile?.security_deposit || 0);
   const occupiedResidentsCount = occupiedBeds;
   const expectedTotalSecurityDeposit = occupiedResidentsCount * defaultSecurityDeposit;
-  const finalExpectedRevenue = expectedMonthlyRevenue + expectedTotalSecurityDeposit;
+  const finalExpectedRevenue = expectedMonthlyRevenue + (collectsSecurityDeposit ? expectedTotalSecurityDeposit : 0);
 
   const thisMonthRevenue = Number(dashboardStats?.collected_this_month ?? 0);
 
   // Logic for subsets
-  const pendingCount = Number(dashboardStats?.pending_count ?? dueResidents.filter(r => r.paymentStatus === 'due').length);
-  const lateCount = Number(dashboardStats?.late_count ?? dueResidents.filter(r => r.paymentStatus === 'late').length);
-  const partiallyPaidCount = Number(dashboardStats?.partially_paid_count ?? activeResidents.filter(r => r.paymentStatus === 'partially_paid').length);
+  const pendingDueToday = dueResidents.filter(r => r.pendingDueToday === true || (r.pendingDueToday == null && r.paymentStatus === 'due' && r.dueDate === getTodayIST()));
+  const pendingCount = pendingDueToday.length;
+  const lateCount = dueResidents.filter(r => r.paymentStatus === 'late').length;
+  const partiallyPaidCount = activeResidents.filter(r => r.paymentStatus === 'partially_paid').length;
   const unpaidCount = dueResidents.length;
-  const paidCount = Number(dashboardStats?.paid_count ?? paidResidents.length);
+  const paidCount = paidResidents.length;
   const allCount = activeResidents.length;
 
   const allPaymentsTransactions = useMemo(() => {
@@ -227,6 +262,7 @@ export default function Payments() {
         history.push({
           id: `sec_dep_${resident.id}`,
           date: resident.depositPaidDate || resident.joinDate,
+          recordedAt: resident.depositPaidDate || resident.createdAt,
           amount: resident.securityDeposit,
           status: 'paid',
           title: 'Security Deposit',
@@ -251,31 +287,38 @@ export default function Payments() {
       return history;
     });
     
-    return [...currentHistory, ...pastHistory].sort((a, b) => getTransactionDateForSort(b.date).getTime() - getTransactionDateForSort(a.date).getTime());
+    return [...currentHistory, ...pastHistory].sort((a, b) => getTransactionSortTimestamp(b) - getTransactionSortTimestamp(a));
   }, [residents, pastResidents]);
 
   const historyMonthOptions = useMemo(() => {
-    const months = new Map<string, Date>();
+    const months = new Map<string, string>();
+    const now = convertToIST(new Date());
+    const currentMonthKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+    months.set(currentMonthKey, currentMonthKey);
 
     allPaymentsTransactions.forEach((payment) => {
       const dateIST = getTransactionDateForSort(payment.date);
       if (Number.isNaN(dateIST.getTime())) return;
       const key = `${dateIST.getUTCFullYear()}-${String(dateIST.getUTCMonth() + 1).padStart(2, '0')}`;
-      if (!months.has(key)) {
-        months.set(key, dateIST);
-      }
+      months.set(key, key);
     });
 
-    return Array.from(months.entries())
-      .sort((a, b) => b[1].getTime() - a[1].getTime())
-      .map(([value, date]) => ({
-        value,
-        label: new Intl.DateTimeFormat('en-IN', { month: 'short', year: 'numeric' }).format(date),
-      }));
+    return Array.from(months.keys())
+      .sort((a, b) => b.localeCompare(a))
+      .map((key) => {
+        const [y, m] = key.split('-');
+        const d = new Date(Date.UTC(Number(y), Number(m) - 1, 1, 12, 0, 0));
+        return {
+          value: key,
+          label: new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', year: 'numeric' }).format(d),
+        };
+      });
   }, [allPaymentsTransactions]);
 
   const historyYearOptions = useMemo(() => {
     const years = new Set<string>();
+    const currentYear = String(convertToIST(new Date()).getUTCFullYear());
+    years.add(currentYear);
 
     allPaymentsTransactions.forEach((payment) => {
       const dateIST = getTransactionDateForSort(payment.date);
@@ -294,6 +337,10 @@ export default function Payments() {
 
     let base = allPaymentsTransactions;
 
+    if (!collectsSecurityDeposit) {
+      base = base.filter(payment => payment.title !== 'Security Deposit');
+    }
+
     if (historyPaymentFilter === 'Rent') {
       base = base.filter(payment => payment.title !== 'Security Deposit');
     } else if (historyPaymentFilter === 'Security Deposits') {
@@ -303,18 +350,21 @@ export default function Payments() {
     if (historyTimeFilter === 'Today') {
       base = base.filter(payment => {
         const dateIST = getTransactionDateForSort(payment.date);
+        if (Number.isNaN(dateIST.getTime())) return false;
         const dateStr = `${dateIST.getUTCFullYear()}-${String(dateIST.getUTCMonth() + 1).padStart(2, '0')}-${String(dateIST.getUTCDate()).padStart(2, '0')}`;
         return dateStr === today;
       });
     } else if (historyTimeFilter === 'Monthly') {
       base = base.filter(payment => {
         const dateIST = getTransactionDateForSort(payment.date);
+        if (Number.isNaN(dateIST.getTime())) return false;
         const key = `${dateIST.getUTCFullYear()}-${String(dateIST.getUTCMonth() + 1).padStart(2, '0')}`;
         return key === selectedHistoryMonth;
       });
     } else if (historyTimeFilter === 'Yearly') {
       base = base.filter(payment => {
         const dateIST = getTransactionDateForSort(payment.date);
+        if (Number.isNaN(dateIST.getTime())) return false;
         return String(dateIST.getUTCFullYear()) === selectedHistoryYear;
       });
     }
@@ -331,8 +381,8 @@ export default function Payments() {
       });
     }
 
-    return base.sort((a, b) => getTransactionDateForSort(b.date).getTime() - getTransactionDateForSort(a.date).getTime());
-  }, [allPaymentsTransactions, floors, historyPaymentFilter, historySearchQuery, historyTimeFilter, selectedHistoryMonth, selectedHistoryYear]);
+    return base.sort((a, b) => getTransactionSortTimestamp(b) - getTransactionSortTimestamp(a));
+  }, [allPaymentsTransactions, floors, historyPaymentFilter, historySearchQuery, historyTimeFilter, selectedHistoryMonth, selectedHistoryYear, collectsSecurityDeposit]);
 
   const totalHistoryAmount = filteredHistoryTransactions.reduce((acc, p) => {
     // Exclude security deposits from vacated residents
@@ -341,7 +391,7 @@ export default function Payments() {
     }
     return acc + p.amount;
   }, 0);
-  const isSecurityDepositHistory = historyPaymentFilter === 'Security Deposits';
+  const isSecurityDepositHistory = collectsSecurityDeposit && historyPaymentFilter === 'Security Deposits';
 
   const historyTimeLabel = historyTimeFilter === 'All'
     ? 'All'
@@ -371,7 +421,7 @@ export default function Payments() {
     if (filter === 'All') return true;
     if (filter === 'Paid') return r.paymentStatus === 'paid';
     if (filter === 'Unpaid') return r.paymentStatus === 'due' || r.paymentStatus === 'late' || r.paymentStatus === 'partially_paid';
-    if (filter === 'Pending') return r.paymentStatus === 'due';
+    if (filter === 'Pending') return r.pendingDueToday === true || (r.pendingDueToday == null && r.paymentStatus === 'due' && r.dueDate === getTodayIST());
     if (filter === 'Late') return r.paymentStatus === 'late';
     if (filter === 'Partially Paid') return r.paymentStatus === 'partially_paid';
     return true;
@@ -380,11 +430,11 @@ export default function Payments() {
   return (
     <div className="p-3 sm:p-4 md:p-8 max-w-7xl mx-auto space-y-5 md:space-y-8 overflow-x-hidden">
       <div className="mb-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Payments</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">Payments</h1>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
           <button
             onClick={() => setShowHistory(prev => !prev)}
-            className="hidden md:inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-700 font-semibold hover:bg-gray-50 transition-colors shadow-sm"
+            className="hidden md:inline-flex h-10 items-center justify-center gap-2 px-4 rounded-full border border-gray-200 bg-white text-xs font-bold text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
           >
             <FileText className="w-4 h-4" />
             {showHistory ? 'Back to Payments' : 'Payment History'}
@@ -392,7 +442,7 @@ export default function Payments() {
           {!showHistory && dueResidents.length > 0 && (
             <button
               onClick={() => setIsBulkModalOpen(true)}
-              className="hidden md:inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#25D366] hover:bg-[#22c35e] text-white font-bold transition-colors shadow-sm"
+              className="hidden md:inline-flex h-10 items-center justify-center gap-2 px-4 rounded-full bg-[#28a745] hover:bg-[#218838] text-white text-xs font-bold transition-colors shadow-sm"
             >
               <WhatsAppIcon className="w-4 h-4" />
               Remind All
@@ -403,15 +453,15 @@ export default function Payments() {
 
       {!showHistory && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
-          <div onClick={() => setFilter('Unpaid')} className="bg-orange-50 rounded-2xl p-3.5 sm:p-4 md:p-5 border border-orange-200 shadow-sm flex flex-col justify-between min-h-[104px] sm:min-h-[120px] md:min-h-[140px] cursor-pointer hover:shadow-md transition-all">
+          <div onClick={() => setFilter('Unpaid')} className="bg-orange-50 rounded-2xl p-3.5 sm:p-4 md:p-5 border-[1.5px] border-orange-300 shadow-sm flex flex-col justify-between min-h-[104px] sm:min-h-[120px] md:min-h-[140px] cursor-pointer hover:shadow-md transition-all">
             <div className="flex justify-between items-start mb-2">
-              <span className="text-gray-500 font-medium text-[11px] sm:text-sm">Pending Payments</span>
+              <span className="text-gray-500 font-medium text-[11px] sm:text-sm">All Pending Payments</span>
               <div className="p-2 rounded-lg bg-white text-orange-600 shadow-sm"><AlertCircle className="w-4 h-4 sm:w-5 sm:h-5" /></div>
             </div>
-            <h3 className="text-xl sm:text-2xl md:text-[28px] font-bold text-gray-900">₹{totalDueAmount.toLocaleString('en-IN')}</h3>
+            <h3 className="text-xl sm:text-xl md:text-[28px] font-bold text-gray-900"><CurrencyNumberFlow value={totalDueAmount} /></h3>
           </div>
 
-          <div onClick={() => setFilter('Paid')} className="bg-green-50 rounded-2xl p-3.5 sm:p-4 md:p-5 border border-green-200 shadow-sm flex flex-col justify-between min-h-[104px] sm:min-h-[120px] md:min-h-[140px] cursor-pointer hover:shadow-md transition-all">
+          <div onClick={() => setFilter('Paid')} className="bg-green-50 rounded-2xl p-3.5 sm:p-4 md:p-5 border-[1.5px] border-green-300 shadow-sm flex flex-col justify-between min-h-[104px] sm:min-h-[120px] md:min-h-[140px] cursor-pointer hover:shadow-md transition-all">
                 <div className="flex justify-between items-start mb-2">
               <div>
                 <span className="text-gray-500 font-medium text-[11px] sm:text-sm">This Month's Rent</span>
@@ -434,23 +484,23 @@ export default function Payments() {
               </div>
               <div className="p-2 rounded-lg bg-white text-green-600 shadow-sm"><IndianRupee className="w-4 h-4 sm:w-5 sm:h-5" /></div>
             </div>
-            <h3 className="text-xl sm:text-2xl md:text-[28px] font-bold text-gray-900">₹{thisMonthRevenue.toLocaleString('en-IN')}</h3>
+            <h3 className="text-xl sm:text-xl md:text-[28px] font-bold text-gray-900"><CurrencyNumberFlow value={thisMonthRevenue} /></h3>
           </div>
 
-          <div onClick={() => setFilter('Pending')} className="bg-blue-50 rounded-2xl p-3.5 sm:p-4 md:p-5 border border-blue-200 shadow-sm flex flex-col justify-between min-h-[104px] sm:min-h-[120px] md:min-h-[140px] cursor-pointer hover:shadow-md transition-all">
+          <div onClick={() => setFilter('Pending')} className="bg-blue-50 rounded-2xl p-3.5 sm:p-4 md:p-5 border-[1.5px] border-blue-300 shadow-sm flex flex-col justify-between min-h-[104px] sm:min-h-[120px] md:min-h-[140px] cursor-pointer hover:shadow-md transition-all">
             <div className="flex justify-between items-start mb-2">
               <span className="text-gray-500 font-medium text-[11px] sm:text-sm">Due Today</span>
               <div className="p-2 rounded-lg bg-white text-blue-600 shadow-sm"><Clock className="w-4 h-4 sm:w-5 sm:h-5" /></div>
             </div>
-            <h3 className="text-xl sm:text-2xl md:text-[28px] font-bold text-gray-900">{dueTodayCount}</h3>
+            <h3 className="text-xl sm:text-xl md:text-[28px] font-bold text-gray-900">{dueTodayCount}</h3>
           </div>
 
-          <div onClick={() => setFilter('Late')} className="bg-red-50 rounded-2xl p-3.5 sm:p-4 md:p-5 border border-red-200 shadow-sm flex flex-col justify-between min-h-[104px] sm:min-h-[120px] md:min-h-[140px] cursor-pointer hover:shadow-md transition-all">
+          <div onClick={() => setFilter('Late')} className="bg-red-50 rounded-2xl p-3.5 sm:p-4 md:p-5 border-[1.5px] border-red-300 shadow-sm flex flex-col justify-between min-h-[104px] sm:min-h-[120px] md:min-h-[140px] cursor-pointer hover:shadow-md transition-all">
             <div className="flex justify-between items-start mb-2">
               <span className="text-gray-500 font-medium text-[11px] sm:text-sm">Late Payments</span>
               <div className="p-2 rounded-lg bg-white text-red-600 shadow-sm"><AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5" /></div>
             </div>
-            <h3 className="text-xl sm:text-2xl md:text-[28px] font-bold text-gray-900">{lateCount}</h3>
+            <h3 className="text-xl sm:text-xl md:text-[28px] font-bold text-gray-900">{lateCount}</h3>
           </div>
         </div>
       )}
@@ -458,7 +508,7 @@ export default function Payments() {
       {!showHistory && dueResidents.length > 0 && (
         <button
           onClick={() => setIsBulkModalOpen(true)}
-          className="md:hidden w-full min-h-11 justify-center bg-[#25D366] hover:bg-[#22c35e] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-sm flex items-center gap-2 cursor-pointer"
+          className="md:hidden w-full min-h-11 justify-center bg-[#28a745] hover:bg-[#218838] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-sm flex items-center gap-2 cursor-pointer"
         >
           <WhatsAppIcon className="w-4 h-4" />
           Remind All
@@ -513,7 +563,7 @@ export default function Payments() {
                     <span className="text-lg font-bold text-gray-900">₹{expectedMonthlyRevenue.toLocaleString('en-IN')}</span>
                   </div>
 
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3.5 rounded-2xl bg-gray-50 border border-gray-100 group hover:border-indigo-200 transition-colors">
+                  {collectsSecurityDeposit && <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3.5 rounded-2xl bg-gray-50 border border-gray-100 group hover:border-indigo-200 transition-colors">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600">
                           <Users className="w-5 h-5" />
@@ -524,14 +574,14 @@ export default function Payments() {
                         </div>
                       </div>
                       <span className="text-lg font-bold text-gray-900">₹{expectedTotalSecurityDeposit.toLocaleString('en-IN')}</span>
-                    </div>
+                    </div>}
                 </div>
 
                   <div className="pt-2">
                     <div className="p-5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100">
                       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between mb-1">
                         <span className="text-sm font-bold text-emerald-800 uppercase tracking-wider">Total Expected</span>
-                        <span className="text-2xl font-black text-emerald-700">₹{finalExpectedRevenue.toLocaleString('en-IN')}</span>
+                        <span className="text-xl font-black text-emerald-700">₹{finalExpectedRevenue.toLocaleString('en-IN')}</span>
                       </div>
                       <p className="text-xs text-emerald-600/80 font-medium">Sum of live rent and security deposit</p>
                     </div>
@@ -633,104 +683,162 @@ export default function Payments() {
 
 
             <div className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
-              <div className="p-4 sm:p-6 border-b border-gray-100 bg-white">
-                <h3 className="text-lg sm:text-xl font-bold text-gray-900">Resident Payments</h3>
+              <div className="px-5 py-4 sm:px-6 sm:py-5 border-b border-gray-100 bg-white">
+                <h3 className="text-lg sm:text-xl font-bold tracking-tight text-gray-900">Resident Payments</h3>
               </div>
-              <div className="divide-y divide-gray-100 flex-1">
-                {filteredResidents.length === 0 ? (
-                  <div className="py-8">
-                    <EmptyState 
-                      icon={Users}
-                      title="No records found"
-                      subtitle="There are no residents matching your current filter."
-                    />
-                  </div>
-                ) : (
-                  filteredResidents.map((r) => {
-                    const { roomName: roomNum, bedName: bedLetter } = getNamesFromIds(floors, r.roomId, r.bedId);
-                    const bedStatus = getBedStatusForResident(r.roomId, r.bedId);
-                    const displayDate = r.paymentStatus === 'paid' 
-                      ? `Next Due: ${formatDate(r.dueDate || r.joinDate || getTodayIST())}` 
-                      : (r.paymentStatus === 'late' 
-                        ? `Due: ${formatDate(r.dueDate || getTodayIST())}` 
-                        : `Due: ${formatDate(r.dueDate || getTodayIST())}`);
-                    const rentAmount = getResidentDueDisplayAmount(r, floors);
 
-                    return (
-                      <div key={r.id} className="flex flex-col border-b border-gray-100 last:border-0 hover:bg-gray-50/50 transition-colors">
-                        <div onClick={() => setExpandedId(expandedId === r.id ? null : r.id)} className="p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between cursor-pointer gap-4">
-                          <div className="flex items-center gap-4">
-                            <div onClick={(e) => { e.stopPropagation(); setGlobalSelectedResidentId(r.id); navigate(ROUTES.residents.path); }} className="w-12 h-12 bg-gray-50 border ring-1 ring-gray-200 shadow-sm rounded-full flex items-center justify-center text-gray-400 shrink-0 hover:ring-blue-300 overflow-hidden">
-                              {r.photoUrl ? <img src={r.photoUrl} className="w-full h-full object-cover" /> : <DefaultAvatar className="w-full h-full" />}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <div className="font-bold text-gray-900 text-[15px] truncate">{r.name}</div>
-                                {bedStatus === 'reserved' && (
-                                  <span className="px-1.5 py-0.5 rounded-md bg-blue-100 text-blue-700 text-[10px] font-bold uppercase tracking-wider leading-none">Reserved</span>
+              {filteredResidents.length === 0 ? (
+                <div className="py-8">
+                  <EmptyState
+                    icon={Users}
+                    title="No records found"
+                    subtitle="There are no residents matching your current filter."
+                  />
+                </div>
+              ) : (
+                <>
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full border-collapse text-left">
+                      <thead className="bg-slate-100 text-slate-600">
+                        <tr>
+                          <th className="w-[29%] px-6 py-4 text-xs font-extrabold uppercase tracking-[0.12em]">Resident</th>
+                          <th className="w-[12%] px-4 py-4 text-xs font-extrabold uppercase tracking-[0.12em]">Room</th>
+                          <th className="w-[14%] px-4 py-4 text-xs font-extrabold uppercase tracking-[0.12em]">Status</th>
+                          <th className="w-[18%] px-4 py-4 text-xs font-extrabold uppercase tracking-[0.12em]">Rent / Due</th>
+                          <th className="w-[27%] px-6 py-4 text-right text-xs font-extrabold uppercase tracking-[0.12em]">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredResidents.map((r, index) => {
+                          const { roomName: roomNum, bedName: bedLetter } = getNamesFromIds(floors, r.roomId, r.bedId);
+                          const bedStatus = getBedStatusForResident(r.roomId, r.bedId);
+                          const displayDate = r.paymentStatus === 'paid'
+                            ? `Next due ${formatDate(r.dueDate || r.joinDate || getTodayIST())}`
+                            : `Due ${formatDate(r.dueDate || getTodayIST())}`;
+                          const rentAmount = getResidentDueDisplayAmount(r, floors);
+
+                          return (
+                            <React.Fragment key={r.id}>
+                              <tr
+                                onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
+                                className={cn(
+                                  "cursor-pointer border-t border-slate-200 transition-colors hover:bg-slate-200",
+                                  index % 2 === 0 ? "bg-white" : "bg-slate-100"
                                 )}
-                              </div>
-                              <div className="text-sm text-gray-400">Room {roomNum} · {bedLetter}</div>
-                            </div>
-                            <div className="lg:hidden flex items-center gap-2">
-                               <div className="text-right">
-                                  <div className="font-bold text-gray-900 text-[15px]">₹{rentAmount.toLocaleString('en-IN')}</div>
-                                  <div className="text-[10px] text-gray-400 whitespace-nowrap">{displayDate.split(': ')[1]}</div>
-                               </div>
-                               {getStatusPill(r)}
-                            </div>
-                          </div>
-
-                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 sm:gap-6 justify-between lg:justify-end w-full lg:w-auto">
-                            <div className="hidden lg:block w-[80px] shrink-0 text-center">{getStatusPill(r)}</div>
-                            <div className="hidden lg:block text-right min-w-[120px] shrink-0">
-                              <div className="font-bold text-gray-900 text-[15px]">₹{rentAmount.toLocaleString('en-IN')}</div>
-                              <div className="text-xs text-gray-400 whitespace-nowrap">{displayDate}</div>
-                            </div>
-                            <div className="flex items-center gap-2.5 w-full sm:w-auto lg:w-[220px] shrink-0 justify-stretch sm:justify-end" onClick={(e) => e.stopPropagation()}>
-                              {r.paymentStatus === 'paid' ? (
-                                <div className="w-full text-center lg:text-right">
-                                  <span className="text-sm font-medium text-gray-500 inline-flex items-center gap-1 h-[36px]">Received <Check className="w-4 h-4 text-emerald-500" /></span>
-                                </div>
-                              ) : (
-                                <>
-                                  <button onClick={(e) => { e.stopPropagation(); handleSendReminder(r); }} className="min-h-9 sm:min-h-10 flex-1 sm:flex-none bg-[#25D366] hover:bg-[#22c35e] text-white px-3 sm:px-4 py-1 sm:py-1.5 rounded-xl sm:rounded-full text-[11px] sm:text-[13px] font-semibold transition-all flex items-center justify-center gap-1.5 shadow-sm"><WhatsAppIcon className="w-3.5 h-3.5" /> Remind</button>
-                                  <button onClick={(e) => { e.stopPropagation(); setResidentToMarkPaid(r); setPaymentDate(getTodayIST()); }} className="min-h-9 sm:min-h-10 flex-1 sm:flex-none text-[#059669] bg-white border border-[#A7F3D0]/60 px-3 py-1 sm:py-1.5 rounded-xl sm:rounded-full text-[11px] sm:text-[12px] font-semibold hover:bg-[#ECFDF5] transition-all flex items-center justify-center gap-1.5 shadow-sm"><CheckCircle2 className="w-3.5 h-3.5" /> Mark Paid</button>
-                                </>
+                              >
+                                <td className="px-6 py-4">
+                                  <div className="flex items-center gap-3">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); setGlobalSelectedResidentId(r.id); navigate(ROUTES.residents.path); }}
+                                      className="shrink-0 rounded-[14px] transition-all hover:scale-[1.02] active:scale-[0.98]"
+                                      aria-label={`View ${r.name}`}
+                                    >
+                                      <ResidentAvatar resident={r} floors={floors} className="h-11 w-11" dotClassName="h-3 w-3" />
+                                    </button>
+                                    <div className="min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <span className="truncate text-[15px] font-bold text-slate-900">{r.name}</span>
+                                        {bedStatus === 'reserved' && (
+                                          <span className="rounded-md bg-blue-100 px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider text-blue-700">Reserved</span>
+                                        )}
+                                      </div>
+                                      <span className="mt-0.5 block text-xs font-medium text-slate-500">Bed {bedLetter}</span>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-4 whitespace-nowrap text-sm font-bold text-slate-700">{roomNum}</td>
+                                <td className="px-4 py-4">{getStatusPill(r)}</td>
+                                <td className="px-4 py-4 whitespace-nowrap">
+                                  <div className="text-[15px] font-black tabular-nums text-slate-900">₹{rentAmount.toLocaleString('en-IN')}</div>
+                                  <div className="mt-0.5 text-xs font-medium text-slate-500">{displayDate}</div>
+                                </td>
+                                <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                                  {r.paymentStatus === 'paid' ? (
+                                    <div className="flex h-10 items-center justify-end text-sm font-semibold text-slate-500">
+                                      Received <Check className="ml-1.5 h-4 w-4 text-emerald-500" />
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center justify-end gap-2">
+                                      <button onClick={() => handleSendReminder(r)} className="h-10 rounded-full bg-[#28a745] px-4 text-xs font-bold text-white shadow-sm hover:bg-[#218838] flex items-center gap-1.5">
+                                        <WhatsAppIcon className="h-3.5 w-3.5" /> Remind
+                                      </button>
+                                      <button onClick={() => { setResidentToMarkPaid(r); setPaymentDate(getTodayIST()); }} className="h-10 rounded-full border border-emerald-200 bg-white px-4 text-xs font-bold text-emerald-700 hover:bg-emerald-50 flex items-center gap-1.5">
+                                        <CheckCircle2 className="h-3.5 w-3.5" /> Mark paid
+                                      </button>
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                              {expandedId === r.id && (
+                                <tr className={cn(index % 2 === 0 ? "bg-white" : "bg-slate-100")}>
+                                  <td colSpan={5} className="px-6 pb-5 pt-2">
+                                    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                                      <div className="border-b border-slate-100 bg-slate-50 px-4 py-2.5 text-xs font-extrabold uppercase tracking-wider text-slate-500">Recent history</div>
+                                      {getMockHistory(r).length === 0 ? (
+                                        <div className="px-4 py-6 text-center text-sm text-slate-500">No payment history yet</div>
+                                      ) : (
+                                        getMockHistory(r).map(h => (
+                                          <div key={h.id} className={cn("flex items-center justify-between px-4 py-3 border-l-4", h.status === 'partial' ? "border-l-purple-500 bg-purple-50" : "border-l-transparent")}>
+                                            <div className="flex items-center gap-3">
+                                              <div className={cn("flex h-8 w-8 items-center justify-center rounded-[10px]", h.status === 'partial' ? "bg-purple-100 text-purple-600" : "bg-emerald-50 text-emerald-600")}><Check className="h-4 w-4" /></div>
+                                              <div>
+                                                <p className="text-sm font-bold text-slate-900">{h.title || 'Rent Payment'}</p>
+                                                <p className="text-xs text-slate-500">Paid on {getTransactionDateForDisplay(h.date)}</p>
+                                              </div>
+                                            </div>
+                                            <div className="text-right">
+                                              <p className="text-sm font-black tabular-nums text-slate-900">₹{h.amount.toLocaleString('en-IN')}</p>
+                                              <p className={cn("text-xs font-bold capitalize", h.status === 'partial' ? "text-purple-600" : "text-emerald-600")}>{h.status}</p>
+                                            </div>
+                                          </div>
+                                        ))
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
                               )}
+                            </React.Fragment>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="divide-y divide-slate-200 md:hidden">
+                    {filteredResidents.map((r, index) => {
+                      const { roomName: roomNum, bedName: bedLetter } = getNamesFromIds(floors, r.roomId, r.bedId);
+                      const rentAmount = getResidentDueDisplayAmount(r, floors);
+                      return (
+                        <div key={r.id} className={cn("p-4", index % 2 === 0 ? "bg-white" : "bg-slate-100")}>
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex min-w-0 items-center gap-3">
+                              <ResidentAvatar resident={r} floors={floors} className="h-11 w-11" dotClassName="h-3 w-3" />
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-bold text-slate-900">{r.name}</p>
+                                <p className="text-xs font-medium text-slate-500">Room {roomNum} · Bed {bedLetter}</p>
+                              </div>
                             </div>
+                            {getStatusPill(r)}
+                          </div>
+                          <div className="mt-4 flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-base font-black tabular-nums text-slate-900">₹{rentAmount.toLocaleString('en-IN')}</p>
+                              <p className="text-xs text-slate-500">Due {formatDate(r.dueDate || getTodayIST())}</p>
+                            </div>
+                            {r.paymentStatus !== 'paid' && (
+                              <div className="flex gap-2">
+                                <button onClick={() => handleSendReminder(r)} className="h-9 rounded-full bg-[#28a745] px-3 text-xs font-bold text-white hover:bg-[#218838]"><WhatsAppIcon className="mr-1 inline h-3.5 w-3.5" />Remind</button>
+                                <button onClick={() => { setResidentToMarkPaid(r); setPaymentDate(getTodayIST()); }} className="h-9 rounded-full border border-emerald-200 px-3 text-xs font-bold text-emerald-700">Mark paid</button>
+                              </div>
+                            )}
                           </div>
                         </div>
-                        {expandedId === r.id && (
-                          <div className="p-4 sm:p-5 pt-0 lg:pl-[84px] bg-transparent">
-                            <div className="border border-gray-100 rounded-2xl overflow-hidden bg-white/50">
-                              <div className="bg-gray-50/80 px-4 py-2 border-b border-gray-100"><h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Recent History</h4></div>
-                              <div className="divide-y divide-gray-100">
-                                {getMockHistory(r).length === 0 ? (
-                                  <div className="px-4 py-6 text-center text-sm text-gray-400">No payment history yet</div>
-                                ) : (
-                                  getMockHistory(r).map(h => (
-                                    <div key={h.id} className={cn("px-4 py-3 flex items-center justify-between transition-colors border-l-4", h.status === 'partial' ? "border-l-purple-500 bg-purple-50" : "border-l-transparent hover:bg-white")}>
-                                      <div className="flex items-center gap-3">
-                                        <div className={cn("w-8 h-8 rounded-full flex items-center justify-center", h.status === 'partial' ? "bg-purple-100 text-purple-600" : "bg-green-50 text-green-600")}><Check className="w-4 h-4" /></div>
-                                        <div><p className="text-sm font-semibold text-gray-900">{h.title || 'Rent Payment'}</p><p className="text-xs text-gray-500">{getTransactionDateForDisplay(h.date)}</p></div>
-                                      </div>
-                                      <div className="text-right">
-                                        <p className="text-sm font-bold text-gray-900">₹{h.amount.toLocaleString('en-IN')}</p>
-                                        <p className={cn("text-xs font-medium capitalize", h.status === 'partial' ? "text-purple-600" : "text-green-600")}>{h.status} {h.method && <span className="bg-gray-100 px-1 py-0.5 rounded text-[9px] ml-1">{h.method}</span>}</p>
-                                      </div>
-                                    </div>
-                                  ))
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
 
           </>
@@ -744,15 +852,18 @@ export default function Payments() {
                 <div className="mt-3 w-full max-w-full overflow-x-auto overscroll-x-contain touch-pan-x scroll-smooth no-scrollbar">
                   <div className="flex w-max flex-nowrap bg-white p-1 rounded-xl border border-gray-200 gap-1">
                   {([
-                    { value: 'All' as const, label: 'All Payments', icon: Wallet },
+                    ...(collectsSecurityDeposit ? [{ value: 'All' as const, label: 'All Payments', icon: Wallet }] : []),
                     { value: 'Rent' as const, label: 'Rent Payments', icon: Wallet },
-                    { value: 'Security Deposits' as const, label: 'Security Deposits', icon: Banknote },
+                    ...(collectsSecurityDeposit ? [{ value: 'Security Deposits' as const, label: 'Security Deposits', icon: Banknote }] : []),
                   ]).map(option => {
                     const Icon = option.icon;
                     return (
                       <button
                         key={option.value}
-                        onClick={() => setHistoryPaymentFilter(option.value)}
+                        onClick={() => {
+                          setHasUserChangedFilter(true);
+                          setHistoryPaymentFilter(option.value);
+                        }}
                         className={cn(
                             "shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5",
                           historyPaymentFilter === option.value ? "bg-blue-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
@@ -772,10 +883,12 @@ export default function Payments() {
                   <div className="relative w-full lg:w-[260px]">
                     <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                     <input
+                      type="search"
+                      aria-label="Search payment history"
                       value={historySearchQuery}
                       onChange={(e) => setHistorySearchQuery(e.target.value)}
                       placeholder="Search name or room"
-                      className="w-full h-11 rounded-xl border border-gray-200 bg-white pl-9 pr-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                      className="h-11 w-full appearance-none rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm font-medium text-slate-800 shadow-[0_1px_3px_rgba(15,23,42,0.05)] outline-none placeholder:font-normal placeholder:text-slate-400 hover:border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 [&::-webkit-search-cancel-button]:hidden"
                     />
                   </div>
 
@@ -868,7 +981,7 @@ export default function Payments() {
                       const { roomName } = getNamesFromIds(floors, payment.roomId, payment.bedId);
                         const bedStatus = getBedStatusForResident(payment.roomId, payment.bedId);
                       const formattedDate = getTransactionDateForDisplay(payment.date);
-                      const formattedTime = formatTimeIST(payment.date);
+                      const formattedTime = formatTimeIST(payment.recordedAt || payment.date);
                       const vacated = isResidentVacated(payment.residentId);
 
                       return (
@@ -891,12 +1004,12 @@ export default function Payments() {
                               <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">{payment.title || 'Rent Payment'}</span>
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Room {roomName}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{roomName}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-xs font-bold text-blue-600 uppercase tracking-tight">{formattedTime}</td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={cn(
                               "px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 w-max",
-                              payment.method === 'Cash' ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"
+                              payment.method === 'Cash' ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"
                             )}>
                               {payment.method === 'Cash' ? <Banknote className="w-3 h-3" /> : <Smartphone className="w-3 h-3" />}
                               {payment.method || 'UPI'}
@@ -929,7 +1042,7 @@ export default function Payments() {
                   filteredHistoryTransactions.map((payment, idx) => {
                     const { roomName } = getNamesFromIds(floors, payment.roomId, payment.bedId);
                     const formattedDate = getTransactionDateForDisplay(payment.date);
-                    const formattedTime = formatTimeIST(payment.date);
+                    const formattedTime = formatTimeIST(payment.recordedAt || payment.date);
                     const vacated = isResidentVacated(payment.residentId);
 
                     return (
@@ -954,7 +1067,7 @@ export default function Payments() {
                             )}>₹{payment.amount.toLocaleString('en-IN')}</p>
                             <div className={cn(
                               "inline-flex px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-wider items-center gap-1 mt-1",
-                              payment.method === 'Cash' ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"
+                              payment.method === 'Cash' ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"
                             )}>
                               {payment.method === 'Cash' ? <Banknote className="w-2.5 h-2.5" /> : <Smartphone className="w-2.5 h-2.5" />}
                               {payment.method || 'UPI'}
@@ -995,14 +1108,39 @@ export default function Payments() {
               className="bg-white rounded-t-3xl sm:rounded-2xl shadow-xl w-full max-w-md max-h-[calc(100dvh-1.5rem)] overflow-y-auto flex flex-col relative"
             >
               <button 
-                onClick={() => setIsBulkModalOpen(false)}
+                onClick={closeBulkReminderModal}
                 className="absolute top-4 right-4 p-2 bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-900 rounded-full transition-colors z-50"
               >
                 <X className="w-5 h-5" />
               </button>
               
+              {bulkReminderQueue.length > 0 ? (
+                <div className="p-5 sm:p-6">
+                  <div className="w-12 h-12 rounded-full bg-[#28a745]/10 text-[#28a745] flex items-center justify-center mb-4"><Send className="w-6 h-6" /></div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">WhatsApp reminder queue</h3>
+                  {bulkReminderQueueIndex < bulkReminderQueue.length ? (
+                    <>
+                      <p className="text-sm text-gray-600">Reminder {bulkReminderQueueIndex + 1} of {bulkReminderQueue.length}</p>
+                      <div className="my-4 rounded-xl border bg-gray-50 p-4">
+                        <div className="font-bold text-gray-900">{bulkReminderQueue[bulkReminderQueueIndex].name}</div>
+                        <div className="mt-1 text-sm text-gray-600">{bulkReminderQueue[bulkReminderQueueIndex].phone}</div>
+                        <div className="mt-2 text-xs text-gray-500">WhatsApp opens with a draft. Send it there, then return here for the next resident.</div>
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <button onClick={() => setBulkReminderQueueIndex(index => index + 1)} className="rounded-xl border px-4 py-2 text-sm font-semibold text-gray-600">Skip</button>
+                        <button onClick={openNextBulkReminder} className="inline-flex items-center gap-2 rounded-xl bg-[#28a745] px-4 py-2 text-sm font-bold text-white hover:bg-[#218838]"><WhatsAppIcon className="h-4 w-4" /> Open WhatsApp &amp; continue</button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p className="rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">All selected WhatsApp drafts have been opened or skipped. Hostelrr cannot confirm whether they were sent.</p>
+                      <div className="mt-5 flex justify-end"><button onClick={closeBulkReminderModal} className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white">Done</button></div>
+                    </>
+                  )}
+                </div>
+              ) : <>
               <div className="p-5 sm:p-6 pb-0">
-                <div className="w-12 h-12 rounded-full bg-[#25D366]/10 text-[#25D366] flex items-center justify-center mb-4">
+                <div className="w-12 h-12 rounded-full bg-[#28a745]/10 text-[#28a745] flex items-center justify-center mb-4">
                   <Send className="w-6 h-6" />
                 </div>
                 <h3 className="text-xl font-bold text-gray-900 mb-2">Send Bulk Reminders</h3>
@@ -1012,7 +1150,7 @@ export default function Payments() {
                   <div className="flex flex-col gap-2.5">
                     {[
                       { id: 'All', label: 'All Unpaid', count: dueResidents.length, activeClass: "bg-blue-50 border-blue-200", textClass: "text-blue-700", badgeClass: "bg-blue-600 text-white" },
-                      { id: 'Pending', label: 'Pending Today', count: dueResidents.filter(r => r.paymentStatus === 'due').length, activeClass: "bg-orange-50 border-orange-200", textClass: "text-orange-700", badgeClass: "bg-orange-600 text-white" },
+                      { id: 'Pending', label: 'Pending Today', count: pendingCount, activeClass: "bg-orange-50 border-orange-200", textClass: "text-orange-700", badgeClass: "bg-orange-600 text-white" },
                       { id: 'Late', label: 'Late Payments', count: dueResidents.filter(r => r.paymentStatus === 'late').length, activeClass: "bg-red-50 border-red-200", textClass: "text-red-700", badgeClass: "bg-red-600 text-white" },
                       { id: 'Partial', label: 'Partially Paid', count: dueResidents.filter(r => r.paymentStatus === 'partially_paid').length, activeClass: "bg-purple-50 border-purple-200", textClass: "text-purple-700", badgeClass: "bg-purple-600 text-white" }
                     ].map((opt) => (
@@ -1048,24 +1186,25 @@ export default function Payments() {
                 </p>
                 <p className="text-[12px] text-gray-600 font-medium mt-3 bg-gray-50 p-3 rounded-xl border border-gray-200 flex items-start gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0 text-gray-500" />
-                  Note: This will open WhatsApp for each resident. Please ensure popups are allowed.
+                  WhatsApp opens one draft at a time so your browser can allow each tab. You choose whether to send each message.
                 </p>
               </div>
 
               <div className="p-5 sm:p-6 flex items-center justify-end gap-3 pb-8 sm:pb-6">
                 <button 
-                  onClick={() => setIsBulkModalOpen(false)}
+                  onClick={closeBulkReminderModal}
                   className="px-5 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors"
                 >
                   Cancel
                 </button>
                 <button 
                   onClick={startSendingBulkReminders}
-                  className="px-6 py-2.5 text-[15px] font-bold text-white bg-[#25D366] hover:bg-[#22c35e] rounded-xl transition-colors shadow-sm flex items-center gap-2"
+                  className="px-6 py-2.5 text-[15px] font-bold text-white bg-[#28a745] hover:bg-[#218838] rounded-xl transition-colors shadow-sm flex items-center gap-2"
                 >
                   Start Sending
                 </button>
               </div>
+              </>}
             </motion.div>
           </motion.div>
         )}
@@ -1103,7 +1242,7 @@ export default function Payments() {
 
                 <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 mb-6 flex flex-col items-center justify-center">
                   <span className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Amount to Collect</span>
-                  <span className="text-2xl sm:text-3xl font-black text-blue-700">₹{getResidentDueDisplayAmount(residentToMarkPaid, floors).toLocaleString('en-IN')}</span>
+                  <span className="text-xl sm:text-xl font-black text-blue-700">₹{getResidentDueDisplayAmount(residentToMarkPaid, floors).toLocaleString('en-IN')}</span>
                 </div>
                 <div className="space-y-6">
                   <div>
@@ -1177,12 +1316,20 @@ export default function Payments() {
                               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">₹</span>
                               <input 
                                 type="number" 
+                                min={1}
+                                max={selectedResidentDueAmount}
+                                step={1}
                                 value={partialAmount}
                                 onChange={(e) => setPartialAmount(e.target.value)}
                                 placeholder="Enter amount"
                                 className="w-full pl-8 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all font-medium text-gray-900"
                               />
                             </div>
+                            {invalidPartialAmount && (
+                              <p className="text-xs font-medium text-red-700" role="alert">
+                                Enter a whole amount from ₹1 to ₹{selectedResidentDueAmount.toLocaleString('en-IN')}.
+                              </p>
+                            )}
                           </div>
                           <div className="flex-1 space-y-2">
                             <label className="text-sm font-medium text-gray-900 block">Date</label>
@@ -1197,23 +1344,23 @@ export default function Payments() {
                         
                         <div className={cn(
                           "p-3 rounded-xl border flex items-center justify-between",
-                          Number(partialAmount) > getResidentDueDisplayAmount(residentToMarkPaid, floors)
+                          Number(partialAmount) > selectedResidentDueAmount
                             ? "bg-red-50 border-red-100"
                             : "bg-blue-50 border-blue-100"
                         )}>
                           <span className={cn(
                             "text-sm font-medium",
-                            Number(partialAmount) > getResidentDueDisplayAmount(residentToMarkPaid, floors) ? "text-red-800" : "text-blue-800"
+                            Number(partialAmount) > selectedResidentDueAmount ? "text-red-800" : "text-blue-800"
                           )}>
-                            {Number(partialAmount) > getResidentDueDisplayAmount(residentToMarkPaid, floors) ? "Status:" : "Remaining:"}
+                          {Number(partialAmount) > selectedResidentDueAmount ? "Status:" : "Remaining:"}
                           </span>
                           <span className={cn(
                             "text-sm font-bold text-right",
-                            Number(partialAmount) > getResidentDueDisplayAmount(residentToMarkPaid, floors) ? "text-red-900" : "text-blue-900"
+                            Number(partialAmount) > selectedResidentDueAmount ? "text-red-900" : "text-blue-900"
                           )}>
-                            {Number(partialAmount) > getResidentDueDisplayAmount(residentToMarkPaid, floors)
-                              ? `Overpaid by ₹${(Number(partialAmount) - getResidentDueDisplayAmount(residentToMarkPaid, floors)).toLocaleString('en-IN')}`
-                              : `₹${(getResidentDueDisplayAmount(residentToMarkPaid, floors) - Number(partialAmount)).toLocaleString('en-IN')}`
+                            {Number(partialAmount) > selectedResidentDueAmount
+                              ? `Overpaid by ₹${(Number(partialAmount) - selectedResidentDueAmount).toLocaleString('en-IN')}`
+                              : `₹${(selectedResidentDueAmount - Number(partialAmount)).toLocaleString('en-IN')}`
                             }
                           </span>
                         </div>
@@ -1242,7 +1389,7 @@ export default function Payments() {
                     const amountToPay = isPartialPayment && partialAmount ? Number(partialAmount) : undefined;
                     executeMarkPaid(residentToMarkPaid.id, paidUsing, amountToPay, isPartialPayment ? paymentDate : undefined, residentToMarkPaid.name, isPartialPayment);
                   }}
-                  disabled={isMarkingPaid}
+                  disabled={isMarkingPaid || invalidPartialAmount}
                   className="px-5 py-2.5 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-xl transition-colors shadow-sm flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {isMarkingPaid ? 'Confirming...' : (isPartialPayment ? 'Confirm Partial' : 'Confirm Paid')}
